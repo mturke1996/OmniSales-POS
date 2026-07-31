@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "corepack enable && corepack prepare pnpm@9.15.4 --activate && cd apps/desktop && pnpm install --frozen-lockfile",
-  "buildCommand": "cd apps/desktop && pnpm build",
+  "installCommand": "cd apps/desktop && npm install --legacy-peer-deps --no-audit --no-fund",
+  "buildCommand": "cd apps/desktop && npm run build",
   "outputDirectory": "apps/desktop/dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [

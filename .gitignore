@@ -24,6 +24,9 @@ dogfood-output/
 .cursor/
 skills-lock.json
 apps/desktop/gen/
+package-lock.json
+npm-debug.log*
+
 *.apk
 *.msi
 *.nsis.zip
