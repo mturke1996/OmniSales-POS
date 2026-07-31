@@ -1,0 +1,23 @@
+{
+  "name": "omnisales",
+  "private": true,
+  "version": "0.1.0",
+  "description": "OmniSales — Web PWA + Desktop Tauri + Android APK from one React client",
+  "scripts": {
+    "dev": "pnpm --dir apps/desktop dev",
+    "build:web": "pnpm --dir apps/desktop build",
+    "preview": "pnpm --dir apps/desktop preview",
+    "desktop:dev": "pnpm --dir apps/desktop tauri:dev",
+    "desktop:build": "pnpm --dir apps/desktop tauri:build",
+    "android:sync": "pnpm --dir apps/desktop android:sync",
+    "android:open": "pnpm --dir apps/desktop android:open",
+    "android:apk": "pnpm --dir apps/desktop android:apk",
+    "test": "pnpm --dir apps/desktop test",
+    "test:core": "cargo test -p omni-core",
+    "test:all": "pnpm test && pnpm test:core"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20"
+  }
+}

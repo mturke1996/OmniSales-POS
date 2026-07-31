@@ -1,0 +1,30 @@
+/**
+ * OmniSales design tokens — RGB channel format (mirrors apps/desktop).
+ * Use as: color: rgb(var(--ink)); background: rgb(var(--paper) / 0.8);
+ */
+:root {
+  --ink: 10 10 10;
+  --ink-soft: 23 23 23;
+  --ink-mute: 82 82 82;
+  --paper: 250 250 250;
+  --paper-raised: 255 255 255;
+  --paper-line: 229 229 229;
+  --accent: 10 10 10;
+  --accent-light: 38 38 38;
+  --accent-mute: 245 245 245;
+  --accent-text: 255 255 255;
+  --highlight: 115 115 115;
+  --success: 5 150 105;
+  --warning: 217 119 6;
+  --danger: 190 18 60;
+  --radius: 0.625rem;
+  --shadow-soft: 0 12px 40px -20px rgba(10, 10, 10, 0.18);
+  --shadow-lift: 0 8px 24px -12px rgba(10, 10, 10, 0.22);
+  --font-cairo: "Cairo", "IBM Plex Sans Arabic", sans-serif;
+  --font-outfit: "Outfit", ui-monospace, monospace;
+
+  --color-ink: rgb(var(--ink));
+  --color-paper: rgb(var(--paper));
+  --font-sans: var(--font-cairo);
+  --font-mono: var(--font-outfit);
+}

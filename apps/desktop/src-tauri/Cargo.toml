@@ -1,0 +1,24 @@
+[package]
+name = "omnisales-desktop"
+version.workspace = true
+edition.workspace = true
+description = "OmniSales desktop POS (Tauri + Rust)"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+omni-core = { workspace = true }
+omni-db = { workspace = true }
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+parking_lot = "0.12"
+dirs = "6"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

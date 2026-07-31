@@ -1,0 +1,755 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  Check,
+  Palette,
+  Printer,
+  Cloud,
+  Database,
+  Trash,
+  ShieldCheck,
+  Truck,
+  DownloadSimple,
+  UploadSimple,
+  DeviceMobile,
+} from "@phosphor-icons/react";
+import { PwaInstallButton } from "../pwa/PwaInstallBanner";
+import { usePwaInstall } from "../../hooks/use-pwa-install";
+import { detectRuntime } from "../../lib/native";
+import {
+  industryPresets,
+  clearAllData,
+  exportBackup,
+  importBackup,
+} from "../../lib/api";
+import { applyTheme, THEME_PRESETS, ThemePresetKey } from "../../lib/theme";
+import {
+  testSupabaseConnection,
+  initSupabase,
+  cloudSignIn,
+  cloudSignOut,
+  getCloudSession,
+} from "../../lib/supabase";
+import { cn } from "../../lib/cn";
+import type { BranchSettings, PosLayout, WorkMode } from "../../lib/types";
+import { UsersPanel } from "./UsersPanel";
+import {
+  canUseWebSerial,
+  connectSerialPrinter,
+  disconnectSerialPrinter,
+  getStoredBaudRate,
+  isSerialConnected,
+  setStoredBaudRate,
+} from "../../lib/print/escpos";
+
+const LAYOUTS: { id: PosLayout; label: string; hint: string }[] = [
+  { id: "grid_cart", label: "شبكة + سلة", hint: "الأكثر شيوعاً لنقاط البيع" },
+  { id: "list_barcode", label: "قائمة + باركود", hint: "مثالي لقطع الغيار والمستودعات" },
+  { id: "touch_tiles", label: "بلاطات لمس كبرى", hint: "مناسب للمطاعم والحلويات والكافيهات" },
+  { id: "compact_split", label: "تقسيم مضغوط", hint: "للأجهزة اللوحية والشاشات الصغيرة" },
+];
+
+export function SettingsPanel({
+  settings,
+  onChange,
+  onSave,
+  saving,
+  pendingSync = 0,
+  onSync,
+  currentUserId,
+}: {
+  settings: BranchSettings;
+  onChange: (next: BranchSettings) => void;
+  onSave: () => void;
+  saving: boolean;
+  pendingSync?: number;
+  onSync?: () => void;
+  currentUserId?: string;
+}) {
+  const presets = industryPresets();
+  const [testingCloud, setTestingCloud] = useState(false);
+  const [cloudMsg, setCloudMsg] = useState<string | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [cloudEmail, setCloudEmail] = useState("");
+  const [cloudPassword, setCloudPassword] = useState("");
+  const [cloudUser, setCloudUser] = useState<string | null>(null);
+  const [printerBaud, setPrinterBaud] = useState(getStoredBaudRate);
+  const [printerConnected, setPrinterConnected] = useState(false);
+  const [printerMsg, setPrinterMsg] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pwa = usePwaInstall();
+  const runtime = detectRuntime();
+
+  useEffect(() => {
+    void getCloudSession().then((s) => setCloudUser(s?.user.email ?? null));
+    setPrinterConnected(isSerialConnected());
+  }, [settings.supabase_url, settings.supabase_anon_key]);
+
+  const handleThemeChange = (key: ThemePresetKey) => {
+    applyTheme(key);
+    onChange({ ...settings, theme_key: key });
+  };
+
+  const handleTestSupabase = async () => {
+    if (!settings.supabase_url || !settings.supabase_anon_key) {
+      setCloudMsg("يرجى كتابة Supabase URL و Anon Key أولاً");
+      return;
+    }
+    setTestingCloud(true);
+    setCloudMsg(null);
+    try {
+      const result = await testSupabaseConnection(
+        settings.supabase_url,
+        settings.supabase_anon_key
+      );
+      if (result.ok) {
+        initSupabase(settings.supabase_url, settings.supabase_anon_key);
+      }
+      setCloudMsg(result.message);
+    } catch (err) {
+      setCloudMsg(err instanceof Error ? err.message : "فشل الاختبار");
+    } finally {
+      setTestingCloud(false);
+    }
+  };
+
+  const handleClearData = async () => {
+    if (confirm("هل أنت تأكد من مسح جميع البيانات والتجربة والبدء الصافي لقاعدة البيانات النظيفة؟")) {
+      await clearAllData();
+      alert("تم مسح البيانات والبدء بحساب صافي جديد بنجاح!");
+      window.location.reload();
+    }
+  };
+
+  const handleExportBackup = async () => {
+    setBackupBusy(true);
+    try {
+      const data = await exportBackup();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `omnisales-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "فشل التصدير");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleImportBackup = async (file: File) => {
+    if (
+      !confirm(
+        "استيراد نسخة احتياطية سيستبدل البيانات المحلية الحالية. هل تريد المتابعة؟"
+      )
+    ) {
+      return;
+    }
+    setBackupBusy(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      await importBackup(parsed);
+      alert("تم الاستيراد بنجاح");
+      window.location.reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "فشل الاستيراد");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  return (
+    <section className="mx-auto max-w-[950px] space-y-8 px-4 py-6 pb-[max(3rem,env(safe-area-inset-bottom))]">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">إعدادات المنظومة الشاملة</h1>
+        <p className="mt-1 max-w-[60ch] text-xs text-ink-mute">
+          تخصيص الثيم، مظهر الألوان، نوع النشاط التجاري، الخزينة، والمزامنة السحابية مع Supabase.
+        </p>
+      </div>
+
+      {runtime === "pwa" && (
+        <div className="panel space-y-3 p-4">
+          <div className="flex items-center gap-2">
+            <DeviceMobile size={20} className="text-highlight" weight="duotone" />
+            <h2 className="text-base font-bold text-ink">تطبيق الهاتف (PWA)</h2>
+          </div>
+          <p className="text-xs text-ink-mute">
+            ثبّت OmniSales على الشاشة الرئيسية ليعمل بملء الشاشة ودون اتصال.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {pwa.installed ? (
+              <span className="rounded-full bg-success/12 px-3 py-1.5 text-[11px] font-bold text-success">
+                مثبت ويعمل كتطبيق
+              </span>
+            ) : (
+              <PwaInstallButton className="btn-primary gap-1.5 px-4 py-2 text-xs font-bold" />
+            )}
+            <span className="text-[11px] text-ink-mute">
+              وضع العرض: {pwa.installed ? "standalone" : "متصفح"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Theme & Aesthetics Selection Section */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Palette size={20} className="text-highlight" weight="duotone" />
+          <h2 className="text-base font-bold text-ink">مظهر النظام والألوان</h2>
+        </div>
+        <p className="text-xs text-ink-mute">
+          5 ثيمات SaaS نظيفة (Scout الافتراضي) — سايدبار داكن + سطح فاتح.
+        </p>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {THEME_PRESETS.map((t) => {
+            const active = settings.theme_key === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => handleThemeChange(t.key)}
+                className={cn(
+                  "flex h-32 flex-col justify-between rounded-2xl border p-4 text-right transition duration-200 ease-spring active:scale-[0.98]",
+                  active
+                    ? "border-highlight bg-paper-raised shadow-soft ring-2 ring-highlight/40"
+                    : "border-ink/[0.08] bg-paper hover:border-highlight/40 hover:shadow-soft"
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="block text-sm font-bold text-ink">{t.label_ar}</span>
+                    <span className="mt-0.5 block text-[11px] text-ink-mute">
+                      {t.description_ar}
+                    </span>
+                  </div>
+                  {active && (
+                    <span className="shrink-0 rounded-full bg-highlight p-1 text-white">
+                      <Check size={12} weight="bold" />
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center gap-1.5">
+                  <span
+                    className="h-7 flex-1 rounded-lg border border-black/10"
+                    style={{ background: t.sidebar }}
+                  />
+                  <span
+                    className="h-7 w-7 rounded-lg border border-black/10"
+                    style={{ background: t.highlight }}
+                  />
+                  <span
+                    className="h-7 w-7 rounded-lg border border-black/10"
+                    style={{ background: t.paper }}
+                  />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Cloud Sync Supabase Section */}
+      <div className="panel p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-paper-line pb-2">
+          <div className="flex items-center gap-2">
+            <Cloud size={20} className="text-blue-600" />
+            <h2 className="text-sm font-bold text-ink">المزامنة السحابية المباشرة</h2>
+          </div>
+
+          <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.cloud_sync_enabled || false}
+              onChange={(e) => onChange({ ...settings, cloud_sync_enabled: e.target.checked })}
+              className="h-4 w-4 accent-ink"
+            />
+            <span>تفعيل الربط السحابي</span>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-ink">رابط المشروع (Supabase URL)</label>
+            <input
+              type="text"
+              placeholder="https://xyz.supabase.co"
+              value={settings.supabase_url || ""}
+              onChange={(e) => onChange({ ...settings, supabase_url: e.target.value })}
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-ink">المفتاح العام (Supabase Anon Key)</label>
+            <input
+              type="password"
+              placeholder="eyJhbGciOiJIUzI1Ni..."
+              value={settings.supabase_anon_key || ""}
+              onChange={(e) => onChange({ ...settings, supabase_anon_key: e.target.value })}
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
+            />
+          </div>
+        </div>
+
+        <p className="text-[11px] leading-relaxed text-ink-mute">
+          أنشئ مشروعاً <strong>جديداً</strong> في Supabase خاص بـ OmniSales، ثم نفّذ
+          ملفات الهجرات بالترتيب <code className="font-mono">001→008</code> من مجلد
+          <code className="font-mono"> supabase/migrations</code>. لا تستخدم مشروع تطبيق آخر.
+          المزامنة ترفع التغييرات المحلية ثم تسحب بيانات الأجهزة الأخرى.
+        </p>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <input
+            type="email"
+            className="input text-xs"
+            placeholder="بريد سحابي (اختياري)"
+            value={cloudEmail}
+            onChange={(e) => setCloudEmail(e.target.value)}
+          />
+          <input
+            type="password"
+            className="input text-xs"
+            placeholder="كلمة مرور السحابة"
+            value={cloudPassword}
+            onChange={(e) => setCloudPassword(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="btn-ghost text-xs font-bold"
+            onClick={() => {
+              if (!settings.supabase_url || !settings.supabase_anon_key) {
+                setCloudMsg("أدخل رابط ومفتاح Supabase أولاً");
+                return;
+              }
+              void cloudSignIn(
+                settings.supabase_url,
+                settings.supabase_anon_key,
+                cloudEmail,
+                cloudPassword
+              )
+                .then((session) => {
+                  setCloudUser(session?.user.email ?? cloudEmail);
+                  setCloudMsg("تم تسجيل الدخول السحابي");
+                })
+                .catch((err) =>
+                  setCloudMsg(
+                    err instanceof Error ? err.message : "فشل تسجيل الدخول"
+                  )
+                );
+            }}
+          >
+            دخول سحابي
+          </button>
+          {cloudUser && (
+            <button
+              type="button"
+              className="btn-ghost text-xs"
+              onClick={() =>
+                void cloudSignOut().then(() => {
+                  setCloudUser(null);
+                  setCloudMsg("تم تسجيل الخروج السحابي");
+                })
+              }
+            >
+              خروج ({cloudUser})
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+          <p className="text-[11px] text-ink-mute">
+            {pendingSync > 0
+              ? settings.cloud_sync_enabled
+                ? `طابور المزامنة: ${pendingSync} عملية بانتظار الرفع`
+                : `طابور محلي: ${pendingSync} عملية — فعّل الربط السحابي للرفع`
+              : "طابور المزامنة فارغ"}
+          </p>
+          <div className="flex flex-wrap gap-2">
+          {onSync && (
+            <button
+              type="button"
+              onClick={onSync}
+              disabled={!settings.cloud_sync_enabled}
+              className="btn-ghost text-xs disabled:opacity-40"
+            >
+              مزامنة الآن (رفع + سحب)
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void handleTestSupabase()}
+            disabled={testingCloud}
+            className="btn-ghost text-xs font-bold inline-flex items-center gap-1.5"
+          >
+            <ShieldCheck size={16} className="text-highlight" />
+            {testingCloud ? "جاري اختبار الاتصال..." : "اختبار الاتصال بالسحابة"}
+          </button>
+          </div>
+          {cloudMsg && <span className="w-full text-xs font-bold text-ink">{cloudMsg}</span>}
+        </div>
+      </div>
+
+      {/* Store Profile Settings */}
+      <div className="panel p-5 space-y-4">
+        <h2 className="text-sm font-bold text-ink border-b border-paper-line pb-2">بيانات المتجر والفرع</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-ink">اسم المتجر / الفرع *</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs outline-none focus:border-ink font-bold"
+              value={settings.name}
+              onChange={(e) => onChange({ ...settings, name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-ink">رقم الهاتف</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs outline-none focus:border-ink"
+              value={settings.phone}
+              onChange={(e) => onChange({ ...settings, phone: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-ink">العنوان</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs outline-none focus:border-ink"
+              value={settings.address}
+              onChange={(e) => onChange({ ...settings, address: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-ink">رمز العملة (مثال: د.ل)</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs outline-none focus:border-ink font-bold"
+              value={settings.currency_symbol}
+              onChange={(e) => onChange({ ...settings, currency_symbol: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-ink">واتساب المالك (ملخص يومي)</label>
+            <input
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs outline-none focus:border-ink font-mono"
+              placeholder="091xxxxxxx"
+              value={settings.owner_whatsapp || ""}
+              onChange={(e) =>
+                onChange({ ...settings, owner_whatsapp: e.target.value })
+              }
+            />
+          </div>
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+              <Truck size={14} className="text-highlight" />
+              رسوم التوصيل الافتراضية
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.5}
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs outline-none focus:border-ink font-mono font-bold"
+              value={settings.default_delivery_fee ?? 5}
+              onChange={(e) =>
+                onChange({
+                  ...settings,
+                  default_delivery_fee: Number(e.target.value) || 0,
+                })
+              }
+            />
+          </div>
+        </div>
+      </div>
+
+      <UsersPanel currentUserId={currentUserId} />
+
+      {/* Backup / Restore */}
+      <div className="panel space-y-3 p-5">
+        <h2 className="flex items-center gap-2 border-b border-paper-line pb-2 text-sm font-bold text-ink">
+          <Database size={18} className="text-highlight" />
+          نسخة احتياطية محلية
+        </h2>
+        <p className="text-xs text-ink-mute">
+          صدّر كل البيانات (منتجات، مبيعات، عملاء، مشتريات…) كملف JSON أو استورد نسخة سابقة.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={backupBusy}
+            onClick={() => void handleExportBackup()}
+            className="btn-primary inline-flex items-center gap-1.5 text-xs font-bold"
+          >
+            <DownloadSimple size={16} />
+            تصدير نسخة
+          </button>
+          <button
+            type="button"
+            disabled={backupBusy}
+            onClick={() => fileRef.current?.click()}
+            className="btn-ghost inline-flex items-center gap-1.5 text-xs font-bold"
+          >
+            <UploadSimple size={16} />
+            استيراد نسخة
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleImportBackup(f);
+              e.target.value = "";
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Industry Vertical Selection */}
+      <div className="space-y-3">
+        <h2 className="text-base font-bold text-ink">مجال ونوع النشاط التجاري</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {presets.map((p) => {
+            const active = settings.industry === p.key;
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...settings,
+                    industry: p.key,
+                    pos_layout: p.suggested_layout,
+                  })
+                }
+                className={cn(
+                  "rounded-2xl border p-4 text-right transition active:scale-[0.99]",
+                  active
+                    ? "border-ink bg-ink text-paper shadow-sm"
+                    : "border-paper-line bg-paper-raised hover:border-ink/30"
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="font-bold text-xs">{p.label_ar}</span>
+                  {active && <Check size={16} weight="bold" />}
+                </div>
+                <p className={cn("mt-2 text-[11px]", active ? "text-paper/70" : "text-ink-mute")}>
+                  تخطيط مقترح: {LAYOUTS.find((l) => l.id === p.suggested_layout)?.label}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Work Mode & Layout Selection */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-ink">طريقة العمل الخزينة</h2>
+          <div className="space-y-2">
+            {(
+              [
+                {
+                  id: "shift_based" as WorkMode,
+                  title: "نظام الورديات",
+                  body: "إلزام فتح وإغلاق الوردية مع تقرير الإغلاق.",
+                },
+                {
+                  id: "open_sales" as WorkMode,
+                  title: "مبيعات مفتوحة",
+                  body: "بيع فوري متاح دائماً بدون اشتراط فتح وردية.",
+                },
+              ] as const
+            ).map((mode) => {
+              const active = settings.work_mode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => onChange({ ...settings, work_mode: mode.id })}
+                  className={cn(
+                    "w-full rounded-2xl border p-3.5 text-right transition active:scale-[0.99]",
+                    active
+                      ? "border-ink bg-ink text-paper"
+                      : "border-paper-line bg-paper-raised hover:border-ink/30"
+                  )}
+                >
+                  <p className="font-bold text-xs">{mode.title}</p>
+                  <p className={cn("mt-1 text-[11px]", active ? "text-paper/70" : "text-ink-mute")}>
+                    {mode.body}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-ink">تخطيط واجهة نقطة البيع</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {LAYOUTS.map((layout) => {
+              const active = settings.pos_layout === layout.id;
+              return (
+                <button
+                  key={layout.id}
+                  type="button"
+                  onClick={() => onChange({ ...settings, pos_layout: layout.id })}
+                  className={cn(
+                    "rounded-2xl border p-3 text-right transition active:scale-[0.99]",
+                    active
+                      ? "border-ink bg-ink text-paper font-bold"
+                      : "border-paper-line bg-paper-raised hover:border-ink/30"
+                  )}
+                >
+                  <p className="text-xs">{layout.label}</p>
+                  <p className={cn("mt-1 text-[10px]", active ? "text-paper/70" : "text-ink-mute")}>
+                    {layout.hint}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Thermal Printer Settings */}
+      <div className="panel space-y-3 p-5">
+        <h2 className="flex items-center gap-2 border-b border-paper-line pb-2 text-sm font-bold text-ink">
+          <Printer size={18} />
+          الطابعة الحرارية ESC/POS
+        </h2>
+        <p className="text-[11px] leading-relaxed text-ink-mute">
+          الربط المباشر عبر Web Serial (Chrome/Edge) يطبع عربياً كصورة نقطية ESC/POS —
+          الأكثر ثباتاً على الطابعات الرخيصة. إن لم يتوفر Serial تُستخدم طباعة المتصفح.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-semibold text-ink">عرض الورق</label>
+            <select
+              value={settings.thermal_width_mm}
+              onChange={(e) =>
+                onChange({ ...settings, thermal_width_mm: Number(e.target.value) })
+              }
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-bold"
+            >
+              <option value={80}>80 ملم</option>
+              <option value={58}>58 ملم</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-ink">Baud Rate</label>
+            <select
+              value={printerBaud}
+              onChange={(e) => {
+                const baud = Number(e.target.value);
+                setPrinterBaud(baud);
+                setStoredBaudRate(baud);
+              }}
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono font-bold"
+            >
+              <option value={9600}>9600</option>
+              <option value={19200}>19200</option>
+              <option value={38400}>38400</option>
+              <option value={115200}>115200</option>
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-ink">تذييل الفاتورة</label>
+            <input
+              type="text"
+              value={settings.receipt_footer}
+              onChange={(e) =>
+                onChange({ ...settings, receipt_footer: e.target.value })
+              }
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="btn-primary text-xs font-bold"
+            disabled={!canUseWebSerial()}
+            onClick={() => {
+              void connectSerialPrinter(printerBaud)
+                .then(() => {
+                  setPrinterConnected(true);
+                  setPrinterMsg("تم ربط الطابعة عبر Web Serial");
+                })
+                .catch((err) =>
+                  setPrinterMsg(
+                    err instanceof Error ? err.message : "فشل ربط الطابعة"
+                  )
+                );
+            }}
+          >
+            ربط طابعة ESC/POS
+          </button>
+          <button
+            type="button"
+            className="btn-ghost text-xs font-bold"
+            onClick={() =>
+              void disconnectSerialPrinter().then(() => {
+                setPrinterConnected(false);
+                setPrinterMsg("تم فصل الطابعة");
+              })
+            }
+          >
+            فصل
+          </button>
+          <span
+            className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+              printerConnected
+                ? "bg-success/15 text-success"
+                : "bg-paper text-ink-mute"
+            }`}
+          >
+            {printerConnected
+              ? "متصلة"
+              : canUseWebSerial()
+                ? "غير متصلة"
+                : "Web Serial غير مدعوم"}
+          </span>
+        </div>
+        {printerMsg && (
+          <p className="text-xs font-semibold text-ink">{printerMsg}</p>
+        )}
+      </div>
+
+      {/* Database Reset & Clean Start Section */}
+      <div className="rounded-2xl border border-red-200 bg-red-50/50 p-5 space-y-3">
+        <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
+          <Database size={18} />
+          <span>إدارة وإعادة ضبط قاعدة البيانات الحقيقية</span>
+        </div>
+        <p className="text-xs text-red-600 leading-relaxed">
+          إزالة كافة المعاملات والبيانات الوهمية والبدء الصافي لقاعدة البيانات النظيفة الحقيقية.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => void handleClearData()}
+          className="inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition"
+        >
+          <Trash size={16} />
+          مسح البيانات الصورية والبدء الصافي
+        </button>
+      </div>
+
+      <div className="pt-2">
+        <button
+          type="button"
+          className="btn-primary w-full sm:w-auto font-bold py-3 px-8 text-xs"
+          disabled={saving}
+          onClick={onSave}
+        >
+          {saving ? "جاري الحفظ..." : "حفظ التغييرات الآن"}
+        </button>
+      </div>
+    </section>
+  );
+}
