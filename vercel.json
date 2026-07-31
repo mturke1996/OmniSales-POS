@@ -1,9 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "name": "omnisales-pos",
   "framework": "vite",
-  "installCommand": "pnpm --dir apps/desktop install",
-  "buildCommand": "pnpm --dir apps/desktop build",
+  "installCommand": "corepack enable && corepack prepare pnpm@9.15.4 --activate && cd apps/desktop && pnpm install --frozen-lockfile",
+  "buildCommand": "cd apps/desktop && pnpm build",
   "outputDirectory": "apps/desktop/dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
