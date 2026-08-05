@@ -38,7 +38,7 @@ export function PwaInstallBanner() {
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:px-4">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-50 px-3 pb-2 lg:bottom-0 lg:z-40 lg:px-4 lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="pointer-events-auto mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-paper-line bg-paper-raised p-3 shadow-lift">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-highlight/12 text-highlight">
             <DeviceMobile size={22} weight="duotone" />
