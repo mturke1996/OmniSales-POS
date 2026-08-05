@@ -94,7 +94,7 @@ export function ShiftsScreen({
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-paper-line pb-4">
+      <div className="flex flex-col gap-3 border-b border-paper-line pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-ink">إدارة الخزينة والورديات</h2>
           <p className="text-xs text-ink-mute">

@@ -7,6 +7,7 @@ import { lockSession } from "./lib/session";
 import { StatusBar } from "./components/StatusBar";
 import { Sidebar, SidebarTab } from "./components/Sidebar";
 import { MobileNavDrawer } from "./components/MobileNavDrawer";
+import { MobileBottomNav } from "./components/MobileBottomNav";
 import { CashierGate } from "./components/auth/CashierGate";
 import { DashboardScreen } from "./components/dashboard/DashboardScreen";
 import { PosScreen } from "./components/pos/PosScreen";
@@ -190,7 +191,7 @@ export default function App() {
         <div className="flex min-h-0 flex-1">
           <Sidebar {...sidebarProps} className="hidden lg:flex" />
 
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pb-[max(5rem,calc(4.25rem+env(safe-area-inset-bottom)))] lg:pb-[max(1.25rem,env(safe-area-inset-bottom))]">
             {tab === "dashboard" && (
               <DashboardScreen
                 orders={data.orders}
@@ -423,16 +424,23 @@ export default function App() {
       )}
 
       {!isPos && (
-        <MobileNavDrawer
-          open={mobileMenuOpen}
-          onClose={() => setMobileMenuOpen(false)}
-        >
-          <Sidebar
-            {...sidebarProps}
-            onClose={() => setMobileMenuOpen(false)}
-            className="w-full"
+        <>
+          <MobileBottomNav
+            currentTab={tab}
+            onNavigate={navigate}
+            onOpenMenu={() => setMobileMenuOpen(true)}
           />
-        </MobileNavDrawer>
+          <MobileNavDrawer
+            open={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+          >
+            <Sidebar
+              {...sidebarProps}
+              onClose={() => setMobileMenuOpen(false)}
+              className="w-full"
+            />
+          </MobileNavDrawer>
+        </>
       )}
 
       {showShortcutsModal && !isPos && (

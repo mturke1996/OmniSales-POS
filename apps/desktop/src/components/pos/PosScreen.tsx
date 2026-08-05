@@ -39,6 +39,7 @@ import { HoldCartsModal } from "./HoldCartsModal";
 import { ReceiptModal } from "./ReceiptModal";
 import { CustomerSelectModal } from "./CustomerSelectModal";
 import { ShortcutsModal } from "./ShortcutsModal";
+import { usePhoneLayout } from "../../hooks/use-media-query";
 
 export function PosScreen({
   settings,
@@ -109,6 +110,7 @@ export function PosScreen({
   const [lastChangeDue, setLastChangeDue] = useState<number | undefined>(undefined);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const isPhone = usePhoneLayout();
 
   useEffect(() => {
     setDeliveryFee(String(settings.default_delivery_fee ?? 5));
@@ -482,7 +484,7 @@ export function PosScreen({
           </label>
         </div>
 
-        <div className="grid grid-cols-5 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
           <PaymentTab
             active={method === "cash"}
             onClick={() => setMethod("cash")}
@@ -593,8 +595,8 @@ export function PosScreen({
 
   return (
     <div className="pos-console relative flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden">
-      <header className="pos-chrome flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <div className="flex flex-wrap items-center gap-2.5">
+      <header className="pos-chrome flex shrink-0 flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-2.5">
           {onExit && (
             <button
               type="button"
@@ -612,11 +614,16 @@ export function PosScreen({
               {openShiftState ? "مفتوحة" : "مغلقة"}
             </span>
           </div>
-          <div className="pos-kpi-pill">
+          <div className="pos-kpi-pill hidden sm:flex">
             <span className="text-[10px] text-ink-mute">الأصناف</span>
             <span className="money-big text-sm font-bold">{products.length}</span>
           </div>
-          <div className="pos-kpi-pill">
+          <div
+            className={cn(
+              "pos-kpi-pill",
+              heldCarts.length === 0 && "hidden sm:flex"
+            )}
+          >
             <span className="text-[10px] text-ink-mute">معلقة</span>
             <span className="money-big text-sm font-bold">{heldCarts.length}</span>
           </div>
@@ -637,19 +644,20 @@ export function PosScreen({
           <button
             type="button"
             onClick={() => setShowShortcutsModal(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-paper px-3.5 text-sm font-semibold text-ink-mute transition hover:text-ink"
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-paper px-3 text-sm font-semibold text-ink-mute transition hover:text-ink sm:px-3.5"
+            aria-label="اختصارات لوحة المفاتيح"
           >
             <Keyboard size={16} />
-            اختصارات
+            <span className="hidden sm:inline">اختصارات</span>
             <span className="pos-key-badge">?</span>
           </button>
         </div>
       </header>
 
       <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-cols-[minmax(0,1fr)_30rem] pb-[4.5rem] lg:pb-0">
-        <section className="flex min-h-0 flex-col px-4 py-4 sm:px-5 lg:px-6">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative min-w-[14rem] flex-1">
+        <section className="flex min-h-0 flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
+            <div className="relative min-w-0 w-full flex-1 sm:min-w-[14rem]">
               <MagnifyingGlass
                 className="pointer-events-none absolute end-4 top-1/2 -translate-y-1/2 text-ink-mute"
                 size={20}
@@ -667,15 +675,16 @@ export function PosScreen({
                 placeholder="ابحث بالاسم أو الباركود أو SKU..."
                 className="input-field pe-11 ps-14 text-sm font-medium"
                 inputMode="search"
-                autoFocus
+                autoFocus={!isPhone}
               />
               <span className="pos-key-badge absolute start-3.5 top-1/2 -translate-y-1/2">F1</span>
             </div>
 
+            <div className="flex w-full gap-2 sm:w-auto sm:flex-initial">
             <button
               type="button"
               onClick={() => setShowCustomerModal(true)}
-              className="inline-flex h-12 items-center gap-2 rounded-full border border-paper-line/70 bg-paper-raised px-4 text-sm font-semibold text-ink shadow-soft transition hover:border-highlight/35"
+              className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-paper-line/70 bg-paper-raised px-3 text-sm font-semibold text-ink shadow-soft transition hover:border-highlight/35 sm:flex-initial sm:px-4"
             >
               <User size={18} className="text-highlight" weight="duotone" />
               <span className="max-w-[10rem] truncate">
@@ -687,7 +696,7 @@ export function PosScreen({
             <button
               type="button"
               onClick={() => setShowHoldModal(true)}
-              className="relative inline-flex h-12 items-center gap-2 rounded-full border border-paper-line/70 bg-paper-raised px-4 text-sm font-semibold text-ink shadow-soft transition hover:border-highlight/35"
+              className="relative inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-paper-line/70 bg-paper-raised px-3 text-sm font-semibold text-ink shadow-soft transition hover:border-highlight/35 sm:flex-initial sm:px-4"
             >
               <Clock size={18} className="text-highlight" weight="duotone" />
               <span className="hidden sm:inline">المعلقة</span>
@@ -698,6 +707,7 @@ export function PosScreen({
                 </span>
               )}
             </button>
+            </div>
           </div>
 
           {needsShift && (

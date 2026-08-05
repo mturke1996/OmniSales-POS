@@ -156,6 +156,8 @@ body,
 #root {
   min-height: 100dvh;
   min-height: -webkit-fill-available;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 html {
@@ -275,7 +277,7 @@ body {
     transform: translateY(0) scale(0.985);
   }
   .pos-key-badge {
-    @apply inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-paper px-1 font-mono text-[10px] font-semibold text-ink-mute;
+    @apply hidden h-5 min-w-5 items-center justify-center rounded-md bg-paper px-1 font-mono text-[10px] font-semibold text-ink-mute sm:inline-flex;
   }
   .nav-rail {
     @apply absolute inset-y-2 start-0 w-1 rounded-full bg-highlight;
