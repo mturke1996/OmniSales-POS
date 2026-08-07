@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Plus, Image as ImageIcon } from "@phosphor-icons/react";
 import { cn } from "../../lib/cn";
 import { formatMoney } from "../../lib/format";
-import type { PosLayout, Product } from "../../lib/types";
+import type { PosLayout, Product, ProductCategory } from "../../lib/types";
 
 function columnsFor(layout: PosLayout, width: number) {
   if (layout === "list_barcode") return 1;
@@ -26,7 +26,7 @@ function columnsFor(layout: PosLayout, width: number) {
   return 6;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
+const FALLBACK_CATEGORY_LABELS: Record<string, string> = {
   chocolate: "شوكولاتة",
   gifts: "هدايا",
   electronics: "إلكترونيات",
@@ -37,12 +37,14 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function ProductGrid({
   products,
+  categories = [],
   layout,
   currencySymbol,
   onAdd,
   disabled = false,
 }: {
   products: Product[];
+  categories?: ProductCategory[];
   layout: PosLayout;
   currencySymbol: string;
   onAdd: (p: Product) => void;
@@ -63,18 +65,41 @@ export function ProductGrid({
     return () => ro.disconnect();
   }, []);
 
-  const categories = useMemo(() => {
+  const categoryNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of categories) map.set(c.id, c.name);
+    return map;
+  }, [categories]);
+
+  const categoryIds = useMemo(() => {
     const set = new Set<string>();
     products.forEach((p) => {
       if (p.category_id) set.add(p.category_id);
     });
-    return Array.from(set);
-  }, [products]);
+    // Prefer catalog order when available
+    const ordered = categories
+      .slice()
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map((c) => c.id)
+      .filter((id) => set.has(id));
+    for (const id of set) {
+      if (!ordered.includes(id)) ordered.push(id);
+    }
+    return ordered;
+  }, [products, categories]);
 
   const filteredProducts = useMemo(() => {
     if (activeCategory === "all") return products;
     return products.filter((p) => p.category_id === activeCategory);
   }, [products, activeCategory]);
+
+  function labelFor(catId: string) {
+    return (
+      categoryNameById.get(catId) ||
+      FALLBACK_CATEGORY_LABELS[catId] ||
+      catId
+    );
+  }
 
   const cols = columnsFor(layout, width);
   const showImages = layout !== "list_barcode";
@@ -106,21 +131,21 @@ export function ProductGrid({
 
   return (
     <div className="mt-3 flex min-h-0 flex-1 flex-col">
-      {categories.length > 0 && (
+      {categoryIds.length > 0 && (
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
           <CategoryChip
             active={activeCategory === "all"}
             onClick={() => setActiveCategory("all")}
             label={`الكل (${products.length})`}
           />
-          {categories.map((cat) => {
+          {categoryIds.map((cat) => {
             const count = products.filter((p) => p.category_id === cat).length;
             return (
               <CategoryChip
                 key={cat}
                 active={activeCategory === cat}
                 onClick={() => setActiveCategory(cat)}
-                label={`${CATEGORY_LABELS[cat] || cat} (${count})`}
+                label={`${labelFor(cat)} (${count})`}
               />
             );
           })}

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash, UserGear } from "@phosphor-icons/react";
 import {
   addCashier,
-  listCashiers,
+  listCashiersForUi,
   removeCashier,
   updateCashier,
   type Cashier,
@@ -15,7 +15,7 @@ export function UsersPanel({ currentUserId }: { currentUserId?: string }) {
   const [role, setRole] = useState<Cashier["role"]>("cashier");
   const [busy, setBusy] = useState(false);
 
-  const reload = () => void listCashiers().then(setUsers);
+  const reload = () => void listCashiersForUi().then(setUsers);
 
   useEffect(() => {
     reload();

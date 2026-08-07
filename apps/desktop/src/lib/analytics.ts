@@ -64,6 +64,10 @@ export interface AnalyticsSnapshot {
   aov: number;
   estimatedCost: number;
   estimatedMargin: number;
+  /** Gross margin after period expenses */
+  netProfit: number;
+  /** Sum of order.tax_amount in period */
+  taxCollected: number;
   expensesTotal: number;
   debtsTotal: number;
   series: DayPoint[];
@@ -228,6 +232,8 @@ export function computeAnalytics(input: AnalyticsInput): AnalyticsSnapshot {
   }
   const estimatedMargin = Math.max(0, netSales - estimatedCost);
   const expensesTotal = expenses.reduce((s, e) => s + e.amount, 0);
+  const netProfit = estimatedMargin - expensesTotal;
+  const taxCollected = orders.reduce((s, o) => s + (o.tax_amount || 0), 0);
   const debtsTotal = input.customers.reduce((s, c) => s + Math.max(0, c.balance), 0);
 
   // Daily series
@@ -331,6 +337,8 @@ export function computeAnalytics(input: AnalyticsInput): AnalyticsSnapshot {
     aov,
     estimatedCost,
     estimatedMargin,
+    netProfit,
+    taxCollected,
     expensesTotal,
     debtsTotal,
     series,
@@ -399,6 +407,8 @@ export function exportAnalyticsCsv(snap: AnalyticsSnapshot, currency: string) {
     ["عدد الفواتير", String(snap.orderCount)].join(","),
     ["متوسط الفاتورة", snap.aov.toFixed(2)].join(","),
     ["هامش تقديري", snap.estimatedMargin.toFixed(2)].join(","),
+    ["صافي الربح", snap.netProfit.toFixed(2)].join(","),
+    ["الضريبة المحصّلة", snap.taxCollected.toFixed(2)].join(","),
     ["المصروفات", snap.expensesTotal.toFixed(2)].join(","),
     ["العملة", currency].join(","),
     "",

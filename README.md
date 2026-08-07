@@ -59,7 +59,10 @@ pnpm android:apk
 ```bash
 cp .env.example .env.local
 # املأ URL + Anon Key لمشروع OmniSales مخصص
-# طبّق الهجرات supabase/migrations بالترتيب 001→008
+# طبّق الهجرات supabase/migrations بالترتيب 001→011
+# (009 يغلق الكتابة بمفتاح anon — استخدم حساب authenticated للمزامنة)
+# (010 يضيف stock_movements + categories + stock_version)
+# (011 يضيف ذمم الموردين + supplier_payments + paid_amount على المشتريات)
 ```
 
 ## الهيكل
@@ -72,6 +75,15 @@ OmniSales/
   supabase/migrations مخطط المزامنة السحابية
   vercel.json         إعداد نشر Vercel
 ```
+
+## الطابعة الحرارية
+
+1. افتح المنظومة من **Chrome أو Edge** على الكمبيوتر (HTTPS أو localhost)
+2. الإعدادات → **الطابعة الحرارية ESC/POS** → اختيار / ربط طابعة USB
+3. اضغط **طباعة اختبار** قبل أول بيع
+4. فعّل «طباعة تلقائية بعد إتمام البيع» إن رغبت
+
+على الموبايل تُستخدم طباعة المتصفح كبديل (Web Serial غير متاح في Android WebView).
 
 ## الاختبارات
 

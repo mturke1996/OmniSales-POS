@@ -1,15 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FilePdf, Printer, X } from "@phosphor-icons/react";
 import type { BranchSettings, Order } from "../../lib/types";
-import { downloadInvoicePdf, printThermalReceipt } from "../../lib/invoice";
+import {
+  downloadInvoicePdf,
+  printThermalReceipt,
+  printThermalReceiptBrowser,
+} from "../../lib/invoice";
+import { printThermalReceiptSmart } from "../../lib/print/thermal";
+import { usePrinter } from "../../hooks/use-printer";
 import { saleShareMessage } from "../../lib/whatsapp";
 import { WhatsAppButton } from "../ui/WhatsAppButton";
+import { cn } from "../../lib/cn";
 
 interface ReceiptModalProps {
   order: Order;
   settings: BranchSettings;
   changeDue?: number;
   onClose: () => void;
+  /** When true, attempt ESC/POS once on open */
+  autoPrint?: boolean;
 }
 
 export function ReceiptModal({
@@ -17,16 +26,50 @@ export function ReceiptModal({
   settings,
   changeDue = 0,
   onClose,
+  autoPrint = false,
 }: ReceiptModalProps) {
-  const [busy, setBusy] = useState<"pdf" | "thermal" | null>(null);
+  const printer = usePrinter();
+  const [busy, setBusy] = useState<"pdf" | "thermal" | "escpos" | "html" | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
+  const [printMode, setPrintMode] = useState<"escpos" | "html" | null>(null);
+  const [autoTried, setAutoTried] = useState(false);
 
-  const run = async (kind: "pdf" | "thermal") => {
-    setBusy(kind);
+  useEffect(() => {
+    if (!autoPrint || autoTried) return;
+    setAutoTried(true);
+    if (!printer.connected) return;
+    setBusy("thermal");
+    void printThermalReceipt(order, settings, changeDue)
+      .then((mode) => setPrintMode(mode))
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : "فشلت الطباعة التلقائية")
+      )
+      .finally(() => setBusy(null));
+  }, [autoPrint, autoTried, order, settings, changeDue, printer.connected]);
+
+  const runThermal = async (force: "escpos" | "html" | "auto" = "auto") => {
+    setBusy(force === "html" ? "html" : force === "escpos" ? "escpos" : "thermal");
     setError(null);
     try {
-      if (kind === "pdf") await downloadInvoicePdf(order, settings);
-      else await printThermalReceipt(order, settings, changeDue);
+      if (force === "html") {
+        printThermalReceiptBrowser(order, settings, changeDue);
+        setPrintMode("html");
+        return;
+      }
+      const mode = await printThermalReceiptSmart(
+        order,
+        settings,
+        changeDue,
+        force
+      );
+      setPrintMode(mode);
+      if (mode === "html") {
+        setError(
+          "لم تُستخدم الطابعة الحرارية — فُتحت طباعة المتصفح. اربط الطابعة من الإعدادات."
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "فشلت الطباعة");
     } finally {
@@ -49,6 +92,19 @@ export function ReceiptModal({
           >
             <X size={18} />
           </button>
+        </div>
+
+        <div
+          className={cn(
+            "mt-3 inline-flex self-start rounded-full px-2.5 py-1 text-[10px] font-bold",
+            printer.connected
+              ? "bg-success/15 text-success"
+              : "bg-paper text-ink-mute"
+          )}
+        >
+          {printer.connected
+            ? `طابعة جاهزة${printer.label ? ` · ${printer.label}` : ""}`
+            : "الطابعة غير متصلة — يمكن طباعة المتصفح"}
         </div>
 
         <div className="print-receipt my-4 overflow-y-auto rounded-xl border border-dashed border-paper-line bg-white p-4 font-mono text-xs text-black">
@@ -77,6 +133,18 @@ export function ReceiptModal({
                 <span>{order.customer_name}</span>
               </div>
             )}
+            {order.type === "wholesale" && (
+              <div className="flex justify-between font-bold">
+                <span>نوع البيع</span>
+                <span>جملة</span>
+              </div>
+            )}
+            {order.promotion_name && (
+              <div className="flex justify-between">
+                <span>العرض</span>
+                <span>{order.promotion_name}</span>
+              </div>
+            )}
           </div>
 
           <div className="my-2 space-y-1">
@@ -91,12 +159,6 @@ export function ReceiptModal({
                     {(line.quantity * line.unit_price).toFixed(2)}
                   </span>
                 </div>
-                {(line.imei || line.serial) && (
-                  <div className="text-[10px] text-slate-500">
-                    {line.imei ? `IMEI ${line.imei}` : ""}
-                    {line.serial ? ` S/N ${line.serial}` : ""}
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -110,7 +172,10 @@ export function ReceiptModal({
             </div>
             {order.discount_amount > 0 && (
               <div className="flex justify-between">
-                <span>الخصم</span>
+                <span>
+                  الخصم
+                  {order.promotion_name ? ` (${order.promotion_name})` : ""}
+                </span>
                 <span>
                   -{order.discount_amount.toFixed(2)} {settings.currency_symbol}
                 </span>
@@ -154,6 +219,14 @@ export function ReceiptModal({
           </div>
         </div>
 
+        {printMode && (
+          <p className="mb-2 text-center text-[11px] font-semibold text-success">
+            {printMode === "escpos"
+              ? "طُبعت عبر الطابعة الحرارية ESC/POS"
+              : "فُتحت طباعة المتصفح (HTML)"}
+          </p>
+        )}
+
         {error && (
           <p className="mb-2 rounded-lg bg-danger/10 px-3 py-2 text-xs font-medium text-danger">
             {error}
@@ -164,17 +237,34 @@ export function ReceiptModal({
           <button
             type="button"
             disabled={busy !== null}
-            onClick={() => void run("thermal")}
-            className="btn-ghost inline-flex items-center justify-center gap-1.5 text-xs"
+            onClick={() => void runThermal("escpos")}
+            className="btn-primary inline-flex items-center justify-center gap-1.5 text-xs"
           >
             <Printer size={16} />
-            {busy === "thermal" ? "جاري…" : `حرارية ${settings.thermal_width_mm}مم`}
+            {busy === "escpos" || busy === "thermal"
+              ? "جاري…"
+              : `حرارية ${settings.thermal_width_mm}مم`}
           </button>
           <button
             type="button"
             disabled={busy !== null}
-            onClick={() => void run("pdf")}
-            className="btn-primary inline-flex items-center justify-center gap-1.5 text-xs"
+            onClick={() => void runThermal("html")}
+            className="btn-ghost inline-flex items-center justify-center gap-1.5 text-xs"
+          >
+            طباعة متصفح
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => {
+              setBusy("pdf");
+              void downloadInvoicePdf(order, settings)
+                .catch((e) =>
+                  setError(e instanceof Error ? e.message : "فشل PDF")
+                )
+                .finally(() => setBusy(null));
+            }}
+            className="btn-ghost inline-flex items-center justify-center gap-1.5 text-xs sm:col-span-2"
           >
             <FilePdf size={16} />
             {busy === "pdf" ? "جاري…" : "PDF A4"}

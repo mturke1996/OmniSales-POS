@@ -15,11 +15,19 @@ import {
   addProductPwa,
   updateProductPwa,
   clearAllDataPwa,
+  seedDemoCatalogPwa,
+  countStockPwa,
+  adjustStockPwa,
+  addCategoryPwa,
+  renameCategoryPwa,
+  listStockMovementsPwa,
   createReturnPwa,
   updateOrderStatusPwa,
   addSupplierPwa,
   createPurchasePwa,
   receivePurchasePwa,
+  recordSupplierPaymentPwa,
+  listSupplierPaymentsPwa,
   addPromotionPwa,
   setPromotionActivePwa,
   exportBackupPwa,
@@ -41,6 +49,7 @@ import type {
   PurchaseLine,
   ReturnRecord,
   Shift,
+  StockMovementReason,
   Supplier,
 } from "./types";
 import { INDUSTRY_PRESETS } from "./types";
@@ -92,7 +101,7 @@ export async function checkout(input: {
   delivery_date?: string;
   delivery_fee?: number;
   delivery_driver?: string;
-  promotion_id?: string;
+  promotion_id?: string | null;
   actor_id?: string;
   actor_name?: string;
 }) {
@@ -107,7 +116,9 @@ export async function updateOrderStatus(
   return updateOrderStatusPwa(orderId, status, opts);
 }
 
-export async function addSupplier(input: Omit<Supplier, "id" | "created_at">) {
+export async function addSupplier(
+  input: Omit<Supplier, "id" | "created_at" | "balance"> & { balance?: number }
+) {
   return addSupplierPwa(input);
 }
 
@@ -116,6 +127,7 @@ export async function createPurchase(input: {
   items: PurchaseLine[];
   notes?: string;
   receive?: boolean;
+  paid_amount?: number;
   actor_id?: string;
   actor_name?: string;
 }) {
@@ -127,6 +139,21 @@ export async function receivePurchase(
   opts?: { actor_id?: string; actor_name?: string }
 ) {
   return receivePurchasePwa(id, opts);
+}
+
+export async function recordSupplierPayment(input: {
+  supplier_id: string;
+  amount: number;
+  method: "cash" | "transfer" | "card";
+  note?: string;
+  reference?: string;
+  purchase_id?: string;
+}) {
+  return recordSupplierPaymentPwa(input);
+}
+
+export async function listSupplierPayments(supplierId?: string) {
+  return listSupplierPaymentsPwa(supplierId);
 }
 
 export async function addPromotion(input: Omit<Promotion, "id" | "created_at">) {
@@ -177,8 +204,48 @@ export async function recordCashMovement(input: {
   return recordCashMovementPwa(input);
 }
 
-export async function addExpense(expense: Omit<Expense, "id" | "created_at">) {
+export async function addExpense(
+  expense: Omit<Expense, "id" | "created_at" | "shift_id" | "cash_movement_id"> & {
+    from_drawer?: boolean;
+    cashier_id?: string;
+  }
+) {
   return addExpensePwa(expense);
+}
+
+export async function seedDemoCatalog() {
+  return seedDemoCatalogPwa();
+}
+
+export async function countStock(input: {
+  product_id: string;
+  counted_qty: number;
+  note?: string;
+  actor_id?: string;
+}) {
+  return countStockPwa(input);
+}
+
+export async function adjustStock(input: {
+  product_id: string;
+  delta: number;
+  reason?: Extract<StockMovementReason, "adjustment" | "damage" | "opening">;
+  note?: string;
+  actor_id?: string;
+}) {
+  return adjustStockPwa(input);
+}
+
+export async function addCategory(name: string) {
+  return addCategoryPwa(name);
+}
+
+export async function renameCategory(id: string, name: string) {
+  return renameCategoryPwa(id, name);
+}
+
+export async function listStockMovements(productId?: string, limit?: number) {
+  return listStockMovementsPwa(productId, limit);
 }
 
 export async function addProduct(product: Omit<Product, "id" | "branch_id">) {

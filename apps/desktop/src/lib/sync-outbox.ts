@@ -65,6 +65,18 @@ export async function syncCloudFull(settings: BranchSettings): Promise<SyncResul
     };
   }
 
+  // After migration 009, anon can no longer read/write — require signed-in user
+  const session = await client.auth.getSession();
+  if (!session.data.session) {
+    return {
+      flushed: 0,
+      remaining: await pendingOutboxCount(),
+      pulled: 0,
+      error:
+        "المزامنة تتطلب تسجيل دخول سحابي (بريد/كلمة مرور) من الإعدادات — مفتاح anon لم يعد يكتب في القاعدة",
+    };
+  }
+
   // Verify OmniSales schema exists (not a foreign project)
   const probe = await client.from("settings").select("branch_id").limit(1);
   if (probe.error) {
@@ -74,13 +86,20 @@ export async function syncCloudFull(settings: BranchSettings): Promise<SyncResul
       msg.includes("schema cache") ||
       probe.error.code === "42P01" ||
       probe.error.code === "PGRST205";
+    const denied =
+      probe.error.code === "42501" ||
+      msg.toLowerCase().includes("permission") ||
+      msg.toLowerCase().includes("rls") ||
+      msg.toLowerCase().includes("row-level");
     return {
       flushed: 0,
       remaining: await pendingOutboxCount(),
       pulled: 0,
       error: missing
-        ? "هذا المشروع ليس مخطط OmniSales — أنشئ مشروعاً جديداً وطبق الهجرات 001→008"
-        : `فشل الاتصال: ${msg}`,
+        ? "هذا المشروع ليس مخطط OmniSales — أنشئ مشروعاً جديداً وطبق الهجرات 001→009"
+        : denied
+          ? "رفض الصلاحيات — سجّل دخول مستخدم authenticated وطبق الهجرة 009"
+          : `فشل الاتصال: ${msg}`,
     };
   }
 
@@ -197,6 +216,13 @@ async function pushEntry(client: SupabaseClient, entry: OutboxEntry) {
       if (error) throw error;
       return;
     }
+    case "supplier_payment.create": {
+      const { error } = await client
+        .from("supplier_payments")
+        .upsert(mapSupplierPayment(payload));
+      if (error) throw error;
+      return;
+    }
     case "purchase.upsert":
     case "purchase.receive": {
       const { error } = await client
@@ -240,6 +266,20 @@ async function pushEntry(client: SupabaseClient, entry: OutboxEntry) {
       if (error) throw error;
       return;
     }
+    case "stock_movement.append": {
+      const { error } = await client
+        .from("stock_movements")
+        .upsert(mapStockMovement(payload));
+      if (error) throw error;
+      return;
+    }
+    case "category.upsert": {
+      const { error } = await client
+        .from("categories")
+        .upsert(mapCategory(payload));
+      if (error) throw error;
+      return;
+    }
     default:
       throw new Error(`عملية مزامنة غير معروفة: ${entry.action}`);
   }
@@ -263,6 +303,9 @@ async function pullAndMerge(
     cashRes,
     auditRes,
     shiftsRes,
+    stockRes,
+    categoriesRes,
+    supplierPaymentsRes,
   ] = await Promise.all([
     client.from("settings").select("*"),
     client.from("products").select("*"),
@@ -277,8 +320,25 @@ async function pullAndMerge(
     client.from("cash_movements").select("*").order("created_at", { ascending: false }).limit(2000),
     client.from("audit_log").select("*").order("at", { ascending: false }).limit(500),
     client.from("shifts").select("*").eq("status", "open").limit(5),
+    client
+      .from("stock_movements")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(3000),
+    client.from("categories").select("*"),
+    client
+      .from("supplier_payments")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(2000),
   ]);
 
+  // Optional tables may be missing until migrations 010/011 — soft-fail
+  const softOptional = new Set([
+    "stock_movements",
+    "categories",
+    "supplier_payments",
+  ]);
   const firstError = [
     settingsRes,
     productsRes,
@@ -297,6 +357,15 @@ async function pullAndMerge(
 
   if (firstError) throw firstError;
 
+  const stockOk = !stockRes.error;
+  const catsOk = !categoriesRes.error;
+  const payOk = !supplierPaymentsRes.error;
+  if (stockRes.error && !softOptional.has("stock_movements")) throw stockRes.error;
+  if (categoriesRes.error && !softOptional.has("categories")) throw categoriesRes.error;
+  if (supplierPaymentsRes.error && !softOptional.has("supplier_payments")) {
+    throw supplierPaymentsRes.error;
+  }
+
   return applyCloudPull({
     localSettings,
     settings: (settingsRes.data?.[0] as Record<string, unknown>) || null,
@@ -312,6 +381,15 @@ async function pullAndMerge(
     cash_movements: (cashRes.data || []) as Record<string, unknown>[],
     audit_log: (auditRes.data || []) as Record<string, unknown>[],
     open_shifts: (shiftsRes.data || []) as Record<string, unknown>[],
+    stock_movements: stockOk
+      ? ((stockRes.data || []) as Record<string, unknown>[])
+      : [],
+    categories: catsOk
+      ? ((categoriesRes.data || []) as Record<string, unknown>[])
+      : [],
+    supplier_payments: payOk
+      ? ((supplierPaymentsRes.data || []) as Record<string, unknown>[])
+      : [],
   });
 }
 
@@ -435,6 +513,20 @@ function mapSupplier(payload: Record<string, unknown>) {
     phone: payload.phone ?? null,
     address: payload.address ?? null,
     notes: payload.notes ?? null,
+    balance: money(payload.balance),
+    created_at: payload.created_at,
+  };
+}
+
+function mapSupplierPayment(payload: Record<string, unknown>) {
+  return {
+    id: payload.id,
+    supplier_id: payload.supplier_id,
+    amount: money(payload.amount),
+    method: payload.method || "cash",
+    reference: payload.reference ?? null,
+    note: payload.note ?? null,
+    purchase_id: payload.purchase_id ?? null,
     created_at: payload.created_at,
   };
 }
@@ -451,6 +543,8 @@ function mapPurchase(payload: Record<string, unknown>) {
     notes: payload.notes ?? null,
     created_at: payload.created_at,
     received_at: payload.received_at ?? null,
+    paid_amount: money(payload.paid_amount),
+    payment_status: payload.payment_status ?? "unpaid",
   };
 }
 
@@ -470,12 +564,41 @@ function mapProduct(payload: Record<string, unknown>) {
     stock_quantity: money(payload.stock_quantity),
     min_stock: money(payload.min_stock),
     is_active: payload.is_active !== false,
+    stock_version: Number(payload.stock_version) || 0,
+    updated_at: payload.updated_at || new Date().toISOString(),
     image_url: payload.image_url ?? null,
     imei: payload.imei ?? null,
     serial: payload.serial ?? null,
     oem_code: payload.oem_code ?? null,
     vehicle_fitment: payload.vehicle_fitment ?? null,
     expiry_days: payload.expiry_days ?? null,
+  };
+}
+
+function mapStockMovement(payload: Record<string, unknown>) {
+  return {
+    id: payload.id,
+    product_id: payload.product_id,
+    branch_id: payload.branch_id || "branch-1",
+    reason: payload.reason || "adjustment",
+    delta: money(payload.delta),
+    qty_before: money(payload.qty_before),
+    qty_after: money(payload.qty_after),
+    reference_type: payload.reference_type ?? null,
+    reference_id: payload.reference_id ?? null,
+    note: payload.note ?? null,
+    actor_id: payload.actor_id ?? null,
+    created_at: payload.created_at || new Date().toISOString(),
+  };
+}
+
+function mapCategory(payload: Record<string, unknown>) {
+  return {
+    id: payload.id,
+    branch_id: payload.branch_id || "branch-1",
+    name: payload.name,
+    sort_order: Number(payload.sort_order) || 0,
+    created_at: payload.created_at || new Date().toISOString(),
   };
 }
 

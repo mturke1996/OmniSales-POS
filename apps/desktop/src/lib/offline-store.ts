@@ -12,6 +12,7 @@ import {
   OrderStatus,
   OrderType,
   Product,
+  ProductCategory,
   Promotion,
   Purchase,
   PurchaseLine,
@@ -19,14 +20,27 @@ import {
   ReturnItem,
   ReturnRecord,
   Shift,
+  StockMovement,
+  StockMovementReason,
   Supplier,
+  SupplierPayment,
   defaultSettings,
 } from "./types";
 import { remainingReturnQty } from "./analytics";
+import { formatNextDoc } from "./sequences";
+import { assertStockAvailable } from "./stock";
+import { unitNetRefund } from "./returns-math";
+import {
+  applyStockDelta,
+  countDelta,
+  mergeProductInventory,
+} from "./stock-ledger";
 
 const KEYS = {
   settings: "omni.settings",
   products: "omni.products",
+  categories: "omni.categories",
+  stock_movements: "omni.stock_movements",
   shift: "omni.open_shift",
   shift_history: "omni.shift_history",
   customers: "omni.customers",
@@ -37,6 +51,7 @@ const KEYS = {
   returns: "omni.returns",
   held_carts: "omni.held_carts",
   suppliers: "omni.suppliers",
+  supplier_payments: "omni.supplier_payments",
   purchases: "omni.purchases",
   promotions: "omni.promotions",
   audit: "omni.audit",
@@ -203,127 +218,98 @@ function demoCustomers(): Customer[] {
   ];
 }
 
-function demoExpenses(): Expense[] {
-  return [
-    {
-      id: "exp-1",
-      category: "كهرباء ومرافق",
-      amount: 150.0,
-      note: "فاتورة كهرباء شهر يوليو",
-      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    },
-    {
-      id: "exp-2",
-      category: "مستلزمات تغليف",
-      amount: 85.0,
-      note: "أكياس وأشرطة تغليف هدايا",
-      created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
-    },
-  ];
-}
-
-function demoOrders(): Order[] {
-  return [
-    {
-      id: "ord-1",
-      order_number: "ORD-1001",
-      type: "special_event",
-      status: "in_prep",
-      customer_id: "cust-1",
-      customer_name: "شركة الأفق للمناسبات",
-      customer_phone: "091-2345678",
-      delivery_address: "فندق باب البحر - قاعة الفخامة",
-      delivery_date: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
-      items: [
-        {
-          product_id: "prod-3",
-          name: "بوكس هدايا مناسبات ذهبي فاخر",
-          unit_price: 180.0,
-          quantity: 5,
-          unit_type: "piece",
-        },
-      ],
-      subtotal: 900.0,
-      tax_amount: 0,
-      discount_amount: 50.0,
-      total_amount: 850.0,
-      payment_method: "debt",
-      created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-      notes: "تجهيز مع تغليف بشرائط ذهبية وحفر اسم الشركة",
-    },
-    {
-      id: "ord-2",
-      order_number: "ORD-1002",
-      type: "pos_walk_in",
-      status: "completed",
-      customer_name: "عميل نقدي",
-      items: [
-        {
-          product_id: "prod-1",
-          name: "علبة فاخرة شوكولاتة مكسرات (500 جرام)",
-          unit_price: 75.0,
-          quantity: 2,
-          unit_type: "box",
-        },
-      ],
-      subtotal: 150.0,
-      tax_amount: 0,
-      discount_amount: 0,
-      total_amount: 150.0,
-      payment_method: "cash",
-      created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-    },
-  ];
-}
-
-export async function ensurePwaSeed(): Promise<void> {
-  const existingProducts = await get<Product[]>(KEYS.products);
-  if (!existingProducts?.length) {
-    await set(KEYS.products, demoProducts());
+async function ensureArrayKey<T>(key: string, fallback: T[] = []): Promise<T[]> {
+  const existing = await get<T[]>(key);
+  if (existing == null) {
+    await set(key, fallback);
+    return fallback;
   }
+  return existing;
+}
 
+/** Initialize empty shop stores — no demo clutter in production path. */
+export async function ensurePwaSeed(): Promise<void> {
   const existingSettings = await get<BranchSettings>(KEYS.settings);
   if (!existingSettings) {
     await set(KEYS.settings, defaultSettings());
+  } else if (existingSettings.setup_complete == null) {
+    // Migrate older installs: skip wizard if shop was already named
+    const migrated = {
+      ...existingSettings,
+      setup_complete:
+        Boolean(existingSettings.name) &&
+        existingSettings.name !== "محلي" &&
+        existingSettings.name !== "OmniSales POS",
+      auto_print_thermal: existingSettings.auto_print_thermal !== false,
+    };
+    await set(KEYS.settings, migrated);
   }
 
-  const existingCustomers = await get<Customer[]>(KEYS.customers);
-  if (!existingCustomers?.length) {
-    await set(KEYS.customers, demoCustomers());
+  await ensureArrayKey<Product>(KEYS.products, []);
+  await ensureArrayKey<ProductCategory>(KEYS.categories, []);
+  await ensureArrayKey<StockMovement>(KEYS.stock_movements, []);
+  await ensureArrayKey<Customer>(KEYS.customers, []);
+  await ensureArrayKey<Expense>(KEYS.expenses, []);
+  await ensureArrayKey<Order>(KEYS.orders, []);
+  await ensureArrayKey<HeldCart>(KEYS.held_carts, []);
+  await ensureArrayKey<ReturnRecord>(KEYS.returns, []);
+  await ensureArrayKey<Supplier>(KEYS.suppliers, []);
+  await ensureArrayKey<SupplierPayment>(KEYS.supplier_payments, []);
+  await ensureArrayKey<Purchase>(KEYS.purchases, []);
+  await ensureArrayKey<Promotion>(KEYS.promotions, []);
+  await ensureArrayKey<AuditEntry>(KEYS.audit, []);
+  await ensureArrayKey<CustomerLedgerEntry>(KEYS.ledger, []);
+  await ensureArrayKey<CashMovement>(KEYS.cash_movements, []);
+
+  if ((await get<Shift | null>(KEYS.shift)) === undefined) {
+    await set(KEYS.shift, null);
   }
 
-  const existingExpenses = await get<Expense[]>(KEYS.expenses);
-  if (!existingExpenses?.length) {
-    await set(KEYS.expenses, demoExpenses());
+  // Ensure default categories exist when catalog is empty of categories
+  const cats = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+  if (!cats.length) {
+    const settings =
+      (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+    const defaults: ProductCategory[] = [
+      {
+        id: crypto.randomUUID(),
+        branch_id: settings.branch_id,
+        name: "عام",
+        sort_order: 0,
+        created_at: new Date().toISOString(),
+      },
+    ];
+    await set(KEYS.categories, defaults);
   }
+}
 
-  const existingOrders = await get<Order[]>(KEYS.orders);
-  if (!existingOrders?.length) {
-    await set(KEYS.orders, demoOrders());
+/** Optional sample catalog for demos / training — manager-triggered only. */
+export async function seedDemoCatalogPwa(): Promise<void> {
+  const products = (await get<Product[]>(KEYS.products)) ?? [];
+  if (products.length > 0) {
+    throw new Error(
+      "المخزون يحتوي أصنافاً بالفعل — امسح البيانات أولاً إن أردت البذرة التجريبية"
+    );
   }
-
-  const existingCarts = await get<HeldCart[]>(KEYS.held_carts);
-  if (!existingCarts) {
-    await set(KEYS.held_carts, []);
-  }
-
-  const existingReturns = await get<ReturnRecord[]>(KEYS.returns);
-  if (!existingReturns) {
-    await set(KEYS.returns, []);
-  }
-
-  if ((await get<Supplier[]>(KEYS.suppliers)) == null) {
-    await set(KEYS.suppliers, []);
-  }
-  if ((await get<Purchase[]>(KEYS.purchases)) == null) {
-    await set(KEYS.purchases, []);
-  }
-  if ((await get<Promotion[]>(KEYS.promotions)) == null) {
-    await set(KEYS.promotions, []);
-  }
-  if ((await get<AuditEntry[]>(KEYS.audit)) == null) {
-    await set(KEYS.audit, []);
-  }
+  const settings =
+    (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+  const demo = demoProducts().map((p) => ({
+    ...p,
+    id: crypto.randomUUID(),
+    branch_id: settings.branch_id,
+  }));
+  const customers = demoCustomers().map((c) => ({
+    ...c,
+    id: crypto.randomUUID(),
+  }));
+  await set(KEYS.products, demo);
+  await set(KEYS.customers, customers);
+  for (const p of demo) await enqueue("product.upsert", p);
+  for (const c of customers) await enqueue("customer.upsert", c);
+  await appendAudit(
+    "demo.seed",
+    `بذرة تجريبية: ${demo.length} أصناف · ${customers.length} عملاء`
+  );
 }
 
 async function appendAudit(
@@ -375,7 +361,17 @@ export async function loadPwaBootstrap() {
   await ensurePwaSeed();
   const settings = (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
   const products = (await get<Product[]>(KEYS.products)) ?? [];
+  const categories = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+  const stock_movements = (await get<StockMovement[]>(KEYS.stock_movements)) ?? [];
   const open_shift = (await get<Shift | null>(KEYS.shift)) ?? null;
+  const shift_history = ((await get<Shift[]>(KEYS.shift_history)) ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        Date.parse(b.closed_at || b.opened_at) -
+        Date.parse(a.closed_at || a.opened_at)
+    )
+    .slice(0, 60);
   const customers = (await get<Customer[]>(KEYS.customers)) ?? [];
   const customer_ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
   const cash_movements = (await get<CashMovement[]>(KEYS.cash_movements)) ?? [];
@@ -383,7 +379,12 @@ export async function loadPwaBootstrap() {
   const orders = (await get<Order[]>(KEYS.orders)) ?? [];
   const returns = (await get<ReturnRecord[]>(KEYS.returns)) ?? [];
   const held_carts = (await get<HeldCart[]>(KEYS.held_carts)) ?? [];
-  const suppliers = (await get<Supplier[]>(KEYS.suppliers)) ?? [];
+  const suppliers = ((await get<Supplier[]>(KEYS.suppliers)) ?? []).map((s) => ({
+    ...s,
+    balance: Number(s.balance) || 0,
+  }));
+  const supplier_payments =
+    (await get<SupplierPayment[]>(KEYS.supplier_payments)) ?? [];
   const purchases = (await get<Purchase[]>(KEYS.purchases)) ?? [];
   const promotions = (await get<Promotion[]>(KEYS.promotions)) ?? [];
   const audit_log = (await get<AuditEntry[]>(KEYS.audit)) ?? [];
@@ -391,7 +392,13 @@ export async function loadPwaBootstrap() {
   return {
     settings,
     products,
+    categories,
+    stock_movements: stock_movements
+      .slice()
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+      .slice(0, 500),
     open_shift,
+    shift_history,
     customers,
     customer_ledger,
     cash_movements,
@@ -400,12 +407,157 @@ export async function loadPwaBootstrap() {
     returns,
     held_carts,
     suppliers,
+    supplier_payments,
     purchases,
     promotions,
     audit_log,
     online: navigator.onLine,
     runtime: "pwa" as const,
   };
+}
+
+/**
+ * Central stock mutation: updates product qty/version, appends ledger row, enqueues sync.
+ */
+export async function recordStockChangePwa(input: {
+  product_id: string;
+  delta: number;
+  reason: StockMovementReason;
+  reference_type?: string;
+  reference_id?: string;
+  note?: string;
+  actor_id?: string;
+  allowNegative?: boolean;
+  /** When set, mutates this in-memory products array instead of re-reading */
+  productsRef?: Product[];
+}): Promise<{ product: Product; movement: StockMovement }> {
+  const settings =
+    (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+  const products =
+    input.productsRef ?? ((await get<Product[]>(KEYS.products)) ?? []);
+  const idx = products.findIndex((p) => p.id === input.product_id);
+  if (idx < 0) throw new Error("الصنف غير موجود");
+
+  const { product, movement } = applyStockDelta({
+    product: products[idx],
+    delta: input.delta,
+    reason: input.reason,
+    branch_id: settings.branch_id,
+    reference_type: input.reference_type,
+    reference_id: input.reference_id,
+    note: input.note,
+    actor_id: input.actor_id,
+    allowNegative: input.allowNegative,
+  });
+
+  products[idx] = product;
+  if (!input.productsRef) {
+    await set(KEYS.products, products);
+  }
+
+  const movements = ((await get<StockMovement[]>(KEYS.stock_movements)) ?? []).concat(
+    movement
+  );
+  // Cap local history
+  const trimmed =
+    movements.length > 3000 ? movements.slice(movements.length - 3000) : movements;
+  await set(KEYS.stock_movements, trimmed);
+
+  await enqueue("product.upsert", product);
+  await enqueue("stock_movement.append", movement);
+  return { product, movement };
+}
+
+export async function countStockPwa(input: {
+  product_id: string;
+  counted_qty: number;
+  note?: string;
+  actor_id?: string;
+}): Promise<{ product: Product; movement: StockMovement }> {
+  const products = (await get<Product[]>(KEYS.products)) ?? [];
+  const product = products.find((p) => p.id === input.product_id);
+  if (!product) throw new Error("الصنف غير موجود");
+  const counted = Math.max(0, Number(input.counted_qty));
+  if (!Number.isFinite(counted)) throw new Error("كمية الجرد غير صالحة");
+  const delta = countDelta(product.stock_quantity, counted);
+  if (Math.abs(delta) < 1e-9) {
+    throw new Error("لا فرق بين الكمية النظامية والجرد");
+  }
+  return recordStockChangePwa({
+    product_id: input.product_id,
+    delta,
+    reason: "count",
+    reference_type: "stock_count",
+    note:
+      input.note ||
+      `جرد فعلي: نظامي ${product.stock_quantity} → معدود ${counted}`,
+    actor_id: input.actor_id,
+  });
+}
+
+export async function adjustStockPwa(input: {
+  product_id: string;
+  delta: number;
+  reason?: Extract<StockMovementReason, "adjustment" | "damage" | "opening">;
+  note?: string;
+  actor_id?: string;
+}): Promise<{ product: Product; movement: StockMovement }> {
+  return recordStockChangePwa({
+    product_id: input.product_id,
+    delta: input.delta,
+    reason: input.reason || "adjustment",
+    reference_type: "stock_adjust",
+    note: input.note,
+    actor_id: input.actor_id,
+  });
+}
+
+export async function addCategoryPwa(name: string): Promise<ProductCategory> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("اسم التصنيف مطلوب");
+  const settings =
+    (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+  const categories = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+  if (categories.some((c) => c.name === trimmed)) {
+    throw new Error("التصنيف موجود بالفعل");
+  }
+  const cat: ProductCategory = {
+    id: crypto.randomUUID(),
+    branch_id: settings.branch_id,
+    name: trimmed,
+    sort_order: categories.length,
+    created_at: new Date().toISOString(),
+  };
+  categories.push(cat);
+  await set(KEYS.categories, categories);
+  await enqueue("category.upsert", cat);
+  return cat;
+}
+
+export async function renameCategoryPwa(
+  id: string,
+  name: string
+): Promise<ProductCategory> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("اسم التصنيف مطلوب");
+  const categories = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+  const idx = categories.findIndex((c) => c.id === id);
+  if (idx < 0) throw new Error("التصنيف غير موجود");
+  categories[idx] = { ...categories[idx], name: trimmed };
+  await set(KEYS.categories, categories);
+  await enqueue("category.upsert", categories[idx]);
+  return categories[idx];
+}
+
+export async function listStockMovementsPwa(productId?: string, limit = 100) {
+  const all = (await get<StockMovement[]>(KEYS.stock_movements)) ?? [];
+  const filtered = productId
+    ? all.filter((m) => m.product_id === productId)
+    : all;
+  return filtered
+    .slice()
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .slice(0, limit);
 }
 
 export async function loadCapacitorBootstrap() {
@@ -424,17 +576,19 @@ export async function openPwaShift(cashierId: string, openingFloat: number) {
   if (current?.status === "open") {
     throw new Error("توجد وردية مفتوحة بالفعل");
   }
+  const settings = (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+  const float = Math.max(0, Number(openingFloat) || 0);
   const shift: Shift = {
     id: crypto.randomUUID(),
-    branch_id: "branch-1",
+    branch_id: settings.branch_id || crypto.randomUUID(),
     cashier_id: cashierId,
     opened_at: new Date().toISOString(),
-    opening_float: openingFloat,
+    opening_float: float,
     cash_sales: 0,
     card_sales: 0,
     debt_sales: 0,
     cash_returns: 0,
-    expected_cash: openingFloat,
+    expected_cash: float,
     status: "open",
   };
   await set(KEYS.shift, shift);
@@ -516,7 +670,8 @@ export async function checkoutPwa(input: {
   delivery_date?: string;
   delivery_fee?: number;
   delivery_driver?: string;
-  promotion_id?: string;
+  /** undefined = auto best promo; null/"" = none; id = force */
+  promotion_id?: string | null;
   actor_id?: string;
   actor_name?: string;
 }) {
@@ -566,7 +721,10 @@ export async function checkoutPwa(input: {
   const promotions = (await get<Promotion[]>(KEYS.promotions)) ?? [];
   let promoDiscount = 0;
   let appliedPromo: Promotion | null = null;
-  if (promotion_id) {
+  // null / "" = skip promotions; undefined = auto-pick best; id = force
+  if (promotion_id === null || promotion_id === "") {
+    appliedPromo = null;
+  } else if (promotion_id) {
     const manual = promotions.find((p) => p.id === promotion_id && p.active);
     if (manual) {
       const hit = applyBestPromotion(subtotalRaw, [manual]);
@@ -609,6 +767,16 @@ export async function checkoutPwa(input: {
     }
   }
 
+  // Stock gate before mutating balances / shift
+  const products = (await get<Product[]>(KEYS.products)) ?? [];
+  assertStockAvailable(lines, products);
+
+  const orderNum = await formatNextDoc("order", settings.order_prefix || "ORD");
+  const invoiceRef = await formatNextDoc(
+    "invoice",
+    settings.invoice_prefix || "INV"
+  );
+
   // If debt payment, check customer balance/limit
   if (method === "debt") {
     if (!customer_id) {
@@ -619,10 +787,10 @@ export async function checkoutPwa(input: {
     if (customer) {
       if (customer.balance + total_amount > customer.credit_limit) {
         throw new Error(
-          `تجاوز حد الائتمان للعميل (${customer.name}). الحد الأقصى: ${customer.credit_limit} د.ل`
+          `تجاوز حد الائتمان للعميل (${customer.name}). الحد الأقصى: ${customer.credit_limit} ${settings.currency_symbol}`
         );
       }
-      customer.balance += total_amount;
+      customer.balance = Math.round((customer.balance + total_amount) * 100) / 100;
       await set(KEYS.customers, customers);
       await enqueue("customer.upsert", customer);
 
@@ -631,8 +799,8 @@ export async function checkoutPwa(input: {
         customer_id,
         type: "debit",
         amount: total_amount,
-        reference: settings.invoice_prefix + "-" + Math.floor(1000 + Math.random() * 9000),
-        description: "فاتورة مبيعات فرعية",
+        reference: invoiceRef,
+        description: `فاتورة مبيعات ${orderNum}`,
         created_at: new Date().toISOString(),
       };
       const ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
@@ -642,13 +810,12 @@ export async function checkoutPwa(input: {
     }
   }
 
-  const orderNum = `${settings.order_prefix}-${Math.floor(10000 + Math.random() * 90000)}`;
-
   let settled_to_shift = false;
+  let nextShift: Shift | null = null;
 
   // Update shift figures (skip for new delivery / special_event until completed)
   if (open_shift && !deferShift) {
-    const nextShift = applyShiftSale(open_shift, method, total_amount, cash_tendered);
+    nextShift = applyShiftSale(open_shift, method, total_amount, cash_tendered);
     await set(KEYS.shift, nextShift);
     settled_to_shift = true;
   }
@@ -674,16 +841,25 @@ export async function checkoutPwa(input: {
     created_at: new Date().toISOString(),
     notes: note,
     settled_to_shift,
+    promotion_id: appliedPromo?.id,
+    promotion_name: appliedPromo?.name,
   };
 
-  // Deduct inventory
-  const products = (await get<Product[]>(KEYS.products)) ?? [];
-  lines.forEach((line) => {
+  // Deduct inventory via stock ledger
+  for (const line of lines) {
     const p = products.find((item) => item.id === line.product_id);
     if (p && p.track_stock) {
-      p.stock_quantity = Math.max(0, p.stock_quantity - line.quantity);
+      await recordStockChangePwa({
+        product_id: p.id,
+        delta: -line.quantity,
+        reason: "sale",
+        reference_type: "order",
+        reference_id: order.id,
+        actor_id: actor_id || input.cashier_id,
+        productsRef: products,
+      });
     }
-  });
+  }
   await set(KEYS.products, products);
 
   const orders = ((await get<Order[]>(KEYS.orders)) ?? []).concat(order);
@@ -697,11 +873,15 @@ export async function checkoutPwa(input: {
       status: order.status,
       promotion_id: appliedPromo?.id,
       delivery_fee,
+      invoice_ref: invoiceRef,
     },
     { actor_id: actor_id || input.cashier_id, actor_name }
   );
 
   await enqueue("order.create", order);
+  if (nextShift) {
+    await enqueue("shift.update", nextShift);
+  }
   return { order, change_due };
 }
 
@@ -745,20 +925,22 @@ export async function updateOrderStatusPwa(
 
   if (nowCancelled && prev.status !== "cancelled") {
     const products = (await get<Product[]>(KEYS.products)) ?? [];
-    const touched = new Set<string>();
     for (const line of order.items) {
       const p = products.find((item) => item.id === line.product_id);
       if (p && p.track_stock) {
-        p.stock_quantity += line.quantity;
-        touched.add(p.id);
+        await recordStockChangePwa({
+          product_id: p.id,
+          delta: line.quantity,
+          reason: "return",
+          reference_type: "order_cancel",
+          reference_id: order.id,
+          actor_id: opts?.actor_id,
+          note: `إلغاء طلب ${order.order_number}`,
+          productsRef: products,
+        });
       }
     }
     await set(KEYS.products, products);
-    for (const p of products) {
-      if (touched.has(p.id)) {
-        await enqueue("product.upsert", p);
-      }
-    }
   }
 
   orders[idx] = order;
@@ -797,6 +979,7 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
   const existingReturns = (await get<ReturnRecord[]>(KEYS.returns)) ?? [];
   const returnItems: ReturnItem[] = [];
   let totalRefund = 0;
+  const round = (n: number) => Math.round(n * 100) / 100;
 
   for (const sel of input.items) {
     if (sel.quantity <= 0) continue;
@@ -808,7 +991,8 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
         `الكمية المتاحة للإرجاع من «${line.name}» هي ${remaining} فقط`
       );
     }
-    const unitRefund = line.unit_price;
+    // Distribute order discount/tax so refund ≤ what customer actually paid
+    const unitRefund = unitNetRefund(order, sel.line_index);
     totalRefund += unitRefund * sel.quantity;
     returnItems.push({
       product_id: line.product_id,
@@ -825,12 +1009,12 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
     throw new Error("رصيد العميل يتطلب عميلاً مرتبطاً بالفاتورة");
   }
 
-  const round = (n: number) => Math.round(n * 100) / 100;
   totalRefund = round(totalRefund);
+  const returnNumber = await formatNextDoc("return", "RET");
 
   const record: ReturnRecord = {
     id: crypto.randomUUID(),
-    return_number: `RET-${Math.floor(10000 + Math.random() * 90000)}`,
+    return_number: returnNumber,
     order_id: order.id,
     order_number: order.order_number,
     shift_id: input.open_shift?.id,
@@ -844,13 +1028,22 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
     items: returnItems,
   };
 
-  // Restock
+  // Restock via stock ledger
   const products = (await get<Product[]>(KEYS.products)) ?? [];
   for (const item of returnItems) {
     if (!item.restock) continue;
     const p = products.find((x) => x.id === item.product_id);
     if (p && p.track_stock) {
-      p.stock_quantity += item.quantity;
+      await recordStockChangePwa({
+        product_id: p.id,
+        delta: item.quantity,
+        reason: "return",
+        reference_type: "return",
+        reference_id: record.id,
+        actor_id: input.cashier_id,
+        note: `مرتجع ${record.return_number}`,
+        productsRef: products,
+      });
     }
   }
   await set(KEYS.products, products);
@@ -862,63 +1055,65 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
     if (liveShift?.status === "open") {
       const shift: Shift = {
         ...liveShift,
-        cash_returns: (liveShift.cash_returns ?? 0) + totalRefund,
-        expected_cash: Math.max(0, liveShift.expected_cash - totalRefund),
+        cash_returns: round((liveShift.cash_returns ?? 0) + totalRefund),
+        expected_cash: Math.max(
+          0,
+          round(liveShift.expected_cash - totalRefund)
+        ),
       };
       await set(KEYS.shift, shift);
       record.shift_id = shift.id;
+      await enqueue("shift.update", shift);
     }
+  }
+
+  const returnCustomerId = order.customer_id;
+  async function creditCustomerDebt(description: string) {
+    if (!returnCustomerId) return;
+    const customers = (await get<Customer[]>(KEYS.customers)) ?? [];
+    const customer = customers.find((c) => c.id === returnCustomerId);
+    if (!customer) return;
+    customer.balance = Math.max(0, round(customer.balance - totalRefund));
+    await set(KEYS.customers, customers);
+    await enqueue("customer.upsert", customer);
+    const ledgerEntry: CustomerLedgerEntry = {
+      id: crypto.randomUUID(),
+      customer_id: returnCustomerId,
+      type: "credit",
+      amount: totalRefund,
+      reference: record.return_number,
+      description,
+      created_at: record.created_at,
+    };
+    const ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
+    ledger.push(ledgerEntry);
+    await set(KEYS.ledger, ledger);
+    await enqueue("ledger.append", ledgerEntry);
   }
 
   // Store credit / reverse debt balance
   if (input.refund_method === "credit" && order.customer_id) {
-    const customers = (await get<Customer[]>(KEYS.customers)) ?? [];
-    const customer = customers.find((c) => c.id === order.customer_id);
-    if (customer) {
-      customer.balance = Math.max(0, customer.balance - totalRefund);
-      await set(KEYS.customers, customers);
-      const ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
-      ledger.push({
-        id: crypto.randomUUID(),
-        customer_id: order.customer_id,
-        type: "credit",
-        amount: totalRefund,
-        reference: record.return_number,
-        description: `مرتجع على فاتورة ${order.order_number}`,
-        created_at: record.created_at,
-      });
-      await set(KEYS.ledger, ledger);
-    }
+    await creditCustomerDebt(`مرتجع على فاتورة ${order.order_number}`);
   }
 
-  // Debt sale refunded as cash/card still reduces customer debt if they paid on account
+  // Debt sale refunded as cash/card still reduces customer debt
   if (
     order.payment_method === "debt" &&
     order.customer_id &&
     input.refund_method !== "credit"
   ) {
-    const customers = (await get<Customer[]>(KEYS.customers)) ?? [];
-    const customer = customers.find((c) => c.id === order.customer_id);
-    if (customer) {
-      customer.balance = Math.max(0, customer.balance - totalRefund);
-      await set(KEYS.customers, customers);
-      const ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
-      ledger.push({
-        id: crypto.randomUUID(),
-        customer_id: order.customer_id,
-        type: "credit",
-        amount: totalRefund,
-        reference: record.return_number,
-        description: `عكس آجل — مرتجع ${order.order_number}`,
-        created_at: record.created_at,
-      });
-      await set(KEYS.ledger, ledger);
-    }
+    await creditCustomerDebt(`عكس آجل — مرتجع ${order.order_number}`);
   }
 
   const nextReturns = existingReturns.concat(record);
   await set(KEYS.returns, nextReturns);
   await enqueue("return.create", record);
+  await appendAudit(
+    "return.create",
+    `مرتجع ${record.return_number} — ${totalRefund}`,
+    { order_id: order.id, refund_method: input.refund_method },
+    { actor_id: input.cashier_id }
+  );
   return record;
 }
 
@@ -992,7 +1187,7 @@ export async function recordCustomerPaymentPwa(customerId: string, amount: numbe
     customer_id: customerId,
     type: "credit",
     amount,
-    reference: "PAY-" + Math.floor(1000 + Math.random() * 9000),
+    reference: await formatNextDoc("payment", "PAY"),
     description: note || "سداد دفعة من الحساب",
     created_at: new Date().toISOString(),
   };
@@ -1042,10 +1237,41 @@ export async function recordCashMovementPwa(input: {
   return { movement, shift: next };
 }
 
-export async function addExpensePwa(expense: Omit<Expense, "id" | "created_at">) {
+export async function addExpensePwa(
+  expense: Omit<Expense, "id" | "created_at" | "shift_id" | "cash_movement_id"> & {
+    from_drawer?: boolean;
+    cashier_id?: string;
+  }
+) {
+  const amount = Math.round(Number(expense.amount) * 100) / 100;
+  if (!(amount > 0)) throw new Error("مبلغ المصروف غير صالح");
+
+  let shift_id: string | undefined;
+  let cash_movement_id: string | undefined;
+
+  if (expense.from_drawer) {
+    const shift = await get<Shift | null>(KEYS.shift);
+    if (!shift || shift.status !== "open") {
+      throw new Error("لا يمكن خصم المصروف من الصندوق بدون وردية مفتوحة");
+    }
+    const moved = await recordCashMovementPwa({
+      type: "out",
+      amount,
+      reason: `مصروف: ${expense.category}${expense.note ? ` — ${expense.note}` : ""}`,
+      cashier_id: expense.cashier_id,
+    });
+    shift_id = moved.shift.id;
+    cash_movement_id = moved.movement.id;
+  }
+
   const expenses = (await get<Expense[]>(KEYS.expenses)) ?? [];
   const newExp: Expense = {
-    ...expense,
+    category: expense.category,
+    amount,
+    note: expense.note,
+    from_drawer: !!expense.from_drawer,
+    shift_id,
+    cash_movement_id,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
   };
@@ -1056,27 +1282,52 @@ export async function addExpensePwa(expense: Omit<Expense, "id" | "created_at">)
 }
 
 export async function addProductPwa(product: Omit<Product, "id" | "branch_id">) {
+  const settings = (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
   const products = (await get<Product[]>(KEYS.products)) ?? [];
+  const openingQty = Math.max(0, Number(product.stock_quantity) || 0);
+  const now = new Date().toISOString();
   const newProd: Product = {
     ...product,
     id: crypto.randomUUID(),
-    branch_id: "branch-1",
+    branch_id: settings.branch_id,
+    stock_quantity: 0,
+    stock_version: 0,
+    updated_at: now,
   };
   products.push(newProd);
   await set(KEYS.products, products);
   await enqueue("product.upsert", newProd);
+
+  if (openingQty > 0 && newProd.track_stock) {
+    const { product: withStock } = await recordStockChangePwa({
+      product_id: newProd.id,
+      delta: openingQty,
+      reason: "opening",
+      reference_type: "product_open",
+      note: "رصيد افتتاح عند إنشاء الصنف",
+    });
+    return withStock;
+  }
   return newProd;
 }
 
 export async function updateProductPwa(product: Product) {
   const products = (await get<Product[]>(KEYS.products)) ?? [];
   const idx = products.findIndex((p) => p.id === product.id);
-  if (idx !== -1) {
-    products[idx] = product;
-    await set(KEYS.products, products);
-  }
-  await enqueue("product.upsert", product);
-  return product;
+  if (idx < 0) throw new Error("الصنف غير موجود");
+  const prev = products[idx];
+  // Catalog edits must not silently rewrite stock — use count/adjust APIs
+  const next: Product = {
+    ...prev,
+    ...product,
+    stock_quantity: prev.stock_quantity,
+    stock_version: prev.stock_version ?? 0,
+    updated_at: new Date().toISOString(),
+  };
+  products[idx] = next;
+  await set(KEYS.products, products);
+  await enqueue("product.upsert", next);
+  return next;
 }
 
 async function enqueue(action: string, payload: unknown) {
@@ -1090,11 +1341,12 @@ async function enqueue(action: string, payload: unknown) {
 }
 
 export async function addSupplierPwa(
-  input: Omit<Supplier, "id" | "created_at">
+  input: Omit<Supplier, "id" | "created_at" | "balance"> & { balance?: number }
 ): Promise<Supplier> {
   const suppliers = (await get<Supplier[]>(KEYS.suppliers)) ?? [];
   const supplier: Supplier = {
     ...input,
+    balance: Number(input.balance) || 0,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
   };
@@ -1112,6 +1364,8 @@ export async function createPurchasePwa(input: {
   items: PurchaseLine[];
   notes?: string;
   receive?: boolean;
+  /** Cash/transfer paid at receive time (reduces payable). */
+  paid_amount?: number;
   actor_id?: string;
   actor_name?: string;
 }): Promise<Purchase> {
@@ -1123,10 +1377,11 @@ export async function createPurchasePwa(input: {
   const total_cost = Math.round(
     input.items.reduce((s, l) => s + l.quantity * l.unit_cost, 0) * 100
   ) / 100;
+  const paid = Math.max(0, Math.min(total_cost, Number(input.paid_amount) || 0));
 
   let purchase: Purchase = {
     id: crypto.randomUUID(),
-    purchase_number: `PO-${Math.floor(10000 + Math.random() * 90000)}`,
+    purchase_number: await formatNextDoc("purchase", "PO"),
     supplier_id: supplier.id,
     supplier_name: supplier.name,
     items: input.items,
@@ -1134,6 +1389,8 @@ export async function createPurchasePwa(input: {
     status: "draft",
     notes: input.notes,
     created_at: new Date().toISOString(),
+    paid_amount: paid,
+    payment_status: paid <= 0 ? "unpaid" : paid + 0.001 >= total_cost ? "paid" : "partial",
   };
 
   const purchases = ((await get<Purchase[]>(KEYS.purchases)) ?? []).concat(purchase);
@@ -1169,33 +1426,153 @@ export async function receivePurchasePwa(
 
   const products = (await get<Product[]>(KEYS.products)) ?? [];
   for (const line of purchase.items) {
-    const p = products.find((x) => x.id === line.product_id);
-    if (!p) continue;
-    if (p.track_stock) {
-      p.stock_quantity += line.quantity;
+    const pIdx = products.findIndex((x) => x.id === line.product_id);
+    if (pIdx < 0) continue;
+    products[pIdx] = {
+      ...products[pIdx],
+      cost_price: line.unit_cost,
+      updated_at: new Date().toISOString(),
+    };
+    if (products[pIdx].track_stock && line.quantity > 0) {
+      await recordStockChangePwa({
+        product_id: products[pIdx].id,
+        delta: line.quantity,
+        reason: "purchase",
+        reference_type: "purchase",
+        reference_id: purchase.id,
+        actor_id: opts?.actor_id,
+        note: `استلام ${purchase.purchase_number}`,
+        productsRef: products,
+      });
+    } else {
+      await enqueue("product.upsert", products[pIdx]);
     }
-    p.cost_price = line.unit_cost;
-    await enqueue("product.upsert", p);
   }
   await set(KEYS.products, products);
+
+  const paid = Math.max(0, Number(purchase.paid_amount) || 0);
+  const payment_status: Purchase["payment_status"] =
+    paid <= 0 ? "unpaid" : paid + 0.001 >= purchase.total_cost ? "paid" : "partial";
+  const due = Math.max(0, Math.round((purchase.total_cost - paid) * 100) / 100);
 
   const received: Purchase = {
     ...purchase,
     status: "received",
     received_at: new Date().toISOString(),
+    paid_amount: paid,
+    payment_status,
   };
   purchases[idx] = received;
   await set(KEYS.purchases, purchases);
 
+  if (due > 0) {
+    const suppliers = (await get<Supplier[]>(KEYS.suppliers)) ?? [];
+    const sIdx = suppliers.findIndex((s) => s.id === purchase.supplier_id);
+    if (sIdx >= 0) {
+      suppliers[sIdx] = {
+        ...suppliers[sIdx],
+        balance:
+          Math.round((Number(suppliers[sIdx].balance || 0) + due) * 100) / 100,
+      };
+      await set(KEYS.suppliers, suppliers);
+      await enqueue("supplier.upsert", suppliers[sIdx]);
+    }
+  }
+
   await appendAudit(
     "purchase.receive",
     `استلام أمر شراء ${received.purchase_number}`,
-    { purchase_id: received.id, total_cost: received.total_cost },
+    {
+      purchase_id: received.id,
+      total_cost: received.total_cost,
+      paid_amount: paid,
+      due,
+    },
     { actor_id: opts?.actor_id, actor_name: opts?.actor_name }
   );
   await enqueue("purchase.receive", received);
   await enqueue("purchase.upsert", received);
   return received;
+}
+
+export async function recordSupplierPaymentPwa(input: {
+  supplier_id: string;
+  amount: number;
+  method: "cash" | "transfer" | "card";
+  note?: string;
+  reference?: string;
+  purchase_id?: string;
+}): Promise<SupplierPayment> {
+  const amount = Math.round(Number(input.amount) * 100) / 100;
+  if (!(amount > 0)) throw new Error("مبلغ الدفعة غير صالح");
+
+  const suppliers = (await get<Supplier[]>(KEYS.suppliers)) ?? [];
+  const sIdx = suppliers.findIndex((s) => s.id === input.supplier_id);
+  if (sIdx < 0) throw new Error("المورد غير موجود");
+
+  const payment: SupplierPayment = {
+    id: crypto.randomUUID(),
+    supplier_id: input.supplier_id,
+    purchase_id: input.purchase_id,
+    amount,
+    method: input.method,
+    note: input.note?.trim() || undefined,
+    reference: input.reference?.trim() || undefined,
+    created_at: new Date().toISOString(),
+  };
+
+  suppliers[sIdx] = {
+    ...suppliers[sIdx],
+    balance: Math.max(
+      0,
+      Math.round((Number(suppliers[sIdx].balance || 0) - amount) * 100) / 100
+    ),
+  };
+
+  if (input.purchase_id) {
+    const purchases = (await get<Purchase[]>(KEYS.purchases)) ?? [];
+    const pIdx = purchases.findIndex((p) => p.id === input.purchase_id);
+    if (pIdx >= 0) {
+      const p = purchases[pIdx];
+      const paid = Math.min(
+        p.total_cost,
+        Math.round((Number(p.paid_amount || 0) + amount) * 100) / 100
+      );
+      purchases[pIdx] = {
+        ...p,
+        paid_amount: paid,
+        payment_status:
+          paid + 0.001 >= p.total_cost ? "paid" : paid > 0 ? "partial" : "unpaid",
+      };
+      await set(KEYS.purchases, purchases);
+      await enqueue("purchase.upsert", purchases[pIdx]);
+    }
+  }
+
+  const payments = (await get<SupplierPayment[]>(KEYS.supplier_payments)) ?? [];
+  payments.unshift(payment);
+  await set(KEYS.supplier_payments, payments);
+  await set(KEYS.suppliers, suppliers);
+  await enqueue("supplier.upsert", suppliers[sIdx]);
+  await enqueue("supplier_payment.create", payment);
+  await appendAudit(
+    "supplier_payment.create",
+    `دفعة مورد ${suppliers[sIdx].name}: ${amount}`,
+    { payment_id: payment.id, supplier_id: payment.supplier_id }
+  );
+  return payment;
+}
+
+export async function listSupplierPaymentsPwa(
+  supplierId?: string
+): Promise<SupplierPayment[]> {
+  const rows = (await get<SupplierPayment[]>(KEYS.supplier_payments)) ?? [];
+  const sorted = [...rows].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at)
+  );
+  return supplierId
+    ? sorted.filter((p) => p.supplier_id === supplierId)
+    : sorted;
 }
 
 export async function savePromotionsPwa(promotions: Promotion[]) {
@@ -1270,6 +1647,8 @@ export async function importBackupPwa(data: Record<string, unknown>) {
 
 export async function clearAllDataPwa() {
   await set(KEYS.products, []);
+  await set(KEYS.categories, []);
+  await set(KEYS.stock_movements, []);
   await set(KEYS.customers, []);
   await set(KEYS.expenses, []);
   await set(KEYS.orders, []);
@@ -1280,6 +1659,7 @@ export async function clearAllDataPwa() {
   await set(KEYS.ledger, []);
   await set(KEYS.cash_movements, []);
   await set(KEYS.suppliers, []);
+  await set(KEYS.supplier_payments, []);
   await set(KEYS.purchases, []);
   await set(KEYS.promotions, []);
   await set(KEYS.audit, []);
@@ -1335,6 +1715,9 @@ export async function applyCloudPull(input: {
   cash_movements: Record<string, unknown>[];
   audit_log: Record<string, unknown>[];
   open_shifts: Record<string, unknown>[];
+  stock_movements?: Record<string, unknown>[];
+  categories?: Record<string, unknown>[];
+  supplier_payments?: Record<string, unknown>[];
 }): Promise<number> {
   await ensurePwaSeed();
   let touched = 0;
@@ -1381,10 +1764,12 @@ export async function applyCloudPull(input: {
       owner_whatsapp: String(
         remote.owner_whatsapp ?? input.localSettings.owner_whatsapp ?? ""
       ),
-      // Keep device cloud credentials local
+      // Keep device cloud credentials + local-only flags
       supabase_url: input.localSettings.supabase_url,
       supabase_anon_key: input.localSettings.supabase_anon_key,
       cloud_sync_enabled: input.localSettings.cloud_sync_enabled,
+      auto_print_thermal: input.localSettings.auto_print_thermal,
+      setup_complete: input.localSettings.setup_complete,
       branch_id: String(remote.branch_id ?? input.localSettings.branch_id),
     };
     await set(KEYS.settings, merged);
@@ -1409,6 +1794,8 @@ export async function applyCloudPull(input: {
         stock_quantity: moneyField(p.stock_quantity),
         min_stock: moneyField(p.min_stock),
         is_active: p.is_active !== false,
+        stock_version: Number(p.stock_version) || 0,
+        updated_at: String(p.updated_at || p.created_at || ""),
         image_url: (p.image_url as string) || null,
         imei: (p.imei as string) || null,
         serial: (p.serial as string) || null,
@@ -1417,12 +1804,73 @@ export async function applyCloudPull(input: {
         expiry_days: p.expiry_days != null ? Number(p.expiry_days) : null,
       }) as Product
   );
-  const mergedProducts = mergeById(localProducts, remoteProducts, () => 0);
-  // Prefer remote stock/price when both exist (cloud after push is freshest cross-device)
+  const byLocal = new Map(localProducts.map((p) => [p.id, p]));
   const byRemote = new Map(remoteProducts.map((p) => [p.id, p]));
-  const productsFinal = mergedProducts.map((p) => byRemote.get(p.id) || p);
+  const allIds = new Set([...byLocal.keys(), ...byRemote.keys()]);
+  const productsFinal: Product[] = [];
+  for (const id of allIds) {
+    const local = byLocal.get(id);
+    const remote = byRemote.get(id);
+    if (local && remote) {
+      productsFinal.push(mergeProductInventory(local, remote));
+    } else {
+      productsFinal.push((remote || local)!);
+    }
+  }
   await set(KEYS.products, productsFinal);
   touched += remoteProducts.length;
+
+  if (input.categories?.length) {
+    const localCats = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+    const remoteCats = input.categories.map(
+      (c) =>
+        ({
+          id: String(c.id),
+          branch_id: String(c.branch_id || ""),
+          name: String(c.name || ""),
+          sort_order: Number(c.sort_order) || 0,
+          created_at: String(c.created_at || new Date().toISOString()),
+        }) as ProductCategory
+    );
+    await set(
+      KEYS.categories,
+      mergeById(localCats, remoteCats, (c) => asTime(c.created_at))
+    );
+    touched += remoteCats.length;
+  }
+
+  if (input.stock_movements?.length) {
+    const localMoves = (await get<StockMovement[]>(KEYS.stock_movements)) ?? [];
+    const remoteMoves = input.stock_movements.map(
+      (m) =>
+        ({
+          id: String(m.id),
+          product_id: String(m.product_id),
+          branch_id: String(m.branch_id || ""),
+          reason: String(m.reason || "adjustment") as StockMovement["reason"],
+          delta: moneyField(m.delta),
+          qty_before: moneyField(m.qty_before),
+          qty_after: moneyField(m.qty_after),
+          reference_type: (m.reference_type as string) || undefined,
+          reference_id: (m.reference_id as string) || undefined,
+          note: (m.note as string) || undefined,
+          actor_id: (m.actor_id as string) || undefined,
+          created_at: String(m.created_at || new Date().toISOString()),
+        }) as StockMovement
+    );
+    const mergedMoves = mergeById(localMoves, remoteMoves, (m) =>
+      asTime(m.created_at)
+    );
+    const trimmed =
+      mergedMoves.length > 3000
+        ? mergedMoves
+            .slice()
+            .sort((a, b) => asTime(a.created_at) - asTime(b.created_at))
+            .slice(-3000)
+        : mergedMoves;
+    await set(KEYS.stock_movements, trimmed);
+    touched += remoteMoves.length;
+  }
 
   const localCustomers = (await get<Customer[]>(KEYS.customers)) ?? [];
   const remoteCustomers = input.customers.map(
@@ -1523,6 +1971,7 @@ export async function applyCloudPull(input: {
         phone: String(s.phone || ""),
         address: (s.address as string) || undefined,
         notes: (s.notes as string) || undefined,
+        balance: moneyField(s.balance),
         created_at: String(s.created_at || new Date().toISOString()),
       }) as Supplier
   );
@@ -1531,6 +1980,29 @@ export async function applyCloudPull(input: {
     mergeById(localSuppliers, remoteSuppliers, (s) => asTime(s.created_at))
   );
   touched += remoteSuppliers.length;
+
+  if (input.supplier_payments?.length) {
+    const localPay =
+      (await get<SupplierPayment[]>(KEYS.supplier_payments)) ?? [];
+    const remotePay = input.supplier_payments.map(
+      (p) =>
+        ({
+          id: String(p.id),
+          supplier_id: String(p.supplier_id || ""),
+          amount: moneyField(p.amount),
+          method: (p.method as SupplierPayment["method"]) || "cash",
+          reference: (p.reference as string) || undefined,
+          note: (p.note as string) || undefined,
+          purchase_id: (p.purchase_id as string) || undefined,
+          created_at: String(p.created_at || new Date().toISOString()),
+        }) as SupplierPayment
+    );
+    await set(
+      KEYS.supplier_payments,
+      mergeById(localPay, remotePay, (p) => asTime(p.created_at))
+    );
+    touched += remotePay.length;
+  }
 
   const localPurchases = (await get<Purchase[]>(KEYS.purchases)) ?? [];
   const remotePurchases = input.purchases.map(
@@ -1546,6 +2018,14 @@ export async function applyCloudPull(input: {
         notes: (p.notes as string) || undefined,
         created_at: String(p.created_at || new Date().toISOString()),
         received_at: (p.received_at as string) || undefined,
+        paid_amount: moneyField(p.paid_amount),
+        payment_status:
+          (p.payment_status as Purchase["payment_status"]) ||
+          (moneyField(p.paid_amount) <= 0
+            ? "unpaid"
+            : moneyField(p.paid_amount) + 0.001 >= moneyField(p.total_cost)
+              ? "paid"
+              : "partial"),
       }) as Purchase
   );
   await set(

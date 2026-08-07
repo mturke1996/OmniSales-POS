@@ -17,13 +17,17 @@ import {
   Keyboard,
   Truck,
   Storefront,
+  Camera,
 } from "@phosphor-icons/react";
 import { checkout, addHeldCart, removeHeldCart, addCustomer } from "../../lib/api";
-import { calcTotals } from "../../lib/offline-store";
+import { applyBestPromotion, calcTotals } from "../../lib/offline-store";
 import { formatMoney } from "../../lib/format";
 import { cn } from "../../lib/cn";
 import { useCart } from "../../stores/cart";
 import { industryCaps, promptSerialMeta } from "../../lib/industry";
+import { filterCatalog, findExactCatalogMatch } from "../../lib/catalog";
+import { availableForProduct, findStockIssues } from "../../lib/stock";
+import { acceptScan, feedbackScan } from "../../lib/scan-feedback";
 import type {
   BranchSettings,
   Customer,
@@ -32,6 +36,8 @@ import type {
   OrderType,
   PaymentMethod,
   Product,
+  ProductCategory,
+  Promotion,
   Shift,
 } from "../../lib/types";
 import { ProductGrid } from "./ProductGrid";
@@ -39,11 +45,15 @@ import { HoldCartsModal } from "./HoldCartsModal";
 import { ReceiptModal } from "./ReceiptModal";
 import { CustomerSelectModal } from "./CustomerSelectModal";
 import { ShortcutsModal } from "./ShortcutsModal";
+import { BarcodeScannerModal } from "./BarcodeScannerModal";
 import { usePhoneLayout } from "../../hooks/use-media-query";
+import { usePrinter } from "../../hooks/use-printer";
 
 export function PosScreen({
   settings,
   products,
+  categories = [],
+  promotions = [],
   openShiftState,
   customers,
   heldCarts,
@@ -56,6 +66,8 @@ export function PosScreen({
 }: {
   settings: BranchSettings;
   products: Product[];
+  categories?: ProductCategory[];
+  promotions?: Promotion[];
   openShiftState: Shift | null;
   customers: Customer[];
   heldCarts: HeldCart[];
@@ -66,7 +78,17 @@ export function PosScreen({
   onOpenCompletedSales?: () => void;
   onOpenShifts?: () => void;
 }) {
-  const { lines, discount, add, setQty, remove, clear, setDiscount } = useCart();
+  const {
+    lines,
+    discount,
+    add,
+    setQty,
+    remove,
+    clear,
+    setDiscount,
+    priceMode,
+    setPriceMode,
+  } = useCart();
   const caps = industryCaps(settings.industry);
 
   function addProductToCart(p: Product) {
@@ -78,13 +100,53 @@ export function PosScreen({
       setMessage("افتح وردية أولاً قبل إضافة أصناف إلى السلة");
       return;
     }
+    if (!p.is_active) {
+      setMessage(`الصنف «${p.name}» غير نشط`);
+      return;
+    }
+    if (p.track_stock) {
+      const avail = availableForProduct(p, lines);
+      if (avail < 1) {
+        setMessage(`لا يتوفر مخزون لـ «${p.name}» (المتوفر ${p.stock_quantity})`);
+        return;
+      }
+    }
     if (caps.track_imei || caps.track_serial) {
       const meta = promptSerialMeta(settings, p.name);
       if (!meta) return;
-      add(p, { qty: 1, ...meta });
+      add(p, { qty: 1, ...meta, priceMode });
       return;
     }
-    add(p);
+    add(p, { qty: 1, priceMode });
+  }
+
+  function handleScanOrSearchEnter() {
+    const code = query.trim();
+    if (!code) return;
+    // Hardware wedges often re-fire Enter bursts — debounce identical codes
+    const looksLikeBarcode = /^[\dA-Za-z\-_.]{4,}$/.test(code);
+    if (looksLikeBarcode && !acceptScan(code)) return;
+
+    const exact = findExactCatalogMatch(products, code);
+    if (exact) {
+      addProductToCart(exact);
+      feedbackScan(true);
+      setQuery("");
+      return;
+    }
+    const soft = filterCatalog(products, code);
+    if (soft.length === 1) {
+      addProductToCart(soft[0]);
+      feedbackScan(true);
+      setQuery("");
+      return;
+    }
+    if (soft.length === 0) {
+      feedbackScan(false);
+      setMessage("لا يوجد صنف مطابق للباركود/البحث");
+      return;
+    }
+    setMessage("نتائج متعددة — اختر الصنف من الشبكة أو امسح باركوداً دقيقاً");
   }
 
   const [query, setQuery] = useState("");
@@ -111,29 +173,58 @@ export function PosScreen({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isPhone = usePhoneLayout();
+  const printer = usePrinter();
+  const [showScanner, setShowScanner] = useState(false);
+  /** "auto" | "none" | promotion id */
+  const [promoChoice, setPromoChoice] = useState<string>("auto");
 
   useEffect(() => {
     setDeliveryFee(String(settings.default_delivery_fee ?? 5));
   }, [settings.default_delivery_fee]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.barcode.includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        (p.oem_code && p.oem_code.toLowerCase().includes(q))
-    );
-  }, [products, query]);
+  const filtered = useMemo(
+    () => filterCatalog(products, query),
+    [products, query]
+  );
 
-  const totals = calcTotals(lines, discount, settings.tax_rate);
+  const stockIssues = useMemo(
+    () => findStockIssues(lines, products),
+    [lines, products]
+  );
+
+  const activePromos = useMemo(
+    () => promotions.filter((p) => p.active),
+    [promotions]
+  );
+
+  const cartSubtotal = useMemo(
+    () => lines.reduce((s, l) => s + l.unit_price * l.quantity, 0),
+    [lines]
+  );
+
+  const promoPreview = useMemo(() => {
+    if (promoChoice === "none") return null;
+    if (promoChoice === "auto") {
+      return applyBestPromotion(cartSubtotal, activePromos);
+    }
+    const manual = activePromos.find((p) => p.id === promoChoice);
+    return manual ? applyBestPromotion(cartSubtotal, [manual]) : null;
+  }, [promoChoice, cartSubtotal, activePromos]);
+
+  const effectiveDiscount = Math.min(
+    cartSubtotal,
+    Math.max(0, discount) + (promoPreview?.amount || 0)
+  );
+  const totals = calcTotals(lines, effectiveDiscount, settings.tax_rate);
   const feeNum =
     saleMode === "delivery" ? Math.max(0, Number(deliveryFee) || 0) : 0;
   const grandTotal = Math.round((totals.total + feeNum) * 100) / 100;
   const orderType: OrderType =
-    saleMode === "delivery" ? "delivery" : "pos_walk_in";
+    saleMode === "delivery"
+      ? "delivery"
+      : priceMode === "wholesale"
+        ? "wholesale"
+        : "pos_walk_in";
   const totalItemsCount = lines.reduce((s, i) => s + i.quantity, 0);
 
   const needsShift =
@@ -217,10 +308,20 @@ export function PosScreen({
     setBusy(true);
     setMessage(null);
     try {
+      if (stockIssues.length) {
+        throw new Error(
+          `مخزون غير كافٍ — ${stockIssues
+            .map((i) => `«${i.name}» (${i.available})`)
+            .join(" · ")}`
+        );
+      }
       if (saleMode === "delivery") {
         const phone = (deliveryPhone || selectedCustomer?.phone || "").trim();
         if (!phone) throw new Error("رقم هاتف التوصيل مطلوب");
         if (!deliveryAddress.trim()) throw new Error("عنوان التوصيل مطلوب");
+      }
+      if (priceMode === "wholesale" && !selectedCustomer) {
+        throw new Error("مبيعات الجملة تتطلب اختيار عميل");
       }
 
       const result = await checkout({
@@ -251,6 +352,12 @@ export function PosScreen({
             ? deliveryDate
             : undefined,
         delivery_fee: saleMode === "delivery" ? feeNum : undefined,
+        promotion_id:
+          promoChoice === "none"
+            ? null
+            : promoChoice === "auto"
+              ? undefined
+              : promoChoice,
       });
 
       setCompletedOrder(result.order as Order);
@@ -262,6 +369,7 @@ export function PosScreen({
       setSelectedCustomer(null);
       setDeliveryAddress("");
       setDeliveryPhone("");
+      setPromoChoice("auto");
       setMobileCartOpen(false);
       setMessage(
         saleMode === "delivery"
@@ -416,6 +524,48 @@ export function PosScreen({
           </button>
         </div>
 
+        <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-ink/[0.06] bg-paper-raised p-1">
+          <button
+            type="button"
+            onClick={() => setPriceMode("retail")}
+            className={cn(
+              "rounded-xl py-1.5 text-[11px] font-bold transition",
+              priceMode === "retail"
+                ? "bg-success/15 text-success"
+                : "text-ink-mute hover:text-ink"
+            )}
+          >
+            تجزئة
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPriceMode("wholesale");
+              if (!selectedCustomer) setShowCustomerModal(true);
+            }}
+            className={cn(
+              "rounded-xl py-1.5 text-[11px] font-bold transition",
+              priceMode === "wholesale"
+                ? "bg-warning/15 text-warning"
+                : "text-ink-mute hover:text-ink"
+            )}
+          >
+            جملة
+          </button>
+        </div>
+
+        {stockIssues.length > 0 && (
+          <p
+            role="alert"
+            className="rounded-lg border border-danger/25 bg-danger/10 px-2.5 py-2 text-[11px] font-semibold text-danger"
+          >
+            مخزون غير كافٍ:{" "}
+            {stockIssues
+              .map((i) => `«${i.name}» متاح ${i.available}`)
+              .join(" · ")}
+          </p>
+        )}
+
         {saleMode === "delivery" && (
           <div className="space-y-2 rounded-xl border border-highlight/25 bg-highlight/5 p-2.5">
             <p className="text-[11px] font-bold text-highlight">بيانات التوصيل</p>
@@ -460,9 +610,45 @@ export function PosScreen({
           </div>
         )}
 
+        {activePromos.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold text-ink-mute">العروض</p>
+            <div className="flex flex-wrap gap-1.5">
+              <PromoChip
+                active={promoChoice === "auto"}
+                onClick={() => setPromoChoice("auto")}
+                label="أفضل عرض"
+              />
+              <PromoChip
+                active={promoChoice === "none"}
+                onClick={() => setPromoChoice("none")}
+                label="بدون عرض"
+              />
+              {activePromos.map((p) => (
+                <PromoChip
+                  key={p.id}
+                  active={promoChoice === p.id}
+                  onClick={() => setPromoChoice(p.id)}
+                  label={
+                    p.kind === "percent"
+                      ? `${p.name} · ${p.value}%`
+                      : `${p.name} · ${p.value}`
+                  }
+                />
+              ))}
+            </div>
+            {promoPreview && (
+              <p className="text-[11px] font-semibold text-success">
+                يُطبَّق: {promoPreview.promotion.name} (−
+                {formatMoney(promoPreview.amount, settings.currency_symbol)})
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-[11px] font-semibold text-ink-mute">
-            الخصم
+            خصم إضافي
             <input
               type="number"
               min={0}
@@ -537,16 +723,31 @@ export function PosScreen({
             <span>الفرعي</span>
             <span className="money-big">{formatMoney(totals.subtotal, settings.currency_symbol)}</span>
           </div>
-          {totals.discount > 0 && (
+          {promoPreview && promoPreview.amount > 0 && (
+            <div className="flex justify-between font-semibold text-success">
+              <span>عرض: {promoPreview.promotion.name}</span>
+              <span className="money-big">
+                -{formatMoney(promoPreview.amount, settings.currency_symbol)}
+              </span>
+            </div>
+          )}
+          {discount > 0 && (
             <div className="flex justify-between font-semibold text-danger">
-              <span>الخصم</span>
-              <span className="money-big">-{formatMoney(totals.discount, settings.currency_symbol)}</span>
+              <span>خصم إضافي</span>
+              <span className="money-big">
+                -{formatMoney(Math.min(discount, cartSubtotal), settings.currency_symbol)}
+              </span>
             </div>
           )}
           {totals.tax > 0 && (
             <div className="flex justify-between text-ink-mute">
-              <span>الضريبة ({settings.tax_rate}%)</span>
+              <span>الضريبة</span>
               <span className="money-big">+{formatMoney(totals.tax, settings.currency_symbol)}</span>
+            </div>
+          )}
+          {priceMode === "wholesale" && (
+            <div className="text-[10px] font-semibold text-warning">
+              أسعار الجملة مفعّلة
             </div>
           )}
           {feeNum > 0 && (
@@ -569,7 +770,12 @@ export function PosScreen({
           <p
             className={cn(
               "rounded-lg border p-2 text-center text-xs font-semibold",
-              message.includes("فشل") || message.includes("مطلوب") || message.includes("تجاوز")
+              message.includes("فشل") ||
+              message.includes("مطلوب") ||
+              message.includes("تجاوز") ||
+              message.includes("مخزون") ||
+              message.includes("لا يوجد") ||
+              message.includes("متعددة")
                 ? "border-danger/25 bg-danger/10 text-danger"
                 : "border-success/25 bg-success/10 text-success"
             )}
@@ -581,11 +787,17 @@ export function PosScreen({
         <button
           type="button"
           className="btn-primary flex h-14 w-full items-center justify-center gap-2 text-base font-bold"
-          disabled={busy || !lines.length || needsShift}
+          disabled={
+            busy || !lines.length || needsShift || stockIssues.length > 0
+          }
           onClick={() => void handleCheckout()}
         >
           <span>
-            {saleMode === "delivery" ? "تأكيد طلب التوصيل" : "إتمام البيع"}
+            {saleMode === "delivery"
+              ? "تأكيد طلب التوصيل"
+              : priceMode === "wholesale"
+                ? "إتمام بيع جملة"
+                : "إتمام البيع"}
           </span>
           <span className="pos-key-badge border-white/20 bg-white/10 text-accent-invert">F9</span>
         </button>
@@ -612,6 +824,17 @@ export function PosScreen({
             <span className="text-[10px] text-ink-mute">الوردية</span>
             <span className={cn("text-sm font-bold", openShiftState ? "text-success" : "text-warning")}>
               {openShiftState ? "مفتوحة" : "مغلقة"}
+            </span>
+          </div>
+          <div className="pos-kpi-pill hidden md:flex">
+            <span className="text-[10px] text-ink-mute">الطابعة</span>
+            <span
+              className={cn(
+                "text-sm font-bold",
+                printer.connected ? "text-success" : "text-ink-mute"
+              )}
+            >
+              {printer.connected ? "متصلة" : "—"}
             </span>
           </div>
           <div className="pos-kpi-pill hidden sm:flex">
@@ -667,9 +890,9 @@ export function PosScreen({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && filtered[0]) {
-                    addProductToCart(filtered[0]);
-                    setQuery("");
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleScanOrSearchEnter();
                   }
                 }}
                 placeholder="ابحث بالاسم أو الباركود أو SKU..."
@@ -679,6 +902,16 @@ export function PosScreen({
               />
               <span className="pos-key-badge absolute start-3.5 top-1/2 -translate-y-1/2">F1</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowScanner(true)}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-paper-line/70 bg-paper-raised px-3.5 text-sm font-semibold text-ink shadow-soft transition hover:border-highlight/35"
+              title="مسح بالكاميرا"
+            >
+              <Camera size={18} className="text-highlight" weight="duotone" />
+              <span className="hidden sm:inline">كاميرا</span>
+            </button>
 
             <div className="flex w-full gap-2 sm:w-auto sm:flex-initial">
             <button
@@ -727,6 +960,7 @@ export function PosScreen({
 
           <ProductGrid
             products={filtered}
+            categories={categories}
             layout={settings.pos_layout}
             currencySymbol={settings.currency_symbol}
             onAdd={addProductToCart}
@@ -811,15 +1045,62 @@ export function PosScreen({
         <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />
       )}
 
+      {showScanner && (
+        <BarcodeScannerModal
+          onClose={() => setShowScanner(false)}
+          onDetect={(code) => {
+            if (!acceptScan(code)) return;
+            const exact = findExactCatalogMatch(products, code);
+            if (exact) {
+              addProductToCart(exact);
+              feedbackScan(true);
+              setMessage(`تم مسح: ${exact.name}`);
+            } else {
+              feedbackScan(false);
+              setQuery(code);
+              setMessage(`باركود غير معروف: ${code}`);
+            }
+          }}
+        />
+      )}
+
       {completedOrder && (
         <ReceiptModal
           order={completedOrder}
           settings={settings}
           changeDue={lastChangeDue}
           onClose={() => setCompletedOrder(null)}
+          autoPrint={
+            settings.auto_print_thermal !== false && printer.connected
+          }
         />
       )}
     </div>
+  );
+}
+
+function PromoChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-lg px-2.5 py-1 text-[10px] font-bold transition",
+        active
+          ? "bg-success/15 text-success ring-1 ring-success/30"
+          : "bg-paper text-ink-mute hover:text-ink"
+      )}
+    >
+      {label}
+    </button>
   );
 }
 

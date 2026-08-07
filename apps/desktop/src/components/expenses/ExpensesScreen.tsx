@@ -8,9 +8,17 @@ interface ExpensesScreenProps {
   expenses: Expense[];
   settings: BranchSettings;
   onRefreshData: () => void;
+  hasOpenShift?: boolean;
+  cashierId?: string;
 }
 
-export function ExpensesScreen({ expenses, settings, onRefreshData }: ExpensesScreenProps) {
+export function ExpensesScreen({
+  expenses,
+  settings,
+  onRefreshData,
+  hasOpenShift = false,
+  cashierId,
+}: ExpensesScreenProps) {
   const [query, setQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -77,8 +85,15 @@ export function ExpensesScreen({ expenses, settings, onRefreshData }: ExpensesSc
               <span>{new Date(exp.created_at).toLocaleString("ar-LY")}</span>
             }
             badge={
-              <span className="font-mono text-sm font-bold text-danger">
-                −{exp.amount.toFixed(2)} {settings.currency_symbol}
+              <span className="inline-flex flex-col items-end gap-0.5">
+                <span className="font-mono text-sm font-bold text-danger">
+                  −{exp.amount.toFixed(2)} {settings.currency_symbol}
+                </span>
+                {exp.from_drawer ? (
+                  <span className="text-[10px] font-bold text-warning">من الصندوق</span>
+                ) : (
+                  <span className="text-[10px] text-ink-mute">خارج الصندوق</span>
+                )}
               </span>
             }
           />
@@ -124,6 +139,8 @@ export function ExpensesScreen({ expenses, settings, onRefreshData }: ExpensesSc
       {showAddModal && (
         <AddExpenseModal
           settings={settings}
+          hasOpenShift={hasOpenShift}
+          cashierId={cashierId}
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false);
@@ -137,16 +154,21 @@ export function ExpensesScreen({ expenses, settings, onRefreshData }: ExpensesSc
 
 function AddExpenseModal({
   settings,
+  hasOpenShift,
+  cashierId,
   onClose,
   onSuccess,
 }: {
   settings: BranchSettings;
+  hasOpenShift: boolean;
+  cashierId?: string;
   onClose: () => void;
   onSuccess: () => void;
 }) {
   const [category, setCategory] = useState("كهرباء ومرافق");
   const [amount, setAmount] = useState(50);
   const [note, setNote] = useState("");
+  const [fromDrawer, setFromDrawer] = useState(hasOpenShift);
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -158,6 +180,8 @@ function AddExpenseModal({
         category,
         amount: Number(amount),
         note,
+        from_drawer: fromDrawer,
+        cashier_id: cashierId,
       });
       onSuccess();
     } catch (err) {
@@ -216,6 +240,24 @@ function AddExpenseModal({
               placeholder="مثال: فاتورة كهرباء شهر يوليو"
             />
           </div>
+
+          <label className="flex items-start gap-2 rounded-xl border border-paper-line bg-paper px-3 py-2.5">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={fromDrawer}
+              disabled={!hasOpenShift}
+              onChange={(e) => setFromDrawer(e.target.checked)}
+            />
+            <span className="text-xs leading-relaxed">
+              <span className="font-bold text-ink">خصم من درج الصندوق</span>
+              <span className="mt-0.5 block text-[11px] text-ink-mute">
+                {hasOpenShift
+                  ? "يُسجَّل كسحب صندوق ويُحدّث النقد المتوقع في الوردية"
+                  : "افتح وردية أولاً لتفعيل الخصم من الصندوق"}
+              </span>
+            </span>
+          </label>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-paper-line">
             <button type="button" onClick={onClose} className="btn-ghost text-xs">

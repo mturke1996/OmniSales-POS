@@ -1,221 +1,401 @@
-import { useState } from "react";
-import { Plus, MagnifyingGlass, WarningCircle, PencilSimple, X } from "@phosphor-icons/react";
-import { addProduct, updateProduct } from "../../lib/api";
-import type { BranchSettings, Product } from "../../lib/types";
+import { useMemo, useState, type ReactElement } from "react";
+import {
+  Plus,
+  MagnifyingGlass,
+  WarningCircle,
+  PencilSimple,
+  X,
+  Scales,
+  ArrowsDownUp,
+  Tag,
+  ClockCounterClockwise,
+} from "@phosphor-icons/react";
+import {
+  addProduct,
+  updateProduct,
+  countStock,
+  adjustStock,
+  addCategory,
+} from "../../lib/api";
+import { STOCK_REASON_AR } from "../../lib/stock-ledger";
+import { cn } from "../../lib/cn";
+import type {
+  BranchSettings,
+  Product,
+  ProductCategory,
+  StockMovement,
+} from "../../lib/types";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+
+type TabKey = "catalog" | "count" | "movements" | "categories";
 
 interface InventoryScreenProps {
   products: Product[];
+  categories: ProductCategory[];
+  stockMovements: StockMovement[];
   settings: BranchSettings;
   onRefreshData: () => void;
   canManage?: boolean;
+  actorId?: string;
 }
 
 export function InventoryScreen({
   products,
+  categories,
+  stockMovements,
   settings,
   onRefreshData,
   canManage = true,
+  actorId,
 }: InventoryScreenProps) {
+  const [tab, setTab] = useState<TabKey>("catalog");
   const [query, setQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [countProduct, setCountProduct] = useState<Product | null>(null);
+  const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
+  const [movementFilter, setMovementFilter] = useState<string>("");
 
-  const lowStockItems = products.filter((p) => p.track_stock && p.stock_quantity <= p.min_stock);
+  const categoryName = useMemo(() => {
+    const map = new Map(categories.map((c) => [c.id, c.name]));
+    return (id: string) => map.get(id) || "بدون تصنيف";
+  }, [categories]);
+
+  const lowStockItems = products.filter(
+    (p) => p.track_stock && p.stock_quantity <= p.min_stock
+  );
 
   const filtered = products.filter(
     (p) =>
       p.name.toLowerCase().includes(query.toLowerCase()) ||
       p.barcode.includes(query) ||
       p.sku.toLowerCase().includes(query) ||
-      (p.oem_code && p.oem_code.toLowerCase().includes(query))
+      (p.oem_code && p.oem_code.toLowerCase().includes(query)) ||
+      categoryName(p.category_id).includes(query)
   );
 
+  const movements = useMemo(() => {
+    const list = movementFilter
+      ? stockMovements.filter((m) => m.product_id === movementFilter)
+      : stockMovements;
+    return list.slice(0, 80);
+  }, [stockMovements, movementFilter]);
+
+  const productName = useMemo(() => {
+    const map = new Map(products.map((p) => [p.id, p.name]));
+    return (id: string) => map.get(id) || id.slice(0, 8);
+  }, [products]);
+
+  const tabs: { id: TabKey; label: string; icon: ReactElement }[] = [
+    { id: "catalog", label: "الأصناف", icon: <Tag size={14} /> },
+    { id: "count", label: "الجرد", icon: <Scales size={14} /> },
+    { id: "movements", label: "الحركات", icon: <ClockCounterClockwise size={14} /> },
+    { id: "categories", label: "التصنيفات", icon: <ArrowsDownUp size={14} /> },
+  ];
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between border-b border-paper-line pb-4 gap-3">
+    <div className="mx-auto max-w-6xl space-y-5 px-4 py-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-line pb-4">
         <div>
-          <h2 className="text-xl font-bold text-ink">إدارة المنتجات والمخزون (Inventory & Catalog)</h2>
+          <h2 className="text-xl font-bold text-ink">المخزون والجرد</h2>
           <p className="text-xs text-ink-mute">
-            إضافة وتعديل الأقسام والمنتجات ومتابعة كميات وتنبيهات نواقص المخزون.
+            أصناف · جرد فعلي · تسوية · دفتر حركات · تصنيفات
           </p>
         </div>
-
-        {canManage ? (
+        {canManage && tab === "catalog" && (
           <button
             type="button"
             onClick={() => {
               setEditingProduct(null);
               setShowAddModal(true);
             }}
-            className="btn-primary text-xs inline-flex items-center gap-1.5 font-bold"
+            className="btn-primary inline-flex items-center gap-1.5 text-xs font-bold"
           >
             <Plus size={16} />
-            إضافة صنف جديد
+            إضافة صنف
           </button>
-        ) : (
-          <p className="text-[11px] font-semibold text-ink-mute">
-            عرض فقط · التعديل للمدير
-          </p>
         )}
       </div>
 
-      {/* Low Stock Warning Alert */}
-      {lowStockItems.length > 0 && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <WarningCircle size={20} className="text-amber-600 shrink-0" />
-            <div>
-              <span className="font-bold">تنبيه النواقص: </span>
-              <span>يوجد {lowStockItems.length} منتجات وصلت أو تجاوزت الحد الأدنى للمخزون!</span>
-            </div>
-          </div>
+      <div className="grid grid-cols-4 gap-1 rounded-2xl bg-paper p-1">
+        {tabs.map((t) => (
           <button
+            key={t.id}
             type="button"
-            onClick={() => setQuery("")}
-            className="text-xs font-bold underline hover:text-amber-950"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "inline-flex items-center justify-center gap-1 rounded-xl py-2 text-[11px] font-bold transition",
+              tab === t.id ? "bg-ink text-paper" : "text-ink-mute hover:text-ink"
+            )}
           >
-            عرض النواقص
+            {t.icon}
+            <span className="hidden sm:inline">{t.label}</span>
           </button>
+        ))}
+      </div>
+
+      {lowStockItems.length > 0 && tab !== "categories" && (
+        <div className="flex items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+          <WarningCircle size={18} className="shrink-0 text-amber-600" />
+          <span>
+            <span className="font-bold">نواقص: </span>
+            {lowStockItems.length} أصناف عند أو تحت الحد الأدنى
+          </span>
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="relative">
-        <MagnifyingGlass size={18} className="absolute right-3.5 top-3 text-ink-mute" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ابحث باسم المنتج، الباركود، SKU، أو رقم OEM..."
-          className="w-full rounded-full border border-paper-line bg-paper-raised pr-10 pl-4 py-2.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ink"
-        />
-      </div>
+      {(tab === "catalog" || tab === "count") && (
+        <div className="relative">
+          <MagnifyingGlass
+            size={18}
+            className="absolute right-3.5 top-3 text-ink-mute"
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ابحث بالاسم، الباركود، SKU، التصنيف..."
+            className="w-full rounded-full border border-paper-line bg-paper-raised py-2.5 pl-4 pr-10 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ink"
+          />
+        </div>
+      )}
 
-      <MobileDataList empty={!filtered.length} emptyLabel="لا توجد منتجات مطابقة">
-        {filtered.map((prod) => {
-          const isLow = prod.track_stock && prod.stock_quantity <= prod.min_stock;
-          return (
-            <MobileDataCard
-              key={prod.id}
-              title={prod.name}
-              subtitle={`${prod.barcode} · ${prod.sku}`}
-              meta={
-                <>
-                  <span className="font-mono font-bold">
-                    {prod.retail_price.toFixed(2)} {settings.currency_symbol}
-                  </span>
-                  <span
-                    className={
-                      isLow
-                        ? "rounded bg-danger/10 px-1.5 font-mono font-bold text-danger"
-                        : "font-mono"
-                    }
-                  >
-                    {prod.stock_quantity} {prod.unit_type}
-                  </span>
-                </>
-              }
-              badge={
-                prod.is_active ? (
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                    نشط
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">
-                    معطل
-                  </span>
-                )
-              }
-              actions={
-                canManage ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingProduct(prod);
-                      setShowAddModal(true);
-                    }}
-                    className="inline-flex min-h-9 items-center gap-1 rounded-full bg-paper px-3 py-1.5 text-[11px] font-bold text-ink"
-                  >
-                    <PencilSimple size={14} />
-                    تعديل
-                  </button>
-                ) : undefined
-              }
-            />
-          );
-        })}
-      </MobileDataList>
-
-      <div className="hidden overflow-x-auto rounded-2xl border border-paper-line bg-paper-raised shadow-xs md:block">
-        <table className="w-full text-right text-xs">
-          <thead className="bg-paper text-ink-mute font-bold border-b border-paper-line">
-            <tr>
-              <th className="p-3">المنتج</th>
-              <th className="p-3">الباركود / SKU</th>
-              <th className="p-3">سعر التكلفة</th>
-              <th className="p-3">سعر البيع</th>
-              <th className="p-3">المخزون الحالي</th>
-              <th className="p-3">الحالة</th>
-              <th className="p-3 text-left">إجراءات</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-paper-line">
+      {tab === "catalog" && (
+        <>
+          <MobileDataList empty={!filtered.length} emptyLabel="لا توجد منتجات">
             {filtered.map((prod) => {
-              const isLow = prod.track_stock && prod.stock_quantity <= prod.min_stock;
+              const isLow =
+                prod.track_stock && prod.stock_quantity <= prod.min_stock;
               return (
-                <tr key={prod.id} className="hover:bg-paper/50">
-                  <td className="p-3 font-bold text-ink">
-                    <div>{prod.name}</div>
-                    {prod.oem_code && <div className="text-[10px] text-ink-mute">OEM: {prod.oem_code}</div>}
-                  </td>
-                  <td className="p-3 font-mono text-ink-mute">
-                    <div>{prod.barcode}</div>
-                    <div className="text-[10px]">{prod.sku}</div>
-                  </td>
-                  <td className="p-3 font-mono">{prod.cost_price.toFixed(2)} {settings.currency_symbol}</td>
-                  <td className="p-3 font-mono font-bold text-ink">{prod.retail_price.toFixed(2)} {settings.currency_symbol}</td>
-                  <td className="p-3 font-mono">
-                    <span className={`font-bold ${isLow ? "text-red-600 bg-red-50 px-2 py-0.5 rounded" : ""}`}>
-                      {prod.stock_quantity} {prod.unit_type}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    {prod.is_active ? (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">نشط</span>
-                    ) : (
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">معطل</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-left">
-                    {canManage ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingProduct(prod);
-                          setShowAddModal(true);
-                        }}
-                        className="rounded-full p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
+                <MobileDataCard
+                  key={prod.id}
+                  title={prod.name}
+                  subtitle={`${categoryName(prod.category_id)} · ${prod.barcode}`}
+                  meta={
+                    <>
+                      <span className="font-mono font-bold">
+                        {prod.retail_price.toFixed(2)}{" "}
+                        {settings.currency_symbol}
+                      </span>
+                      <span
+                        className={
+                          isLow
+                            ? "rounded bg-danger/10 px-1.5 font-mono font-bold text-danger"
+                            : "font-mono"
+                        }
                       >
-                        <PencilSimple size={16} />
-                      </button>
-                    ) : (
-                      <span className="text-[10px] text-ink-mute">—</span>
-                    )}
-                  </td>
-                </tr>
+                        {prod.stock_quantity} {prod.unit_type}
+                      </span>
+                    </>
+                  }
+                  actions={
+                    canManage ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setCountProduct(prod)}
+                          className="inline-flex min-h-9 items-center gap-1 rounded-full bg-paper px-3 py-1.5 text-[11px] font-bold"
+                        >
+                          <Scales size={14} /> جرد
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAdjustProduct(prod)}
+                          className="inline-flex min-h-9 items-center gap-1 rounded-full bg-paper px-3 py-1.5 text-[11px] font-bold"
+                        >
+                          <ArrowsDownUp size={14} /> تسوية
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingProduct(prod);
+                            setShowAddModal(true);
+                          }}
+                          className="inline-flex min-h-9 items-center gap-1 rounded-full bg-paper px-3 py-1.5 text-[11px] font-bold"
+                        >
+                          <PencilSimple size={14} /> تعديل
+                        </button>
+                      </div>
+                    ) : undefined
+                  }
+                />
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </MobileDataList>
 
-      {/* Add / Edit Product Modal */}
+          <div className="hidden overflow-x-auto rounded-2xl border border-paper-line bg-paper-raised md:block">
+            <table className="w-full text-right text-xs">
+              <thead className="border-b border-paper-line bg-paper font-bold text-ink-mute">
+                <tr>
+                  <th className="p-3">المنتج</th>
+                  <th className="p-3">التصنيف</th>
+                  <th className="p-3">الباركود</th>
+                  <th className="p-3">البيع</th>
+                  <th className="p-3">المخزون</th>
+                  <th className="p-3">إصدار</th>
+                  <th className="p-3 text-left">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-paper-line">
+                {filtered.map((prod) => {
+                  const isLow =
+                    prod.track_stock && prod.stock_quantity <= prod.min_stock;
+                  return (
+                    <tr key={prod.id} className="hover:bg-paper/50">
+                      <td className="p-3 font-bold text-ink">{prod.name}</td>
+                      <td className="p-3 text-ink-mute">
+                        {categoryName(prod.category_id)}
+                      </td>
+                      <td className="p-3 font-mono text-ink-mute">
+                        {prod.barcode}
+                      </td>
+                      <td className="p-3 font-mono font-bold">
+                        {prod.retail_price.toFixed(2)}
+                      </td>
+                      <td className="p-3 font-mono">
+                        <span
+                          className={
+                            isLow
+                              ? "rounded bg-red-50 px-2 py-0.5 font-bold text-red-600"
+                              : "font-bold"
+                          }
+                        >
+                          {prod.stock_quantity}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono text-ink-mute">
+                        v{prod.stock_version ?? 0}
+                      </td>
+                      <td className="p-3 text-left">
+                        {canManage && (
+                          <div className="inline-flex gap-1">
+                            <button
+                              type="button"
+                              title="جرد"
+                              onClick={() => setCountProduct(prod)}
+                              className="rounded-full p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
+                            >
+                              <Scales size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              title="تسوية"
+                              onClick={() => setAdjustProduct(prod)}
+                              className="rounded-full p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
+                            >
+                              <ArrowsDownUp size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              title="تعديل"
+                              onClick={() => {
+                                setEditingProduct(prod);
+                                setShowAddModal(true);
+                              }}
+                              className="rounded-full p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
+                            >
+                              <PencilSimple size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {tab === "count" && (
+        <div className="space-y-3">
+          <p className="text-xs text-ink-mute">
+            اختر صنفاً وأدخل الكمية المعدودة فعلياً — النظام يحسب الفرق ويسجّل
+            حركة جرد.
+          </p>
+          <MobileDataList empty={!filtered.length} emptyLabel="لا أصناف">
+            {filtered.map((prod) => (
+              <MobileDataCard
+                key={prod.id}
+                title={prod.name}
+                subtitle={`نظامي: ${prod.stock_quantity} ${prod.unit_type}`}
+                actions={
+                  canManage ? (
+                    <button
+                      type="button"
+                      className="btn-primary text-[11px] font-bold"
+                      onClick={() => setCountProduct(prod)}
+                    >
+                      بدء الجرد
+                    </button>
+                  ) : undefined
+                }
+              />
+            ))}
+          </MobileDataList>
+        </div>
+      )}
+
+      {tab === "movements" && (
+        <div className="space-y-3">
+          <select
+            className="input w-full max-w-md text-xs"
+            value={movementFilter}
+            onChange={(e) => setMovementFilter(e.target.value)}
+          >
+            <option value="">كل الأصناف</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <MobileDataList empty={!movements.length} emptyLabel="لا حركات بعد">
+            {movements.map((m) => (
+              <MobileDataCard
+                key={m.id}
+                title={productName(m.product_id)}
+                subtitle={`${STOCK_REASON_AR[m.reason] || m.reason}${
+                  m.note ? ` · ${m.note}` : ""
+                }`}
+                meta={
+                  <>
+                    <span
+                      className={cn(
+                        "font-mono font-bold",
+                        m.delta >= 0 ? "text-success" : "text-danger"
+                      )}
+                    >
+                      {m.delta >= 0 ? "+" : ""}
+                      {m.delta}
+                    </span>
+                    <span className="font-mono text-ink-mute">
+                      {m.qty_before} → {m.qty_after}
+                    </span>
+                    <span className="text-[10px] text-ink-mute">
+                      {new Date(m.created_at).toLocaleString("ar-LY")}
+                    </span>
+                  </>
+                }
+              />
+            ))}
+          </MobileDataList>
+        </div>
+      )}
+
+      {tab === "categories" && (
+        <CategoriesPanel
+          categories={categories}
+          canManage={canManage}
+          onRefresh={onRefreshData}
+        />
+      )}
+
       {showAddModal && (
         <ProductFormModal
           product={editingProduct}
-          settings={settings}
+          categories={categories}
           onClose={() => setShowAddModal(false)}
           onSave={async (data) => {
             if (editingProduct) {
@@ -228,34 +408,335 @@ export function InventoryScreen({
           }}
         />
       )}
+
+      {countProduct && (
+        <CountModal
+          product={countProduct}
+          onClose={() => setCountProduct(null)}
+          onSubmit={async (counted, note) => {
+            await countStock({
+              product_id: countProduct.id,
+              counted_qty: counted,
+              note,
+              actor_id: actorId,
+            });
+            setCountProduct(null);
+            onRefreshData();
+          }}
+        />
+      )}
+
+      {adjustProduct && (
+        <AdjustModal
+          product={adjustProduct}
+          onClose={() => setAdjustProduct(null)}
+          onSubmit={async (delta, reason, note) => {
+            await adjustStock({
+              product_id: adjustProduct.id,
+              delta,
+              reason,
+              note,
+              actor_id: actorId,
+            });
+            setAdjustProduct(null);
+            onRefreshData();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CategoriesPanel({
+  categories,
+  canManage,
+  onRefresh,
+}: {
+  categories: ProductCategory[];
+  canManage: boolean;
+  onRefresh: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      {canManage && (
+        <form
+          className="flex flex-wrap gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setBusy(true);
+            void addCategory(name)
+              .then(() => {
+                setName("");
+                onRefresh();
+              })
+              .catch((err) =>
+                alert(err instanceof Error ? err.message : "فشل")
+              )
+              .finally(() => setBusy(false));
+          }}
+        >
+          <input
+            className="input min-w-[12rem] flex-1 text-xs"
+            placeholder="اسم تصنيف جديد"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="btn-primary text-xs font-bold"
+          >
+            إضافة تصنيف
+          </button>
+        </form>
+      )}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {categories.map((c) => (
+          <div
+            key={c.id}
+            className="rounded-2xl border border-paper-line bg-paper-raised px-4 py-3"
+          >
+            <p className="text-sm font-bold text-ink">{c.name}</p>
+            <p className="mt-0.5 font-mono text-[10px] text-ink-mute">
+              {c.id.slice(0, 8)}
+            </p>
+          </div>
+        ))}
+        {!categories.length && (
+          <p className="text-xs text-ink-mute">لا تصنيفات بعد</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CountModal({
+  product,
+  onClose,
+  onSubmit,
+}: {
+  product: Product;
+  onClose: () => void;
+  onSubmit: (counted: number, note?: string) => Promise<void>;
+}) {
+  const [counted, setCounted] = useState(String(product.stock_quantity));
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const delta =
+    Math.round((Number(counted) - product.stock_quantity) * 1000) / 1000;
+
+  return (
+    <div className="app-modal-backdrop">
+      <div className="app-modal-panel">
+        <div className="flex items-center justify-between border-b border-paper-line pb-3">
+          <h3 className="font-bold text-ink">جرد · {product.name}</h3>
+          <button type="button" onClick={onClose} className="rounded-full p-1">
+            <X size={18} />
+          </button>
+        </div>
+        <form
+          className="mt-4 space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setBusy(true);
+            void onSubmit(Number(counted), note || undefined)
+              .catch((err) =>
+                alert(err instanceof Error ? err.message : "فشل الجرد")
+              )
+              .finally(() => setBusy(false));
+          }}
+        >
+          <p className="text-xs text-ink-mute">
+            الكمية النظامية:{" "}
+            <span className="font-mono font-bold text-ink">
+              {product.stock_quantity}
+            </span>
+          </p>
+          <label className="block space-y-1">
+            <span className="text-xs font-bold">الكمية المعدودة *</span>
+            <input
+              type="number"
+              step="0.001"
+              min={0}
+              required
+              className="input w-full font-mono"
+              value={counted}
+              onChange={(e) => setCounted(e.target.value)}
+              autoFocus
+            />
+          </label>
+          <p
+            className={cn(
+              "text-xs font-bold",
+              delta === 0
+                ? "text-ink-mute"
+                : delta > 0
+                  ? "text-success"
+                  : "text-danger"
+            )}
+          >
+            الفرق: {delta >= 0 ? "+" : ""}
+            {delta}
+          </p>
+          <input
+            className="input w-full text-xs"
+            placeholder="ملاحظة (اختياري)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="flex justify-end gap-2 border-t border-paper-line pt-3">
+            <button type="button" className="btn-ghost text-xs" onClick={onClose}>
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={busy || !Number.isFinite(Number(counted))}
+              className="btn-primary text-xs font-bold"
+            >
+              حفظ الجرد
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AdjustModal({
+  product,
+  onClose,
+  onSubmit,
+}: {
+  product: Product;
+  onClose: () => void;
+  onSubmit: (
+    delta: number,
+    reason: "adjustment" | "damage" | "opening",
+    note?: string
+  ) => Promise<void>;
+}) {
+  const [delta, setDelta] = useState("1");
+  const [reason, setReason] = useState<"adjustment" | "damage" | "opening">(
+    "adjustment"
+  );
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="app-modal-backdrop">
+      <div className="app-modal-panel">
+        <div className="flex items-center justify-between border-b border-paper-line pb-3">
+          <h3 className="font-bold text-ink">تسوية · {product.name}</h3>
+          <button type="button" onClick={onClose} className="rounded-full p-1">
+            <X size={18} />
+          </button>
+        </div>
+        <form
+          className="mt-4 space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const d = Number(delta);
+            if (!d) {
+              alert("أدخل فرق كمية غير صفر");
+              return;
+            }
+            setBusy(true);
+            void onSubmit(d, reason, note || undefined)
+              .catch((err) =>
+                alert(err instanceof Error ? err.message : "فشل التسوية")
+              )
+              .finally(() => setBusy(false));
+          }}
+        >
+          <p className="text-xs text-ink-mute">
+            الحالي:{" "}
+            <span className="font-mono font-bold text-ink">
+              {product.stock_quantity}
+            </span>
+          </p>
+          <label className="block space-y-1">
+            <span className="text-xs font-bold">الفرق (+ إضافة / − خصم)</span>
+            <input
+              type="number"
+              step="0.001"
+              required
+              className="input w-full font-mono"
+              value={delta}
+              onChange={(e) => setDelta(e.target.value)}
+            />
+          </label>
+          <select
+            className="input w-full text-xs"
+            value={reason}
+            onChange={(e) =>
+              setReason(e.target.value as "adjustment" | "damage" | "opening")
+            }
+          >
+            <option value="adjustment">تسوية يدوية</option>
+            <option value="damage">تالف / هالك</option>
+            <option value="opening">رصيد افتتاح</option>
+          </select>
+          <input
+            className="input w-full text-xs"
+            placeholder="سبب التسوية"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="flex justify-end gap-2 border-t border-paper-line pt-3">
+            <button type="button" className="btn-ghost text-xs" onClick={onClose}>
+              إلغاء
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              className="btn-primary text-xs font-bold"
+            >
+              تطبيق التسوية
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
 
 function ProductFormModal({
   product,
+  categories,
   onClose,
   onSave,
 }: {
   product: Product | null;
-  settings?: BranchSettings;
+  categories: ProductCategory[];
   onClose: () => void;
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: Omit<Product, "id" | "branch_id">) => Promise<void>;
 }) {
+  const defaultCat = categories[0]?.id || "";
   const [name, setName] = useState(product?.name || "");
-  const [barcode, setBarcode] = useState(product?.barcode || `${Math.floor(10000000 + Math.random() * 90000000)}`);
-  const [sku, setSku] = useState(product?.sku || `SKU-${Math.floor(100 + Math.random() * 900)}`);
+  const [barcode, setBarcode] = useState(
+    product?.barcode || `${Math.floor(10000000 + Math.random() * 90000000)}`
+  );
+  const [sku, setSku] = useState(
+    product?.sku || `SKU-${Math.floor(100 + Math.random() * 900)}`
+  );
+  const [categoryId, setCategoryId] = useState(
+    product?.category_id || defaultCat
+  );
   const [costPrice, setCostPrice] = useState(product?.cost_price || 0);
   const [retailPrice, setRetailPrice] = useState(product?.retail_price || 0);
-  const [stockQuantity, setStockQuantity] = useState(product?.stock_quantity || 50);
+  const [wholesalePrice, setWholesalePrice] = useState(
+    product?.wholesale_price || 0
+  );
+  const [stockQuantity, setStockQuantity] = useState(
+    product ? product.stock_quantity : 0
+  );
   const [minStock, setMinStock] = useState(product?.min_stock || 5);
   const [unitType, setUnitType] = useState(product?.unit_type || "piece");
   const [oemCode, setOemCode] = useState(product?.oem_code || "");
-  const [imei, setImei] = useState(product?.imei || "");
-  const [serial, setSerial] = useState(product?.serial || "");
-  const [vehicleFitment, setVehicleFitment] = useState(
-    product?.vehicle_fitment || ""
-  );
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -264,22 +745,22 @@ function ProductFormModal({
     setSaving(true);
     try {
       await onSave({
-        category_id: "cat-1",
+        category_id: categoryId || defaultCat || crypto.randomUUID(),
         name,
         barcode,
         sku,
         cost_price: Number(costPrice),
         retail_price: Number(retailPrice),
-        wholesale_price: Number(retailPrice) * 0.85,
-        stock_quantity: Number(stockQuantity),
+        wholesale_price:
+          Number(wholesalePrice) || Number(retailPrice) * 0.85,
+        stock_quantity: product ? product.stock_quantity : Number(stockQuantity),
         min_stock: Number(minStock),
         unit_type: unitType,
         track_stock: true,
         is_active: true,
         oem_code: oemCode || undefined,
-        imei: imei || undefined,
-        serial: serial || undefined,
-        vehicle_fitment: vehicleFitment || undefined,
+        stock_version: product?.stock_version ?? 0,
+        updated_at: new Date().toISOString(),
       });
     } catch (err) {
       alert(err instanceof Error ? err.message : "فشل حفظ الصنف");
@@ -292,15 +773,17 @@ function ProductFormModal({
     <div className="app-modal-backdrop">
       <div className="app-modal-panel !max-w-lg">
         <div className="flex items-center justify-between border-b border-paper-line pb-3">
-          <h3 className="font-bold text-ink">{product ? "تعديل بيانات صنف" : "إضافة صنف جديد للمخزون"}</h3>
-          <button type="button" onClick={onClose} className="rounded-full p-1 text-ink-mute hover:bg-paper">
+          <h3 className="font-bold text-ink">
+            {product ? "تعديل بيانات صنف" : "إضافة صنف جديد"}
+          </h3>
+          <button type="button" onClick={onClose} className="rounded-full p-1">
             <X size={18} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <div>
-            <label className="text-xs font-bold text-ink">اسم الصنف / المنتج *</label>
+            <label className="text-xs font-bold text-ink">اسم الصنف *</label>
             <input
               type="text"
               required
@@ -308,6 +791,22 @@ function ProductFormModal({
               onChange={(e) => setName(e.target.value)}
               className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-bold"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-ink">التصنيف</label>
+            <select
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+              {!categories.length && <option value="">عام</option>}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -318,61 +817,75 @@ function ProductFormModal({
                 required
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
+                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-ink">رمز SKU</label>
+              <label className="text-xs font-semibold text-ink">SKU</label>
               <input
                 type="text"
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs font-semibold text-ink">سعر التكلفة</label>
-              <input
-                type="number"
-                step="0.01"
-                value={costPrice}
-                onChange={(e) => setCostPrice(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-ink">سعر البيع للجمهور *</label>
-              <input
-                type="number"
-                step="0.01"
-                required
-                value={retailPrice}
-                onChange={(e) => setRetailPrice(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono font-bold"
+                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="text-xs font-semibold text-ink">المخزون الحالي</label>
+              <label className="text-xs font-semibold text-ink">تكلفة</label>
               <input
                 type="number"
-                value={stockQuantity}
-                onChange={(e) => setStockQuantity(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
+                step="0.01"
+                value={costPrice}
+                onChange={(e) => setCostPrice(Number(e.target.value))}
+                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-ink">الحد الأدنى</label>
+              <label className="text-xs font-semibold text-ink">تجزئة *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={retailPrice}
+                onChange={(e) => setRetailPrice(Number(e.target.value))}
+                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs font-bold"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-ink">جملة</label>
+              <input
+                type="number"
+                step="0.01"
+                value={wholesalePrice}
+                onChange={(e) => setWholesalePrice(Number(e.target.value))}
+                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {!product && (
+              <div>
+                <label className="text-xs font-semibold text-ink">
+                  رصيد افتتاح
+                </label>
+                <input
+                  type="number"
+                  value={stockQuantity}
+                  onChange={(e) => setStockQuantity(Number(e.target.value))}
+                  className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
+                />
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-semibold text-ink">حد أدنى</label>
               <input
                 type="number"
                 value={minStock}
                 onChange={(e) => setMinStock(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
+                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
               />
             </div>
             <div>
@@ -380,69 +893,43 @@ function ProductFormModal({
               <select
                 value={unitType}
                 onChange={(e) => setUnitType(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-2 py-2 text-xs"
+                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs"
               >
                 <option value="piece">قطعة</option>
                 <option value="box">علبة</option>
                 <option value="kilo">كيلو</option>
-                <option value="gram">جرام</option>
-                <option value="set">طقم</option>
+                <option value="liter">لتر</option>
               </select>
             </div>
           </div>
 
+          {product && (
+            <p className="rounded-xl bg-paper px-3 py-2 text-[11px] text-ink-mute">
+              لتغيير الكمية استخدم <strong>جرد</strong> أو <strong>تسوية</strong> —
+              لا تُعدَّل من نموذج البيانات.
+            </p>
+          )}
+
           <div>
-            <label className="text-xs font-semibold text-ink">رقم OEM / المرجع الأصلي (اختياري)</label>
+            <label className="text-xs font-semibold text-ink">OEM (اختياري)</label>
             <input
               type="text"
               value={oemCode}
               onChange={(e) => setOemCode(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
-              placeholder="مثال: OEM-998811"
+              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs font-semibold text-ink">IMEI (اختياري)</label>
-              <input
-                type="text"
-                value={imei}
-                onChange={(e) => setImei(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
-                placeholder="15 رقم"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-ink">Serial (اختياري)</label>
-              <input
-                type="text"
-                value={serial}
-                onChange={(e) => setSerial(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-ink">
-              توافق المركبة (قطع غيار)
-            </label>
-            <input
-              type="text"
-              value={vehicleFitment}
-              onChange={(e) => setVehicleFitment(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs"
-              placeholder="مثال: تويوتا كورولا 2015–2019"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4 border-t border-paper-line">
+          <div className="flex justify-end gap-2 border-t border-paper-line pt-3">
             <button type="button" onClick={onClose} className="btn-ghost text-xs">
               إلغاء
             </button>
-            <button type="submit" disabled={saving} className="btn-primary text-xs font-bold">
-              {saving ? "جاري الحفظ..." : "حفظ المنتج"}
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-primary text-xs font-bold"
+            >
+              {saving ? "جاري الحفظ..." : "حفظ"}
             </button>
           </div>
         </form>

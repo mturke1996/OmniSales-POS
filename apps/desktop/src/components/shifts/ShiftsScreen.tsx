@@ -10,6 +10,7 @@ import {
 import { openShift, closeShift, recordCashMovement } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 import { buildZSummary } from "../../lib/analytics";
+import { printZReport } from "../../lib/z-report";
 import type {
   BranchSettings,
   CashMovement,
@@ -26,6 +27,7 @@ export function ShiftsScreen({
   orders = [],
   returns = [],
   cashMovements = [],
+  shiftHistory = [],
   onRefreshData,
 }: {
   settings: BranchSettings;
@@ -35,6 +37,7 @@ export function ShiftsScreen({
   orders?: Order[];
   returns?: ReturnRecord[];
   cashMovements?: CashMovement[];
+  shiftHistory?: Shift[];
   onRefreshData?: () => void;
 }) {
   const z = useMemo(
@@ -79,15 +82,46 @@ export function ShiftsScreen({
     setBusy(true);
     setMessage(null);
     try {
-      const counted = closingCount ? Number(closingCount) : openShiftState.expected_cash;
-      await closeShift(counted);
+      const counted = closingCount
+        ? Number(closingCount)
+        : openShiftState.expected_cash;
+      const closed = await closeShift(counted);
+      try {
+        printZReport({
+          settings,
+          shift: closed,
+          orders,
+          returns,
+          cashMovements,
+          cashierName: cashierId,
+        });
+      } catch {
+        /* print blocked — still closed */
+      }
       onShiftChange(null);
       setClosingCount("");
-      setMessage("تم إغلاق الوردية وحفظ تقرير الزيد Z-Report بنجاح");
+      onRefreshData?.();
+      setMessage("تم إغلاق الوردية وطباعة تقرير Z بنجاح");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "فشل إغلاق الوردية");
     } finally {
       setBusy(false);
+    }
+  }
+
+  function handlePrintOpenZ() {
+    if (!openShiftState) return;
+    try {
+      printZReport({
+        settings,
+        shift: openShiftState,
+        orders,
+        returns,
+        cashMovements,
+        cashierName: cashierId,
+      });
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "تعذر الطباعة");
     }
   }
 
@@ -213,7 +247,16 @@ export function ShiftsScreen({
             </div>
 
             <div className="mt-4 rounded-xl border border-highlight/25 bg-highlight/5 p-4">
-              <p className="text-xs font-bold text-ink">ملخص Z-Report</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-ink">ملخص Z-Report</p>
+                <button
+                  type="button"
+                  onClick={handlePrintOpenZ}
+                  className="inline-flex items-center gap-1 rounded-full border border-highlight/30 bg-paper-raised px-2.5 py-1 text-[11px] font-bold text-highlight"
+                >
+                  <Printer size={14} /> طباعة
+                </button>
+              </div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                 <div>
                   <p className="text-ink-mute">فواتير</p>
@@ -402,6 +445,57 @@ export function ShiftsScreen({
             >
               {busy ? "جاري الإغلاق..." : "إغلاق الوردية وحفظ Z-Report"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {shiftHistory.length > 0 && (
+        <div className="space-y-3 rounded-2xl border border-paper-line bg-paper-raised p-4">
+          <h3 className="text-sm font-bold text-ink">سجل الورديات المغلقة</h3>
+          <div className="space-y-2">
+            {shiftHistory.slice(0, 20).map((s) => (
+              <div
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-paper-line bg-paper px-3 py-2.5 text-xs"
+              >
+                <div>
+                  <p className="font-bold text-ink">
+                    {new Date(s.opened_at).toLocaleString("ar-LY")}
+                    {s.closed_at
+                      ? ` → ${new Date(s.closed_at).toLocaleTimeString("ar-LY")}`
+                      : ""}
+                  </p>
+                  <p className="text-[11px] text-ink-mute">
+                    نقد متوقع {formatMoney(s.expected_cash, settings.currency_symbol)}
+                    {s.variance != null
+                      ? ` · فرق ${formatMoney(s.variance, settings.currency_symbol)}`
+                      : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-full border border-paper-line px-2.5 py-1 text-[11px] font-bold"
+                  onClick={() => {
+                    try {
+                      printZReport({
+                        settings,
+                        shift: s,
+                        orders,
+                        returns,
+                        cashMovements,
+                        cashierName: s.cashier_id,
+                      });
+                    } catch (e) {
+                      setMessage(
+                        e instanceof Error ? e.message : "تعذر الطباعة"
+                      );
+                    }
+                  }}
+                >
+                  <Printer size={14} /> Z
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}

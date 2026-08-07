@@ -47,6 +47,41 @@ export interface Money {
   amount: number;
 }
 
+export type StockMovementReason =
+  | "sale"
+  | "return"
+  | "purchase"
+  | "adjustment"
+  | "count"
+  | "opening"
+  | "damage"
+  | "transfer_in"
+  | "transfer_out";
+
+export interface StockMovement {
+  id: string;
+  product_id: string;
+  branch_id: string;
+  reason: StockMovementReason;
+  /** Positive = inbound, negative = outbound */
+  delta: number;
+  qty_before: number;
+  qty_after: number;
+  reference_type?: string;
+  reference_id?: string;
+  note?: string;
+  actor_id?: string;
+  created_at: string;
+}
+
+export interface ProductCategory {
+  id: string;
+  branch_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Product {
   id: string;
   branch_id: string;
@@ -62,6 +97,9 @@ export interface Product {
   stock_quantity: number;
   min_stock: number;
   is_active: boolean;
+  /** Monotonic counter — higher wins on multi-device qty merge */
+  stock_version?: number;
+  updated_at?: string;
   image_url?: string | null;
   imei?: string | null;
   serial?: string | null;
@@ -119,6 +157,10 @@ export interface Expense {
   amount: number;
   note: string;
   created_at: string;
+  /** When true, amount is deducted from the open cash drawer */
+  from_drawer?: boolean;
+  shift_id?: string;
+  cash_movement_id?: string;
 }
 
 export interface HeldCart {
@@ -163,6 +205,8 @@ export interface Order {
   notes?: string;
   /** True once sale totals were posted to the open shift (avoids double-count on delivery complete) */
   settled_to_shift?: boolean;
+  promotion_id?: string;
+  promotion_name?: string;
 }
 
 export interface Supplier {
@@ -171,6 +215,19 @@ export interface Supplier {
   phone: string;
   address?: string;
   notes?: string;
+  /** Positive = we owe the supplier */
+  balance: number;
+  created_at: string;
+}
+
+export interface SupplierPayment {
+  id: string;
+  supplier_id: string;
+  amount: number;
+  method: "cash" | "transfer" | "card";
+  reference?: string;
+  note?: string;
+  purchase_id?: string;
   created_at: string;
 }
 
@@ -192,6 +249,8 @@ export interface Purchase {
   notes?: string;
   created_at: string;
   received_at?: string;
+  paid_amount?: number;
+  payment_status?: "unpaid" | "partial" | "paid";
 }
 
 export type PromotionKind = "percent" | "fixed";
@@ -243,6 +302,10 @@ export interface BranchSettings {
   default_delivery_fee?: number;
   /** Owner phone for daily WhatsApp summary */
   owner_whatsapp?: string;
+  /** Auto-print thermal ESC/POS after successful checkout */
+  auto_print_thermal?: boolean;
+  /** Setup wizard completed */
+  setup_complete?: boolean;
 }
 
 export interface Shift {
@@ -266,7 +329,10 @@ export interface Shift {
 export interface Bootstrap {
   settings: BranchSettings;
   products: Product[];
+  categories: ProductCategory[];
+  stock_movements: StockMovement[];
   open_shift: Shift | null;
+  shift_history: Shift[];
   customers: Customer[];
   customer_ledger: CustomerLedgerEntry[];
   cash_movements: CashMovement[];
@@ -275,6 +341,7 @@ export interface Bootstrap {
   returns: ReturnRecord[];
   held_carts: HeldCart[];
   suppliers: Supplier[];
+  supplier_payments: SupplierPayment[];
   purchases: Purchase[];
   promotions: Promotion[];
   audit_log: AuditEntry[];
@@ -386,15 +453,15 @@ export const INDUSTRY_PRESETS: IndustryPreset[] = [
 
 export function defaultSettings(): BranchSettings {
   return {
-    branch_id: "branch-1",
-    name: "OmniSales POS",
-    address: "طرابلس - المركز الرئيسي",
-    phone: "091-0000000",
+    branch_id: crypto.randomUUID(),
+    name: "محلي",
+    address: "",
+    phone: "",
     currency: "LYD",
     currency_symbol: "د.ل",
     locale: "ar-LY",
     tax_rate: 0,
-    industry: "confectionery",
+    industry: "general_retail",
     work_mode: "shift_based",
     pos_layout: "grid_cart",
     theme_key: "scout",
@@ -402,8 +469,10 @@ export function defaultSettings(): BranchSettings {
     thermal_width_mm: 80,
     order_prefix: "ORD",
     invoice_prefix: "INV",
-    receipt_footer: "شكراً لزيارتكم! نعتز بخدمتكم دائماً.",
+    receipt_footer: "شكراً لزيارتكم",
     default_delivery_fee: 5,
     owner_whatsapp: "",
+    auto_print_thermal: true,
+    setup_complete: false,
   };
 }

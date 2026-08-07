@@ -20,6 +20,7 @@ import {
   clearAllData,
   exportBackup,
   importBackup,
+  seedDemoCatalog,
 } from "../../lib/api";
 import { applyTheme, THEME_PRESETS, ThemePresetKey } from "../../lib/theme";
 import {
@@ -37,9 +38,10 @@ import {
   connectSerialPrinter,
   disconnectSerialPrinter,
   getStoredBaudRate,
-  isSerialConnected,
+  printTestSlip,
   setStoredBaudRate,
 } from "../../lib/print/escpos";
+import { usePrinter } from "../../hooks/use-printer";
 
 const LAYOUTS: { id: PosLayout; label: string; hint: string }[] = [
   { id: "grid_cart", label: "شبكة + سلة", hint: "الأكثر شيوعاً لنقاط البيع" },
@@ -73,16 +75,20 @@ export function SettingsPanel({
   const [cloudPassword, setCloudPassword] = useState("");
   const [cloudUser, setCloudUser] = useState<string | null>(null);
   const [printerBaud, setPrinterBaud] = useState(getStoredBaudRate);
-  const [printerConnected, setPrinterConnected] = useState(false);
   const [printerMsg, setPrinterMsg] = useState<string | null>(null);
+  const [printerBusy, setPrinterBusy] = useState(false);
+  const printer = usePrinter();
   const fileRef = useRef<HTMLInputElement>(null);
   const pwa = usePwaInstall();
   const runtime = detectRuntime();
 
   useEffect(() => {
     void getCloudSession().then((s) => setCloudUser(s?.user.email ?? null));
-    setPrinterConnected(isSerialConnected());
   }, [settings.supabase_url, settings.supabase_anon_key]);
+
+  useEffect(() => {
+    if (printer.lastError) setPrinterMsg(printer.lastError);
+  }, [printer.lastError]);
 
   const handleThemeChange = (key: ThemePresetKey) => {
     applyTheme(key);
@@ -113,10 +119,31 @@ export function SettingsPanel({
   };
 
   const handleClearData = async () => {
-    if (confirm("هل أنت تأكد من مسح جميع البيانات والتجربة والبدء الصافي لقاعدة البيانات النظيفة؟")) {
+    if (
+      confirm(
+        "هل أنت متأكد من مسح جميع البيانات المحلية والبدء بمحل نظيف؟ لا يمكن التراجع."
+      )
+    ) {
       await clearAllData();
-      alert("تم مسح البيانات والبدء بحساب صافي جديد بنجاح!");
+      alert("تم مسح البيانات. أعد تسمية الفرع من الإعدادات بعد الدخول.");
       window.location.reload();
+    }
+  };
+
+  const handleSeedDemo = async () => {
+    if (
+      !confirm(
+        "تحميل أصناف وعملاء تجريبيين للتدريب؟ يعمل فقط إذا كان المخزون فارغاً."
+      )
+    ) {
+      return;
+    }
+    try {
+      await seedDemoCatalog();
+      alert("تم تحميل البذرة التجريبية. حدّث الصفحة إن لزم.");
+      window.location.reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "فشل تحميل البذرة");
     }
   };
 
@@ -623,8 +650,9 @@ export function SettingsPanel({
           الطابعة الحرارية ESC/POS
         </h2>
         <p className="text-[11px] leading-relaxed text-ink-mute">
-          الربط المباشر عبر Web Serial (Chrome/Edge) يطبع عربياً كصورة نقطية ESC/POS —
-          الأكثر ثباتاً على الطابعات الرخيصة. إن لم يتوفر Serial تُستخدم طباعة المتصفح.
+          اربط طابعة USB حرارية (Epson/Xprinter/Goojprt…) عبر Chrome أو Edge.
+          النظام يحفظ الجهاز ويعيد الاتصال تلقائياً، ويطبع العربي كصورة نقطية ثابتة.
+          على الموبايل تُستخدم طباعة المتصفح كبديل.
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -651,7 +679,7 @@ export function SettingsPanel({
               }}
               className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs font-mono font-bold"
             >
-              <option value={9600}>9600</option>
+              <option value={9600}>9600 (الأكثر شيوعاً)</option>
               <option value={19200}>19200</option>
               <option value={38400}>38400</option>
               <option value={115200}>115200</option>
@@ -668,76 +696,125 @@ export function SettingsPanel({
               className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 text-xs"
             />
           </div>
+          <label className="flex items-start gap-2 rounded-xl border border-paper-line bg-paper px-3 py-2.5 sm:col-span-2">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={settings.auto_print_thermal !== false}
+              onChange={(e) =>
+                onChange({ ...settings, auto_print_thermal: e.target.checked })
+              }
+            />
+            <span className="text-xs leading-relaxed">
+              <span className="font-bold text-ink">طباعة تلقائية بعد إتمام البيع</span>
+              <span className="mt-0.5 block text-[11px] text-ink-mute">
+                عند اتصال الطابعة تُطبع الفاتورة فوراً بدون ضغطة إضافية
+              </span>
+            </span>
+          </label>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             className="btn-primary text-xs font-bold"
-            disabled={!canUseWebSerial()}
+            disabled={!canUseWebSerial() || printerBusy}
             onClick={() => {
-              void connectSerialPrinter(printerBaud)
-                .then(() => {
-                  setPrinterConnected(true);
-                  setPrinterMsg("تم ربط الطابعة عبر Web Serial");
-                })
+              setPrinterBusy(true);
+              void connectSerialPrinter(printerBaud, { forcePicker: true })
+                .then(() => setPrinterMsg("تم ربط الطابعة وحفظ الجهاز"))
                 .catch((err) =>
                   setPrinterMsg(
                     err instanceof Error ? err.message : "فشل ربط الطابعة"
                   )
-                );
+                )
+                .finally(() => setPrinterBusy(false));
             }}
           >
-            ربط طابعة ESC/POS
+            اختيار / ربط طابعة USB
+          </button>
+          <button
+            type="button"
+            className="btn-ghost text-xs font-bold"
+            disabled={!canUseWebSerial() || printerBusy}
+            onClick={() => {
+              setPrinterBusy(true);
+              void printTestSlip(
+                settings.thermal_width_mm === 58 ? 58 : 80
+              )
+                .then(() => setPrinterMsg("نجحت طباعة الاختبار ✓"))
+                .catch((err) =>
+                  setPrinterMsg(
+                    err instanceof Error ? err.message : "فشلت طباعة الاختبار"
+                  )
+                )
+                .finally(() => setPrinterBusy(false));
+            }}
+          >
+            طباعة اختبار
           </button>
           <button
             type="button"
             className="btn-ghost text-xs font-bold"
             onClick={() =>
-              void disconnectSerialPrinter().then(() => {
-                setPrinterConnected(false);
-                setPrinterMsg("تم فصل الطابعة");
-              })
+              void disconnectSerialPrinter().then(() =>
+                setPrinterMsg("تم فصل الطابعة")
+              )
             }
           >
             فصل
           </button>
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-              printerConnected
+              printer.connected
                 ? "bg-success/15 text-success"
                 : "bg-paper text-ink-mute"
             }`}
           >
-            {printerConnected
-              ? "متصلة"
-              : canUseWebSerial()
+            {printer.connected
+              ? `متصلة${printer.label ? ` · ${printer.label}` : ""}`
+              : printer.supported
                 ? "غير متصلة"
-                : "Web Serial غير مدعوم"}
+                : printer.supportMessage}
           </span>
         </div>
         {printerMsg && (
           <p className="text-xs font-semibold text-ink">{printerMsg}</p>
         )}
+        <ol className="list-decimal space-y-1 pr-4 text-[11px] leading-relaxed text-ink-mute">
+          <li>وصّل الطابعة USB وشغّل الطاقة</li>
+          <li>اضغط «اختيار / ربط طابعة USB» واختر الجهاز من نافذة المتصفح</li>
+          <li>اطبع ورقة اختبار — إن ظهرت فالاتصال جاهز للبيع</li>
+        </ol>
       </div>
 
       {/* Database Reset & Clean Start Section */}
       <div className="rounded-2xl border border-red-200 bg-red-50/50 p-5 space-y-3">
         <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
           <Database size={18} />
-          <span>إدارة وإعادة ضبط قاعدة البيانات الحقيقية</span>
+          <span>بيانات المحل</span>
         </div>
         <p className="text-xs text-red-600 leading-relaxed">
-          إزالة كافة المعاملات والبيانات الوهمية والبدء الصافي لقاعدة البيانات النظيفة الحقيقية.
+          المحل يبدأ فارغاً. يمكنك تحميل بذرة تدريب اختيارية، أو مسح كل شيء للبدء من الصفر.
         </p>
 
-        <button
-          type="button"
-          onClick={() => void handleClearData()}
-          className="inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition"
-        >
-          <Trash size={16} />
-          مسح البيانات الصورية والبدء الصافي
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void handleSeedDemo()}
+            className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 bg-paper-raised px-4 py-2 text-xs font-bold text-ink hover:bg-paper transition"
+          >
+            <Database size={16} />
+            تحميل بيانات تجريبية (تدريب)
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleClearData()}
+            className="inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition"
+          >
+            <Trash size={16} />
+            مسح كل البيانات المحلية
+          </button>
+        </div>
       </div>
 
       <div className="pt-2">
