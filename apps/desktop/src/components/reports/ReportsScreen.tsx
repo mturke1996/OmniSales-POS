@@ -113,7 +113,7 @@ export function ReportsScreen({
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-4">
         <Kpi
           title="إجمالي المبيعات"
           value={formatMoney(snap.grossSales, settings.currency_symbol)}
@@ -138,6 +138,19 @@ export function ReportsScreen({
           value={formatMoney(snap.estimatedMargin, settings.currency_symbol)}
           sub={`تكلفة ${formatMoney(snap.estimatedCost, settings.currency_symbol)}`}
           icon={<TrendUp size={18} className="text-info" />}
+        />
+        <Kpi
+          title="صافي الربح"
+          value={formatMoney(snap.netProfit, settings.currency_symbol)}
+          sub="هامش − مصروفات"
+          icon={<TrendUp size={18} className="text-success" />}
+          emphasis
+        />
+        <Kpi
+          title="الضريبة المحصّلة"
+          value={formatMoney(snap.taxCollected, settings.currency_symbol)}
+          sub="مجموع ضريبة الفواتير"
+          icon={<Receipt size={18} className="text-info" />}
         />
         <Kpi
           title="المصروفات"

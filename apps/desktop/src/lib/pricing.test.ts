@@ -69,3 +69,68 @@ describe("applyBestPromotion", () => {
     expect(applyBestPromotion(100, gated)).toBeNull();
   });
 });
+
+describe("analytics tax and profit", () => {
+  it("computes taxCollected and netProfit", async () => {
+    const { computeAnalytics } = await import("./analytics");
+    const snap = computeAnalytics({
+      period: "30d",
+      products: [
+        {
+          id: "p1",
+          branch_id: "b1",
+          category_id: "c1",
+          sku: "S1",
+          barcode: "B1",
+          name: "منتج",
+          cost_price: 40,
+          retail_price: 100,
+          wholesale_price: 80,
+          unit_type: "piece",
+          track_stock: true,
+          stock_quantity: 10,
+          min_stock: 2,
+          is_active: true,
+        },
+      ],
+      customers: [],
+      expenses: [
+        {
+          id: "e1",
+          category: "إيجار",
+          amount: 20,
+          note: "اختبار",
+          created_at: new Date().toISOString(),
+        },
+      ],
+      returns: [],
+      orders: [
+        {
+          id: "o1",
+          order_number: "ORD-1",
+          type: "pos_walk_in",
+          status: "completed",
+          items: [
+            {
+              product_id: "p1",
+              name: "منتج",
+              unit_price: 100,
+              quantity: 1,
+              unit_type: "piece",
+            },
+          ],
+          subtotal: 100,
+          discount_amount: 0,
+          tax_amount: 14,
+          total_amount: 114,
+          payment_method: "cash",
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
+    expect(snap.taxCollected).toBe(14);
+    // margin ≈ 114 - 40 = 74; net profit 74 - 20 = 54
+    expect(snap.estimatedMargin).toBeCloseTo(74, 5);
+    expect(snap.netProfit).toBeCloseTo(54, 5);
+  });
+});

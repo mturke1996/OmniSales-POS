@@ -26,6 +26,8 @@ import {
   addSupplierPwa,
   createPurchasePwa,
   receivePurchasePwa,
+  recordSupplierPaymentPwa,
+  listSupplierPaymentsPwa,
   addPromotionPwa,
   setPromotionActivePwa,
   exportBackupPwa,
@@ -99,7 +101,7 @@ export async function checkout(input: {
   delivery_date?: string;
   delivery_fee?: number;
   delivery_driver?: string;
-  promotion_id?: string;
+  promotion_id?: string | null;
   actor_id?: string;
   actor_name?: string;
 }) {
@@ -114,7 +116,9 @@ export async function updateOrderStatus(
   return updateOrderStatusPwa(orderId, status, opts);
 }
 
-export async function addSupplier(input: Omit<Supplier, "id" | "created_at">) {
+export async function addSupplier(
+  input: Omit<Supplier, "id" | "created_at" | "balance"> & { balance?: number }
+) {
   return addSupplierPwa(input);
 }
 
@@ -123,6 +127,7 @@ export async function createPurchase(input: {
   items: PurchaseLine[];
   notes?: string;
   receive?: boolean;
+  paid_amount?: number;
   actor_id?: string;
   actor_name?: string;
 }) {
@@ -134,6 +139,21 @@ export async function receivePurchase(
   opts?: { actor_id?: string; actor_name?: string }
 ) {
   return receivePurchasePwa(id, opts);
+}
+
+export async function recordSupplierPayment(input: {
+  supplier_id: string;
+  amount: number;
+  method: "cash" | "transfer" | "card";
+  note?: string;
+  reference?: string;
+  purchase_id?: string;
+}) {
+  return recordSupplierPaymentPwa(input);
+}
+
+export async function listSupplierPayments(supplierId?: string) {
+  return listSupplierPaymentsPwa(supplierId);
 }
 
 export async function addPromotion(input: Omit<Promotion, "id" | "created_at">) {

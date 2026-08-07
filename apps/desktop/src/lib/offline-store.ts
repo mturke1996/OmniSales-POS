@@ -23,6 +23,7 @@ import {
   StockMovement,
   StockMovementReason,
   Supplier,
+  SupplierPayment,
   defaultSettings,
 } from "./types";
 import { remainingReturnQty } from "./analytics";
@@ -50,6 +51,7 @@ const KEYS = {
   returns: "omni.returns",
   held_carts: "omni.held_carts",
   suppliers: "omni.suppliers",
+  supplier_payments: "omni.supplier_payments",
   purchases: "omni.purchases",
   promotions: "omni.promotions",
   audit: "omni.audit",
@@ -252,6 +254,7 @@ export async function ensurePwaSeed(): Promise<void> {
   await ensureArrayKey<HeldCart>(KEYS.held_carts, []);
   await ensureArrayKey<ReturnRecord>(KEYS.returns, []);
   await ensureArrayKey<Supplier>(KEYS.suppliers, []);
+  await ensureArrayKey<SupplierPayment>(KEYS.supplier_payments, []);
   await ensureArrayKey<Purchase>(KEYS.purchases, []);
   await ensureArrayKey<Promotion>(KEYS.promotions, []);
   await ensureArrayKey<AuditEntry>(KEYS.audit, []);
@@ -376,7 +379,12 @@ export async function loadPwaBootstrap() {
   const orders = (await get<Order[]>(KEYS.orders)) ?? [];
   const returns = (await get<ReturnRecord[]>(KEYS.returns)) ?? [];
   const held_carts = (await get<HeldCart[]>(KEYS.held_carts)) ?? [];
-  const suppliers = (await get<Supplier[]>(KEYS.suppliers)) ?? [];
+  const suppliers = ((await get<Supplier[]>(KEYS.suppliers)) ?? []).map((s) => ({
+    ...s,
+    balance: Number(s.balance) || 0,
+  }));
+  const supplier_payments =
+    (await get<SupplierPayment[]>(KEYS.supplier_payments)) ?? [];
   const purchases = (await get<Purchase[]>(KEYS.purchases)) ?? [];
   const promotions = (await get<Promotion[]>(KEYS.promotions)) ?? [];
   const audit_log = (await get<AuditEntry[]>(KEYS.audit)) ?? [];
@@ -399,6 +407,7 @@ export async function loadPwaBootstrap() {
     returns,
     held_carts,
     suppliers,
+    supplier_payments,
     purchases,
     promotions,
     audit_log,
@@ -661,7 +670,8 @@ export async function checkoutPwa(input: {
   delivery_date?: string;
   delivery_fee?: number;
   delivery_driver?: string;
-  promotion_id?: string;
+  /** undefined = auto best promo; null/"" = none; id = force */
+  promotion_id?: string | null;
   actor_id?: string;
   actor_name?: string;
 }) {
@@ -711,7 +721,10 @@ export async function checkoutPwa(input: {
   const promotions = (await get<Promotion[]>(KEYS.promotions)) ?? [];
   let promoDiscount = 0;
   let appliedPromo: Promotion | null = null;
-  if (promotion_id) {
+  // null / "" = skip promotions; undefined = auto-pick best; id = force
+  if (promotion_id === null || promotion_id === "") {
+    appliedPromo = null;
+  } else if (promotion_id) {
     const manual = promotions.find((p) => p.id === promotion_id && p.active);
     if (manual) {
       const hit = applyBestPromotion(subtotalRaw, [manual]);
@@ -828,6 +841,8 @@ export async function checkoutPwa(input: {
     created_at: new Date().toISOString(),
     notes: note,
     settled_to_shift,
+    promotion_id: appliedPromo?.id,
+    promotion_name: appliedPromo?.name,
   };
 
   // Deduct inventory via stock ledger
@@ -1326,11 +1341,12 @@ async function enqueue(action: string, payload: unknown) {
 }
 
 export async function addSupplierPwa(
-  input: Omit<Supplier, "id" | "created_at">
+  input: Omit<Supplier, "id" | "created_at" | "balance"> & { balance?: number }
 ): Promise<Supplier> {
   const suppliers = (await get<Supplier[]>(KEYS.suppliers)) ?? [];
   const supplier: Supplier = {
     ...input,
+    balance: Number(input.balance) || 0,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
   };
@@ -1348,6 +1364,8 @@ export async function createPurchasePwa(input: {
   items: PurchaseLine[];
   notes?: string;
   receive?: boolean;
+  /** Cash/transfer paid at receive time (reduces payable). */
+  paid_amount?: number;
   actor_id?: string;
   actor_name?: string;
 }): Promise<Purchase> {
@@ -1359,6 +1377,7 @@ export async function createPurchasePwa(input: {
   const total_cost = Math.round(
     input.items.reduce((s, l) => s + l.quantity * l.unit_cost, 0) * 100
   ) / 100;
+  const paid = Math.max(0, Math.min(total_cost, Number(input.paid_amount) || 0));
 
   let purchase: Purchase = {
     id: crypto.randomUUID(),
@@ -1370,6 +1389,8 @@ export async function createPurchasePwa(input: {
     status: "draft",
     notes: input.notes,
     created_at: new Date().toISOString(),
+    paid_amount: paid,
+    payment_status: paid <= 0 ? "unpaid" : paid + 0.001 >= total_cost ? "paid" : "partial",
   };
 
   const purchases = ((await get<Purchase[]>(KEYS.purchases)) ?? []).concat(purchase);
@@ -1405,16 +1426,16 @@ export async function receivePurchasePwa(
 
   const products = (await get<Product[]>(KEYS.products)) ?? [];
   for (const line of purchase.items) {
-    const idx = products.findIndex((x) => x.id === line.product_id);
-    if (idx < 0) continue;
-    products[idx] = {
-      ...products[idx],
+    const pIdx = products.findIndex((x) => x.id === line.product_id);
+    if (pIdx < 0) continue;
+    products[pIdx] = {
+      ...products[pIdx],
       cost_price: line.unit_cost,
       updated_at: new Date().toISOString(),
     };
-    if (products[idx].track_stock && line.quantity > 0) {
+    if (products[pIdx].track_stock && line.quantity > 0) {
       await recordStockChangePwa({
-        product_id: products[idx].id,
+        product_id: products[pIdx].id,
         delta: line.quantity,
         reason: "purchase",
         reference_type: "purchase",
@@ -1424,28 +1445,134 @@ export async function receivePurchasePwa(
         productsRef: products,
       });
     } else {
-      await enqueue("product.upsert", products[idx]);
+      await enqueue("product.upsert", products[pIdx]);
     }
   }
   await set(KEYS.products, products);
+
+  const paid = Math.max(0, Number(purchase.paid_amount) || 0);
+  const payment_status: Purchase["payment_status"] =
+    paid <= 0 ? "unpaid" : paid + 0.001 >= purchase.total_cost ? "paid" : "partial";
+  const due = Math.max(0, Math.round((purchase.total_cost - paid) * 100) / 100);
 
   const received: Purchase = {
     ...purchase,
     status: "received",
     received_at: new Date().toISOString(),
+    paid_amount: paid,
+    payment_status,
   };
   purchases[idx] = received;
   await set(KEYS.purchases, purchases);
 
+  if (due > 0) {
+    const suppliers = (await get<Supplier[]>(KEYS.suppliers)) ?? [];
+    const sIdx = suppliers.findIndex((s) => s.id === purchase.supplier_id);
+    if (sIdx >= 0) {
+      suppliers[sIdx] = {
+        ...suppliers[sIdx],
+        balance:
+          Math.round((Number(suppliers[sIdx].balance || 0) + due) * 100) / 100,
+      };
+      await set(KEYS.suppliers, suppliers);
+      await enqueue("supplier.upsert", suppliers[sIdx]);
+    }
+  }
+
   await appendAudit(
     "purchase.receive",
     `استلام أمر شراء ${received.purchase_number}`,
-    { purchase_id: received.id, total_cost: received.total_cost },
+    {
+      purchase_id: received.id,
+      total_cost: received.total_cost,
+      paid_amount: paid,
+      due,
+    },
     { actor_id: opts?.actor_id, actor_name: opts?.actor_name }
   );
   await enqueue("purchase.receive", received);
   await enqueue("purchase.upsert", received);
   return received;
+}
+
+export async function recordSupplierPaymentPwa(input: {
+  supplier_id: string;
+  amount: number;
+  method: "cash" | "transfer" | "card";
+  note?: string;
+  reference?: string;
+  purchase_id?: string;
+}): Promise<SupplierPayment> {
+  const amount = Math.round(Number(input.amount) * 100) / 100;
+  if (!(amount > 0)) throw new Error("مبلغ الدفعة غير صالح");
+
+  const suppliers = (await get<Supplier[]>(KEYS.suppliers)) ?? [];
+  const sIdx = suppliers.findIndex((s) => s.id === input.supplier_id);
+  if (sIdx < 0) throw new Error("المورد غير موجود");
+
+  const payment: SupplierPayment = {
+    id: crypto.randomUUID(),
+    supplier_id: input.supplier_id,
+    purchase_id: input.purchase_id,
+    amount,
+    method: input.method,
+    note: input.note?.trim() || undefined,
+    reference: input.reference?.trim() || undefined,
+    created_at: new Date().toISOString(),
+  };
+
+  suppliers[sIdx] = {
+    ...suppliers[sIdx],
+    balance: Math.max(
+      0,
+      Math.round((Number(suppliers[sIdx].balance || 0) - amount) * 100) / 100
+    ),
+  };
+
+  if (input.purchase_id) {
+    const purchases = (await get<Purchase[]>(KEYS.purchases)) ?? [];
+    const pIdx = purchases.findIndex((p) => p.id === input.purchase_id);
+    if (pIdx >= 0) {
+      const p = purchases[pIdx];
+      const paid = Math.min(
+        p.total_cost,
+        Math.round((Number(p.paid_amount || 0) + amount) * 100) / 100
+      );
+      purchases[pIdx] = {
+        ...p,
+        paid_amount: paid,
+        payment_status:
+          paid + 0.001 >= p.total_cost ? "paid" : paid > 0 ? "partial" : "unpaid",
+      };
+      await set(KEYS.purchases, purchases);
+      await enqueue("purchase.upsert", purchases[pIdx]);
+    }
+  }
+
+  const payments = (await get<SupplierPayment[]>(KEYS.supplier_payments)) ?? [];
+  payments.unshift(payment);
+  await set(KEYS.supplier_payments, payments);
+  await set(KEYS.suppliers, suppliers);
+  await enqueue("supplier.upsert", suppliers[sIdx]);
+  await enqueue("supplier_payment.create", payment);
+  await appendAudit(
+    "supplier_payment.create",
+    `دفعة مورد ${suppliers[sIdx].name}: ${amount}`,
+    { payment_id: payment.id, supplier_id: payment.supplier_id }
+  );
+  return payment;
+}
+
+export async function listSupplierPaymentsPwa(
+  supplierId?: string
+): Promise<SupplierPayment[]> {
+  const rows = (await get<SupplierPayment[]>(KEYS.supplier_payments)) ?? [];
+  const sorted = [...rows].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at)
+  );
+  return supplierId
+    ? sorted.filter((p) => p.supplier_id === supplierId)
+    : sorted;
 }
 
 export async function savePromotionsPwa(promotions: Promotion[]) {
@@ -1532,6 +1659,7 @@ export async function clearAllDataPwa() {
   await set(KEYS.ledger, []);
   await set(KEYS.cash_movements, []);
   await set(KEYS.suppliers, []);
+  await set(KEYS.supplier_payments, []);
   await set(KEYS.purchases, []);
   await set(KEYS.promotions, []);
   await set(KEYS.audit, []);
@@ -1589,6 +1717,7 @@ export async function applyCloudPull(input: {
   open_shifts: Record<string, unknown>[];
   stock_movements?: Record<string, unknown>[];
   categories?: Record<string, unknown>[];
+  supplier_payments?: Record<string, unknown>[];
 }): Promise<number> {
   await ensurePwaSeed();
   let touched = 0;
@@ -1842,6 +1971,7 @@ export async function applyCloudPull(input: {
         phone: String(s.phone || ""),
         address: (s.address as string) || undefined,
         notes: (s.notes as string) || undefined,
+        balance: moneyField(s.balance),
         created_at: String(s.created_at || new Date().toISOString()),
       }) as Supplier
   );
@@ -1850,6 +1980,29 @@ export async function applyCloudPull(input: {
     mergeById(localSuppliers, remoteSuppliers, (s) => asTime(s.created_at))
   );
   touched += remoteSuppliers.length;
+
+  if (input.supplier_payments?.length) {
+    const localPay =
+      (await get<SupplierPayment[]>(KEYS.supplier_payments)) ?? [];
+    const remotePay = input.supplier_payments.map(
+      (p) =>
+        ({
+          id: String(p.id),
+          supplier_id: String(p.supplier_id || ""),
+          amount: moneyField(p.amount),
+          method: (p.method as SupplierPayment["method"]) || "cash",
+          reference: (p.reference as string) || undefined,
+          note: (p.note as string) || undefined,
+          purchase_id: (p.purchase_id as string) || undefined,
+          created_at: String(p.created_at || new Date().toISOString()),
+        }) as SupplierPayment
+    );
+    await set(
+      KEYS.supplier_payments,
+      mergeById(localPay, remotePay, (p) => asTime(p.created_at))
+    );
+    touched += remotePay.length;
+  }
 
   const localPurchases = (await get<Purchase[]>(KEYS.purchases)) ?? [];
   const remotePurchases = input.purchases.map(
@@ -1865,6 +2018,14 @@ export async function applyCloudPull(input: {
         notes: (p.notes as string) || undefined,
         created_at: String(p.created_at || new Date().toISOString()),
         received_at: (p.received_at as string) || undefined,
+        paid_amount: moneyField(p.paid_amount),
+        payment_status:
+          (p.payment_status as Purchase["payment_status"]) ||
+          (moneyField(p.paid_amount) <= 0
+            ? "unpaid"
+            : moneyField(p.paid_amount) + 0.001 >= moneyField(p.total_cost)
+              ? "paid"
+              : "partial"),
       }) as Purchase
   );
   await set(

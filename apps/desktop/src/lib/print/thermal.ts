@@ -29,6 +29,8 @@ export function buildReceiptTextLines(
   lines.push(new Date(order.created_at).toLocaleString("ar-LY"));
   lines.push(`عميل: ${order.customer_name || "نقدي"}`);
   if (order.customer_phone) lines.push(`هاتف العميل: ${order.customer_phone}`);
+  if (order.type === "wholesale") lines.push("نوع البيع: جملة");
+  if (order.promotion_name) lines.push(`عرض: ${order.promotion_name}`);
   lines.push("------------------------------");
 
   for (const item of order.items) {
@@ -44,7 +46,10 @@ export function buildReceiptTextLines(
   lines.push("------------------------------");
   lines.push(`الفرعي: ${order.subtotal.toFixed(2)} ${sym}`);
   if (order.discount_amount > 0) {
-    lines.push(`الخصم: -${order.discount_amount.toFixed(2)} ${sym}`);
+    const discLabel = order.promotion_name
+      ? `الخصم (${order.promotion_name})`
+      : "الخصم";
+    lines.push(`${discLabel}: -${order.discount_amount.toFixed(2)} ${sym}`);
   }
   if (order.tax_amount > 0) {
     lines.push(`الضريبة: ${order.tax_amount.toFixed(2)} ${sym}`);

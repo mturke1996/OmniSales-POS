@@ -189,6 +189,8 @@ export default function App() {
           <PosScreen
             settings={draft}
             products={data.products}
+            categories={data.categories}
+            promotions={data.promotions}
             openShiftState={shift}
             customers={data.customers}
             heldCarts={data.held_carts}
@@ -289,6 +291,7 @@ export default function App() {
                 <PurchasesScreen
                   suppliers={data.suppliers}
                   purchases={data.purchases}
+                  supplierPayments={data.supplier_payments}
                   products={data.products}
                   settings={draft}
                   onRefreshData={loadData}

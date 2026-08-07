@@ -205,6 +205,8 @@ export interface Order {
   notes?: string;
   /** True once sale totals were posted to the open shift (avoids double-count on delivery complete) */
   settled_to_shift?: boolean;
+  promotion_id?: string;
+  promotion_name?: string;
 }
 
 export interface Supplier {
@@ -213,6 +215,19 @@ export interface Supplier {
   phone: string;
   address?: string;
   notes?: string;
+  /** Positive = we owe the supplier */
+  balance: number;
+  created_at: string;
+}
+
+export interface SupplierPayment {
+  id: string;
+  supplier_id: string;
+  amount: number;
+  method: "cash" | "transfer" | "card";
+  reference?: string;
+  note?: string;
+  purchase_id?: string;
   created_at: string;
 }
 
@@ -234,6 +249,8 @@ export interface Purchase {
   notes?: string;
   created_at: string;
   received_at?: string;
+  paid_amount?: number;
+  payment_status?: "unpaid" | "partial" | "paid";
 }
 
 export type PromotionKind = "percent" | "fixed";
@@ -324,6 +341,7 @@ export interface Bootstrap {
   returns: ReturnRecord[];
   held_carts: HeldCart[];
   suppliers: Supplier[];
+  supplier_payments: SupplierPayment[];
   purchases: Purchase[];
   promotions: Promotion[];
   audit_log: AuditEntry[];

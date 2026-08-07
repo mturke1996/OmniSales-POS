@@ -20,13 +20,14 @@ import {
   Camera,
 } from "@phosphor-icons/react";
 import { checkout, addHeldCart, removeHeldCart, addCustomer } from "../../lib/api";
-import { calcTotals } from "../../lib/offline-store";
+import { applyBestPromotion, calcTotals } from "../../lib/offline-store";
 import { formatMoney } from "../../lib/format";
 import { cn } from "../../lib/cn";
 import { useCart } from "../../stores/cart";
 import { industryCaps, promptSerialMeta } from "../../lib/industry";
 import { filterCatalog, findExactCatalogMatch } from "../../lib/catalog";
 import { availableForProduct, findStockIssues } from "../../lib/stock";
+import { acceptScan, feedbackScan } from "../../lib/scan-feedback";
 import type {
   BranchSettings,
   Customer,
@@ -35,6 +36,8 @@ import type {
   OrderType,
   PaymentMethod,
   Product,
+  ProductCategory,
+  Promotion,
   Shift,
 } from "../../lib/types";
 import { ProductGrid } from "./ProductGrid";
@@ -49,6 +52,8 @@ import { usePrinter } from "../../hooks/use-printer";
 export function PosScreen({
   settings,
   products,
+  categories = [],
+  promotions = [],
   openShiftState,
   customers,
   heldCarts,
@@ -61,6 +66,8 @@ export function PosScreen({
 }: {
   settings: BranchSettings;
   products: Product[];
+  categories?: ProductCategory[];
+  promotions?: Promotion[];
   openShiftState: Shift | null;
   customers: Customer[];
   heldCarts: HeldCart[];
@@ -114,19 +121,28 @@ export function PosScreen({
   }
 
   function handleScanOrSearchEnter() {
-    const exact = findExactCatalogMatch(products, query);
+    const code = query.trim();
+    if (!code) return;
+    // Hardware wedges often re-fire Enter bursts — debounce identical codes
+    const looksLikeBarcode = /^[\dA-Za-z\-_.]{4,}$/.test(code);
+    if (looksLikeBarcode && !acceptScan(code)) return;
+
+    const exact = findExactCatalogMatch(products, code);
     if (exact) {
       addProductToCart(exact);
+      feedbackScan(true);
       setQuery("");
       return;
     }
-    const soft = filterCatalog(products, query);
+    const soft = filterCatalog(products, code);
     if (soft.length === 1) {
       addProductToCart(soft[0]);
+      feedbackScan(true);
       setQuery("");
       return;
     }
     if (soft.length === 0) {
+      feedbackScan(false);
       setMessage("لا يوجد صنف مطابق للباركود/البحث");
       return;
     }
@@ -159,6 +175,8 @@ export function PosScreen({
   const isPhone = usePhoneLayout();
   const printer = usePrinter();
   const [showScanner, setShowScanner] = useState(false);
+  /** "auto" | "none" | promotion id */
+  const [promoChoice, setPromoChoice] = useState<string>("auto");
 
   useEffect(() => {
     setDeliveryFee(String(settings.default_delivery_fee ?? 5));
@@ -174,7 +192,30 @@ export function PosScreen({
     [lines, products]
   );
 
-  const totals = calcTotals(lines, discount, settings.tax_rate);
+  const activePromos = useMemo(
+    () => promotions.filter((p) => p.active),
+    [promotions]
+  );
+
+  const cartSubtotal = useMemo(
+    () => lines.reduce((s, l) => s + l.unit_price * l.quantity, 0),
+    [lines]
+  );
+
+  const promoPreview = useMemo(() => {
+    if (promoChoice === "none") return null;
+    if (promoChoice === "auto") {
+      return applyBestPromotion(cartSubtotal, activePromos);
+    }
+    const manual = activePromos.find((p) => p.id === promoChoice);
+    return manual ? applyBestPromotion(cartSubtotal, [manual]) : null;
+  }, [promoChoice, cartSubtotal, activePromos]);
+
+  const effectiveDiscount = Math.min(
+    cartSubtotal,
+    Math.max(0, discount) + (promoPreview?.amount || 0)
+  );
+  const totals = calcTotals(lines, effectiveDiscount, settings.tax_rate);
   const feeNum =
     saleMode === "delivery" ? Math.max(0, Number(deliveryFee) || 0) : 0;
   const grandTotal = Math.round((totals.total + feeNum) * 100) / 100;
@@ -311,6 +352,12 @@ export function PosScreen({
             ? deliveryDate
             : undefined,
         delivery_fee: saleMode === "delivery" ? feeNum : undefined,
+        promotion_id:
+          promoChoice === "none"
+            ? null
+            : promoChoice === "auto"
+              ? undefined
+              : promoChoice,
       });
 
       setCompletedOrder(result.order as Order);
@@ -322,6 +369,7 @@ export function PosScreen({
       setSelectedCustomer(null);
       setDeliveryAddress("");
       setDeliveryPhone("");
+      setPromoChoice("auto");
       setMobileCartOpen(false);
       setMessage(
         saleMode === "delivery"
@@ -562,9 +610,45 @@ export function PosScreen({
           </div>
         )}
 
+        {activePromos.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold text-ink-mute">العروض</p>
+            <div className="flex flex-wrap gap-1.5">
+              <PromoChip
+                active={promoChoice === "auto"}
+                onClick={() => setPromoChoice("auto")}
+                label="أفضل عرض"
+              />
+              <PromoChip
+                active={promoChoice === "none"}
+                onClick={() => setPromoChoice("none")}
+                label="بدون عرض"
+              />
+              {activePromos.map((p) => (
+                <PromoChip
+                  key={p.id}
+                  active={promoChoice === p.id}
+                  onClick={() => setPromoChoice(p.id)}
+                  label={
+                    p.kind === "percent"
+                      ? `${p.name} · ${p.value}%`
+                      : `${p.name} · ${p.value}`
+                  }
+                />
+              ))}
+            </div>
+            {promoPreview && (
+              <p className="text-[11px] font-semibold text-success">
+                يُطبَّق: {promoPreview.promotion.name} (−
+                {formatMoney(promoPreview.amount, settings.currency_symbol)})
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-[11px] font-semibold text-ink-mute">
-            الخصم
+            خصم إضافي
             <input
               type="number"
               min={0}
@@ -639,16 +723,31 @@ export function PosScreen({
             <span>الفرعي</span>
             <span className="money-big">{formatMoney(totals.subtotal, settings.currency_symbol)}</span>
           </div>
-          {totals.discount > 0 && (
+          {promoPreview && promoPreview.amount > 0 && (
+            <div className="flex justify-between font-semibold text-success">
+              <span>عرض: {promoPreview.promotion.name}</span>
+              <span className="money-big">
+                -{formatMoney(promoPreview.amount, settings.currency_symbol)}
+              </span>
+            </div>
+          )}
+          {discount > 0 && (
             <div className="flex justify-between font-semibold text-danger">
-              <span>الخصم</span>
-              <span className="money-big">-{formatMoney(totals.discount, settings.currency_symbol)}</span>
+              <span>خصم إضافي</span>
+              <span className="money-big">
+                -{formatMoney(Math.min(discount, cartSubtotal), settings.currency_symbol)}
+              </span>
             </div>
           )}
           {totals.tax > 0 && (
             <div className="flex justify-between text-ink-mute">
-              <span>الضريبة ({settings.tax_rate}%)</span>
+              <span>الضريبة</span>
               <span className="money-big">+{formatMoney(totals.tax, settings.currency_symbol)}</span>
+            </div>
+          )}
+          {priceMode === "wholesale" && (
+            <div className="text-[10px] font-semibold text-warning">
+              أسعار الجملة مفعّلة
             </div>
           )}
           {feeNum > 0 && (
@@ -861,6 +960,7 @@ export function PosScreen({
 
           <ProductGrid
             products={filtered}
+            categories={categories}
             layout={settings.pos_layout}
             currencySymbol={settings.currency_symbol}
             onAdd={addProductToCart}
@@ -949,11 +1049,14 @@ export function PosScreen({
         <BarcodeScannerModal
           onClose={() => setShowScanner(false)}
           onDetect={(code) => {
+            if (!acceptScan(code)) return;
             const exact = findExactCatalogMatch(products, code);
             if (exact) {
               addProductToCart(exact);
+              feedbackScan(true);
               setMessage(`تم مسح: ${exact.name}`);
             } else {
+              feedbackScan(false);
               setQuery(code);
               setMessage(`باركود غير معروف: ${code}`);
             }
@@ -973,6 +1076,31 @@ export function PosScreen({
         />
       )}
     </div>
+  );
+}
+
+function PromoChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-lg px-2.5 py-1 text-[10px] font-bold transition",
+        active
+          ? "bg-success/15 text-success ring-1 ring-success/30"
+          : "bg-paper text-ink-mute hover:text-ink"
+      )}
+    >
+      {label}
+    </button>
   );
 }
 

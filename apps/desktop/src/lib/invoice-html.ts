@@ -62,12 +62,26 @@ export function printThermalReceiptHtml(
     <div class="row"><span>رقم الفاتورة</span><strong>${escapeHtml(order.order_number)}</strong></div>
     <div class="row"><span>التاريخ</span><span>${new Date(order.created_at).toLocaleString("ar-LY")}</span></div>
     <div class="row"><span>العميل</span><span>${escapeHtml(order.customer_name || "نقدي")}</span></div>
+    ${
+      order.type === "wholesale"
+        ? `<div class="row"><span>نوع البيع</span><strong>جملة</strong></div>`
+        : ""
+    }
+    ${
+      order.promotion_name
+        ? `<div class="row"><span>العرض</span><span>${escapeHtml(order.promotion_name)}</span></div>`
+        : ""
+    }
   </div>
   <table><tbody>${rows}</tbody></table>
   <div class="row"><span>الفرعي</span><span>${order.subtotal.toFixed(2)} ${escapeHtml(settings.currency_symbol)}</span></div>
   ${
     order.discount_amount > 0
-      ? `<div class="row"><span>الخصم</span><span>-${order.discount_amount.toFixed(2)}</span></div>`
+      ? `<div class="row"><span>الخصم${
+          order.promotion_name
+            ? ` (${escapeHtml(order.promotion_name)})`
+            : ""
+        }</span><span>-${order.discount_amount.toFixed(2)}</span></div>`
       : ""
   }
   ${

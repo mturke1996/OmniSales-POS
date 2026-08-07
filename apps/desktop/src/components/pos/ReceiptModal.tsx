@@ -133,6 +133,18 @@ export function ReceiptModal({
                 <span>{order.customer_name}</span>
               </div>
             )}
+            {order.type === "wholesale" && (
+              <div className="flex justify-between font-bold">
+                <span>نوع البيع</span>
+                <span>جملة</span>
+              </div>
+            )}
+            {order.promotion_name && (
+              <div className="flex justify-between">
+                <span>العرض</span>
+                <span>{order.promotion_name}</span>
+              </div>
+            )}
           </div>
 
           <div className="my-2 space-y-1">
@@ -152,6 +164,40 @@ export function ReceiptModal({
           </div>
 
           <div className="space-y-1 border-t border-black pt-1 text-[11px]">
+            <div className="flex justify-between">
+              <span>الفرعي</span>
+              <span>
+                {order.subtotal.toFixed(2)} {settings.currency_symbol}
+              </span>
+            </div>
+            {order.discount_amount > 0 && (
+              <div className="flex justify-between">
+                <span>
+                  الخصم
+                  {order.promotion_name ? ` (${order.promotion_name})` : ""}
+                </span>
+                <span>
+                  -{order.discount_amount.toFixed(2)} {settings.currency_symbol}
+                </span>
+              </div>
+            )}
+            {order.tax_amount > 0 && (
+              <div className="flex justify-between">
+                <span>الضريبة</span>
+                <span>
+                  {order.tax_amount.toFixed(2)} {settings.currency_symbol}
+                </span>
+              </div>
+            )}
+            {(order.delivery_fee || 0) > 0 && (
+              <div className="flex justify-between">
+                <span>التوصيل</span>
+                <span>
+                  {Number(order.delivery_fee).toFixed(2)}{" "}
+                  {settings.currency_symbol}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between border-t border-black pt-1 text-sm font-bold">
               <span>الإجمالي</span>
               <span>

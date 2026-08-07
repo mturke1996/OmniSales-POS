@@ -216,6 +216,13 @@ async function pushEntry(client: SupabaseClient, entry: OutboxEntry) {
       if (error) throw error;
       return;
     }
+    case "supplier_payment.create": {
+      const { error } = await client
+        .from("supplier_payments")
+        .upsert(mapSupplierPayment(payload));
+      if (error) throw error;
+      return;
+    }
     case "purchase.upsert":
     case "purchase.receive": {
       const { error } = await client
@@ -298,6 +305,7 @@ async function pullAndMerge(
     shiftsRes,
     stockRes,
     categoriesRes,
+    supplierPaymentsRes,
   ] = await Promise.all([
     client.from("settings").select("*"),
     client.from("products").select("*"),
@@ -318,10 +326,19 @@ async function pullAndMerge(
       .order("created_at", { ascending: false })
       .limit(3000),
     client.from("categories").select("*"),
+    client
+      .from("supplier_payments")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(2000),
   ]);
 
-  // stock_movements / categories may be missing until migration 010 — soft-fail
-  const softOptional = new Set(["stock_movements", "categories"]);
+  // Optional tables may be missing until migrations 010/011 — soft-fail
+  const softOptional = new Set([
+    "stock_movements",
+    "categories",
+    "supplier_payments",
+  ]);
   const firstError = [
     settingsRes,
     productsRes,
@@ -342,8 +359,12 @@ async function pullAndMerge(
 
   const stockOk = !stockRes.error;
   const catsOk = !categoriesRes.error;
+  const payOk = !supplierPaymentsRes.error;
   if (stockRes.error && !softOptional.has("stock_movements")) throw stockRes.error;
   if (categoriesRes.error && !softOptional.has("categories")) throw categoriesRes.error;
+  if (supplierPaymentsRes.error && !softOptional.has("supplier_payments")) {
+    throw supplierPaymentsRes.error;
+  }
 
   return applyCloudPull({
     localSettings,
@@ -365,6 +386,9 @@ async function pullAndMerge(
       : [],
     categories: catsOk
       ? ((categoriesRes.data || []) as Record<string, unknown>[])
+      : [],
+    supplier_payments: payOk
+      ? ((supplierPaymentsRes.data || []) as Record<string, unknown>[])
       : [],
   });
 }
@@ -489,6 +513,20 @@ function mapSupplier(payload: Record<string, unknown>) {
     phone: payload.phone ?? null,
     address: payload.address ?? null,
     notes: payload.notes ?? null,
+    balance: money(payload.balance),
+    created_at: payload.created_at,
+  };
+}
+
+function mapSupplierPayment(payload: Record<string, unknown>) {
+  return {
+    id: payload.id,
+    supplier_id: payload.supplier_id,
+    amount: money(payload.amount),
+    method: payload.method || "cash",
+    reference: payload.reference ?? null,
+    note: payload.note ?? null,
+    purchase_id: payload.purchase_id ?? null,
     created_at: payload.created_at,
   };
 }
@@ -505,6 +543,8 @@ function mapPurchase(payload: Record<string, unknown>) {
     notes: payload.notes ?? null,
     created_at: payload.created_at,
     received_at: payload.received_at ?? null,
+    paid_amount: money(payload.paid_amount),
+    payment_status: payload.payment_status ?? "unpaid",
   };
 }
 
