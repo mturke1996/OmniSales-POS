@@ -12,6 +12,7 @@ import {
   OrderStatus,
   OrderType,
   Product,
+  ProductCategory,
   Promotion,
   Purchase,
   PurchaseLine,
@@ -19,6 +20,8 @@ import {
   ReturnItem,
   ReturnRecord,
   Shift,
+  StockMovement,
+  StockMovementReason,
   Supplier,
   defaultSettings,
 } from "./types";
@@ -26,10 +29,17 @@ import { remainingReturnQty } from "./analytics";
 import { formatNextDoc } from "./sequences";
 import { assertStockAvailable } from "./stock";
 import { unitNetRefund } from "./returns-math";
+import {
+  applyStockDelta,
+  countDelta,
+  mergeProductInventory,
+} from "./stock-ledger";
 
 const KEYS = {
   settings: "omni.settings",
   products: "omni.products",
+  categories: "omni.categories",
+  stock_movements: "omni.stock_movements",
   shift: "omni.open_shift",
   shift_history: "omni.shift_history",
   customers: "omni.customers",
@@ -223,6 +233,8 @@ export async function ensurePwaSeed(): Promise<void> {
   }
 
   await ensureArrayKey<Product>(KEYS.products, []);
+  await ensureArrayKey<ProductCategory>(KEYS.categories, []);
+  await ensureArrayKey<StockMovement>(KEYS.stock_movements, []);
   await ensureArrayKey<Customer>(KEYS.customers, []);
   await ensureArrayKey<Expense>(KEYS.expenses, []);
   await ensureArrayKey<Order>(KEYS.orders, []);
@@ -237,6 +249,23 @@ export async function ensurePwaSeed(): Promise<void> {
 
   if ((await get<Shift | null>(KEYS.shift)) === undefined) {
     await set(KEYS.shift, null);
+  }
+
+  // Ensure default categories exist when catalog is empty of categories
+  const cats = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+  if (!cats.length) {
+    const settings =
+      (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+    const defaults: ProductCategory[] = [
+      {
+        id: crypto.randomUUID(),
+        branch_id: settings.branch_id,
+        name: "عام",
+        sort_order: 0,
+        created_at: new Date().toISOString(),
+      },
+    ];
+    await set(KEYS.categories, defaults);
   }
 }
 
@@ -318,6 +347,8 @@ export async function loadPwaBootstrap() {
   await ensurePwaSeed();
   const settings = (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
   const products = (await get<Product[]>(KEYS.products)) ?? [];
+  const categories = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+  const stock_movements = (await get<StockMovement[]>(KEYS.stock_movements)) ?? [];
   const open_shift = (await get<Shift | null>(KEYS.shift)) ?? null;
   const customers = (await get<Customer[]>(KEYS.customers)) ?? [];
   const customer_ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
@@ -334,6 +365,11 @@ export async function loadPwaBootstrap() {
   return {
     settings,
     products,
+    categories,
+    stock_movements: stock_movements
+      .slice()
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+      .slice(0, 500),
     open_shift,
     customers,
     customer_ledger,
@@ -349,6 +385,150 @@ export async function loadPwaBootstrap() {
     online: navigator.onLine,
     runtime: "pwa" as const,
   };
+}
+
+/**
+ * Central stock mutation: updates product qty/version, appends ledger row, enqueues sync.
+ */
+export async function recordStockChangePwa(input: {
+  product_id: string;
+  delta: number;
+  reason: StockMovementReason;
+  reference_type?: string;
+  reference_id?: string;
+  note?: string;
+  actor_id?: string;
+  allowNegative?: boolean;
+  /** When set, mutates this in-memory products array instead of re-reading */
+  productsRef?: Product[];
+}): Promise<{ product: Product; movement: StockMovement }> {
+  const settings =
+    (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+  const products =
+    input.productsRef ?? ((await get<Product[]>(KEYS.products)) ?? []);
+  const idx = products.findIndex((p) => p.id === input.product_id);
+  if (idx < 0) throw new Error("الصنف غير موجود");
+
+  const { product, movement } = applyStockDelta({
+    product: products[idx],
+    delta: input.delta,
+    reason: input.reason,
+    branch_id: settings.branch_id,
+    reference_type: input.reference_type,
+    reference_id: input.reference_id,
+    note: input.note,
+    actor_id: input.actor_id,
+    allowNegative: input.allowNegative,
+  });
+
+  products[idx] = product;
+  if (!input.productsRef) {
+    await set(KEYS.products, products);
+  }
+
+  const movements = ((await get<StockMovement[]>(KEYS.stock_movements)) ?? []).concat(
+    movement
+  );
+  // Cap local history
+  const trimmed =
+    movements.length > 3000 ? movements.slice(movements.length - 3000) : movements;
+  await set(KEYS.stock_movements, trimmed);
+
+  await enqueue("product.upsert", product);
+  await enqueue("stock_movement.append", movement);
+  return { product, movement };
+}
+
+export async function countStockPwa(input: {
+  product_id: string;
+  counted_qty: number;
+  note?: string;
+  actor_id?: string;
+}): Promise<{ product: Product; movement: StockMovement }> {
+  const products = (await get<Product[]>(KEYS.products)) ?? [];
+  const product = products.find((p) => p.id === input.product_id);
+  if (!product) throw new Error("الصنف غير موجود");
+  const counted = Math.max(0, Number(input.counted_qty));
+  if (!Number.isFinite(counted)) throw new Error("كمية الجرد غير صالحة");
+  const delta = countDelta(product.stock_quantity, counted);
+  if (Math.abs(delta) < 1e-9) {
+    throw new Error("لا فرق بين الكمية النظامية والجرد");
+  }
+  return recordStockChangePwa({
+    product_id: input.product_id,
+    delta,
+    reason: "count",
+    reference_type: "stock_count",
+    note:
+      input.note ||
+      `جرد فعلي: نظامي ${product.stock_quantity} → معدود ${counted}`,
+    actor_id: input.actor_id,
+  });
+}
+
+export async function adjustStockPwa(input: {
+  product_id: string;
+  delta: number;
+  reason?: Extract<StockMovementReason, "adjustment" | "damage" | "opening">;
+  note?: string;
+  actor_id?: string;
+}): Promise<{ product: Product; movement: StockMovement }> {
+  return recordStockChangePwa({
+    product_id: input.product_id,
+    delta: input.delta,
+    reason: input.reason || "adjustment",
+    reference_type: "stock_adjust",
+    note: input.note,
+    actor_id: input.actor_id,
+  });
+}
+
+export async function addCategoryPwa(name: string): Promise<ProductCategory> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("اسم التصنيف مطلوب");
+  const settings =
+    (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+  const categories = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+  if (categories.some((c) => c.name === trimmed)) {
+    throw new Error("التصنيف موجود بالفعل");
+  }
+  const cat: ProductCategory = {
+    id: crypto.randomUUID(),
+    branch_id: settings.branch_id,
+    name: trimmed,
+    sort_order: categories.length,
+    created_at: new Date().toISOString(),
+  };
+  categories.push(cat);
+  await set(KEYS.categories, categories);
+  await enqueue("category.upsert", cat);
+  return cat;
+}
+
+export async function renameCategoryPwa(
+  id: string,
+  name: string
+): Promise<ProductCategory> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("اسم التصنيف مطلوب");
+  const categories = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+  const idx = categories.findIndex((c) => c.id === id);
+  if (idx < 0) throw new Error("التصنيف غير موجود");
+  categories[idx] = { ...categories[idx], name: trimmed };
+  await set(KEYS.categories, categories);
+  await enqueue("category.upsert", categories[idx]);
+  return categories[idx];
+}
+
+export async function listStockMovementsPwa(productId?: string, limit = 100) {
+  const all = (await get<StockMovement[]>(KEYS.stock_movements)) ?? [];
+  const filtered = productId
+    ? all.filter((m) => m.product_id === productId)
+    : all;
+  return filtered
+    .slice()
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .slice(0, limit);
 }
 
 export async function loadCapacitorBootstrap() {
@@ -630,23 +810,22 @@ export async function checkoutPwa(input: {
     settled_to_shift,
   };
 
-  // Deduct inventory + sync each touched product
-  const touched: Product[] = [];
+  // Deduct inventory via stock ledger
   for (const line of lines) {
     const p = products.find((item) => item.id === line.product_id);
     if (p && p.track_stock) {
-      p.stock_quantity =
-        Math.round((p.stock_quantity - line.quantity) * 1000) / 1000;
-      if (p.stock_quantity < -1e-9) {
-        throw new Error(`مخزون غير كافٍ للصنف «${p.name}»`);
-      }
-      touched.push(p);
+      await recordStockChangePwa({
+        product_id: p.id,
+        delta: -line.quantity,
+        reason: "sale",
+        reference_type: "order",
+        reference_id: order.id,
+        actor_id: actor_id || input.cashier_id,
+        productsRef: products,
+      });
     }
   }
   await set(KEYS.products, products);
-  for (const p of touched) {
-    await enqueue("product.upsert", p);
-  }
 
   const orders = ((await get<Order[]>(KEYS.orders)) ?? []).concat(order);
   await set(KEYS.orders, orders);
@@ -711,20 +890,22 @@ export async function updateOrderStatusPwa(
 
   if (nowCancelled && prev.status !== "cancelled") {
     const products = (await get<Product[]>(KEYS.products)) ?? [];
-    const touched = new Set<string>();
     for (const line of order.items) {
       const p = products.find((item) => item.id === line.product_id);
       if (p && p.track_stock) {
-        p.stock_quantity += line.quantity;
-        touched.add(p.id);
+        await recordStockChangePwa({
+          product_id: p.id,
+          delta: line.quantity,
+          reason: "return",
+          reference_type: "order_cancel",
+          reference_id: order.id,
+          actor_id: opts?.actor_id,
+          note: `إلغاء طلب ${order.order_number}`,
+          productsRef: products,
+        });
       }
     }
     await set(KEYS.products, products);
-    for (const p of products) {
-      if (touched.has(p.id)) {
-        await enqueue("product.upsert", p);
-      }
-    }
   }
 
   orders[idx] = order;
@@ -812,22 +993,25 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
     items: returnItems,
   };
 
-  // Restock + sync
+  // Restock via stock ledger
   const products = (await get<Product[]>(KEYS.products)) ?? [];
-  const touchedProducts: Product[] = [];
   for (const item of returnItems) {
     if (!item.restock) continue;
     const p = products.find((x) => x.id === item.product_id);
     if (p && p.track_stock) {
-      p.stock_quantity =
-        Math.round((p.stock_quantity + item.quantity) * 1000) / 1000;
-      touchedProducts.push(p);
+      await recordStockChangePwa({
+        product_id: p.id,
+        delta: item.quantity,
+        reason: "return",
+        reference_type: "return",
+        reference_id: record.id,
+        actor_id: input.cashier_id,
+        note: `مرتجع ${record.return_number}`,
+        productsRef: products,
+      });
     }
   }
   await set(KEYS.products, products);
-  for (const p of touchedProducts) {
-    await enqueue("product.upsert", p);
-  }
 
   // Cash → reduce expected drawer (re-read shift to avoid stale App state)
   if (input.refund_method === "cash") {
@@ -1065,26 +1249,50 @@ export async function addExpensePwa(
 export async function addProductPwa(product: Omit<Product, "id" | "branch_id">) {
   const settings = (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
   const products = (await get<Product[]>(KEYS.products)) ?? [];
+  const openingQty = Math.max(0, Number(product.stock_quantity) || 0);
+  const now = new Date().toISOString();
   const newProd: Product = {
     ...product,
     id: crypto.randomUUID(),
     branch_id: settings.branch_id,
+    stock_quantity: 0,
+    stock_version: 0,
+    updated_at: now,
   };
   products.push(newProd);
   await set(KEYS.products, products);
   await enqueue("product.upsert", newProd);
+
+  if (openingQty > 0 && newProd.track_stock) {
+    const { product: withStock } = await recordStockChangePwa({
+      product_id: newProd.id,
+      delta: openingQty,
+      reason: "opening",
+      reference_type: "product_open",
+      note: "رصيد افتتاح عند إنشاء الصنف",
+    });
+    return withStock;
+  }
   return newProd;
 }
 
 export async function updateProductPwa(product: Product) {
   const products = (await get<Product[]>(KEYS.products)) ?? [];
   const idx = products.findIndex((p) => p.id === product.id);
-  if (idx !== -1) {
-    products[idx] = product;
-    await set(KEYS.products, products);
-  }
-  await enqueue("product.upsert", product);
-  return product;
+  if (idx < 0) throw new Error("الصنف غير موجود");
+  const prev = products[idx];
+  // Catalog edits must not silently rewrite stock — use count/adjust APIs
+  const next: Product = {
+    ...prev,
+    ...product,
+    stock_quantity: prev.stock_quantity,
+    stock_version: prev.stock_version ?? 0,
+    updated_at: new Date().toISOString(),
+  };
+  products[idx] = next;
+  await set(KEYS.products, products);
+  await enqueue("product.upsert", next);
+  return next;
 }
 
 async function enqueue(action: string, payload: unknown) {
@@ -1177,13 +1385,27 @@ export async function receivePurchasePwa(
 
   const products = (await get<Product[]>(KEYS.products)) ?? [];
   for (const line of purchase.items) {
-    const p = products.find((x) => x.id === line.product_id);
-    if (!p) continue;
-    if (p.track_stock) {
-      p.stock_quantity += line.quantity;
+    const idx = products.findIndex((x) => x.id === line.product_id);
+    if (idx < 0) continue;
+    products[idx] = {
+      ...products[idx],
+      cost_price: line.unit_cost,
+      updated_at: new Date().toISOString(),
+    };
+    if (products[idx].track_stock && line.quantity > 0) {
+      await recordStockChangePwa({
+        product_id: products[idx].id,
+        delta: line.quantity,
+        reason: "purchase",
+        reference_type: "purchase",
+        reference_id: purchase.id,
+        actor_id: opts?.actor_id,
+        note: `استلام ${purchase.purchase_number}`,
+        productsRef: products,
+      });
+    } else {
+      await enqueue("product.upsert", products[idx]);
     }
-    p.cost_price = line.unit_cost;
-    await enqueue("product.upsert", p);
   }
   await set(KEYS.products, products);
 
@@ -1278,6 +1500,8 @@ export async function importBackupPwa(data: Record<string, unknown>) {
 
 export async function clearAllDataPwa() {
   await set(KEYS.products, []);
+  await set(KEYS.categories, []);
+  await set(KEYS.stock_movements, []);
   await set(KEYS.customers, []);
   await set(KEYS.expenses, []);
   await set(KEYS.orders, []);
@@ -1343,6 +1567,8 @@ export async function applyCloudPull(input: {
   cash_movements: Record<string, unknown>[];
   audit_log: Record<string, unknown>[];
   open_shifts: Record<string, unknown>[];
+  stock_movements?: Record<string, unknown>[];
+  categories?: Record<string, unknown>[];
 }): Promise<number> {
   await ensurePwaSeed();
   let touched = 0;
@@ -1417,6 +1643,8 @@ export async function applyCloudPull(input: {
         stock_quantity: moneyField(p.stock_quantity),
         min_stock: moneyField(p.min_stock),
         is_active: p.is_active !== false,
+        stock_version: Number(p.stock_version) || 0,
+        updated_at: String(p.updated_at || p.created_at || ""),
         image_url: (p.image_url as string) || null,
         imei: (p.imei as string) || null,
         serial: (p.serial as string) || null,
@@ -1425,12 +1653,73 @@ export async function applyCloudPull(input: {
         expiry_days: p.expiry_days != null ? Number(p.expiry_days) : null,
       }) as Product
   );
-  const mergedProducts = mergeById(localProducts, remoteProducts, () => 0);
-  // Prefer remote stock/price when both exist (cloud after push is freshest cross-device)
+  const byLocal = new Map(localProducts.map((p) => [p.id, p]));
   const byRemote = new Map(remoteProducts.map((p) => [p.id, p]));
-  const productsFinal = mergedProducts.map((p) => byRemote.get(p.id) || p);
+  const allIds = new Set([...byLocal.keys(), ...byRemote.keys()]);
+  const productsFinal: Product[] = [];
+  for (const id of allIds) {
+    const local = byLocal.get(id);
+    const remote = byRemote.get(id);
+    if (local && remote) {
+      productsFinal.push(mergeProductInventory(local, remote));
+    } else {
+      productsFinal.push((remote || local)!);
+    }
+  }
   await set(KEYS.products, productsFinal);
   touched += remoteProducts.length;
+
+  if (input.categories?.length) {
+    const localCats = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
+    const remoteCats = input.categories.map(
+      (c) =>
+        ({
+          id: String(c.id),
+          branch_id: String(c.branch_id || ""),
+          name: String(c.name || ""),
+          sort_order: Number(c.sort_order) || 0,
+          created_at: String(c.created_at || new Date().toISOString()),
+        }) as ProductCategory
+    );
+    await set(
+      KEYS.categories,
+      mergeById(localCats, remoteCats, (c) => asTime(c.created_at))
+    );
+    touched += remoteCats.length;
+  }
+
+  if (input.stock_movements?.length) {
+    const localMoves = (await get<StockMovement[]>(KEYS.stock_movements)) ?? [];
+    const remoteMoves = input.stock_movements.map(
+      (m) =>
+        ({
+          id: String(m.id),
+          product_id: String(m.product_id),
+          branch_id: String(m.branch_id || ""),
+          reason: String(m.reason || "adjustment") as StockMovement["reason"],
+          delta: moneyField(m.delta),
+          qty_before: moneyField(m.qty_before),
+          qty_after: moneyField(m.qty_after),
+          reference_type: (m.reference_type as string) || undefined,
+          reference_id: (m.reference_id as string) || undefined,
+          note: (m.note as string) || undefined,
+          actor_id: (m.actor_id as string) || undefined,
+          created_at: String(m.created_at || new Date().toISOString()),
+        }) as StockMovement
+    );
+    const mergedMoves = mergeById(localMoves, remoteMoves, (m) =>
+      asTime(m.created_at)
+    );
+    const trimmed =
+      mergedMoves.length > 3000
+        ? mergedMoves
+            .slice()
+            .sort((a, b) => asTime(a.created_at) - asTime(b.created_at))
+            .slice(-3000)
+        : mergedMoves;
+    await set(KEYS.stock_movements, trimmed);
+    touched += remoteMoves.length;
+  }
 
   const localCustomers = (await get<Customer[]>(KEYS.customers)) ?? [];
   const remoteCustomers = input.customers.map(

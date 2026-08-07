@@ -47,6 +47,41 @@ export interface Money {
   amount: number;
 }
 
+export type StockMovementReason =
+  | "sale"
+  | "return"
+  | "purchase"
+  | "adjustment"
+  | "count"
+  | "opening"
+  | "damage"
+  | "transfer_in"
+  | "transfer_out";
+
+export interface StockMovement {
+  id: string;
+  product_id: string;
+  branch_id: string;
+  reason: StockMovementReason;
+  /** Positive = inbound, negative = outbound */
+  delta: number;
+  qty_before: number;
+  qty_after: number;
+  reference_type?: string;
+  reference_id?: string;
+  note?: string;
+  actor_id?: string;
+  created_at: string;
+}
+
+export interface ProductCategory {
+  id: string;
+  branch_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Product {
   id: string;
   branch_id: string;
@@ -62,6 +97,9 @@ export interface Product {
   stock_quantity: number;
   min_stock: number;
   is_active: boolean;
+  /** Monotonic counter — higher wins on multi-device qty merge */
+  stock_version?: number;
+  updated_at?: string;
   image_url?: string | null;
   imei?: string | null;
   serial?: string | null;
@@ -270,6 +308,8 @@ export interface Shift {
 export interface Bootstrap {
   settings: BranchSettings;
   products: Product[];
+  categories: ProductCategory[];
+  stock_movements: StockMovement[];
   open_shift: Shift | null;
   customers: Customer[];
   customer_ledger: CustomerLedgerEntry[];

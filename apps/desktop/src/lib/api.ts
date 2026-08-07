@@ -16,6 +16,11 @@ import {
   updateProductPwa,
   clearAllDataPwa,
   seedDemoCatalogPwa,
+  countStockPwa,
+  adjustStockPwa,
+  addCategoryPwa,
+  renameCategoryPwa,
+  listStockMovementsPwa,
   createReturnPwa,
   updateOrderStatusPwa,
   addSupplierPwa,
@@ -42,6 +47,7 @@ import type {
   PurchaseLine,
   ReturnRecord,
   Shift,
+  StockMovementReason,
   Supplier,
 } from "./types";
 import { INDUSTRY_PRESETS } from "./types";
@@ -189,6 +195,37 @@ export async function addExpense(
 
 export async function seedDemoCatalog() {
   return seedDemoCatalogPwa();
+}
+
+export async function countStock(input: {
+  product_id: string;
+  counted_qty: number;
+  note?: string;
+  actor_id?: string;
+}) {
+  return countStockPwa(input);
+}
+
+export async function adjustStock(input: {
+  product_id: string;
+  delta: number;
+  reason?: Extract<StockMovementReason, "adjustment" | "damage" | "opening">;
+  note?: string;
+  actor_id?: string;
+}) {
+  return adjustStockPwa(input);
+}
+
+export async function addCategory(name: string) {
+  return addCategoryPwa(name);
+}
+
+export async function renameCategory(id: string, name: string) {
+  return renameCategoryPwa(id, name);
+}
+
+export async function listStockMovements(productId?: string, limit?: number) {
+  return listStockMovementsPwa(productId, limit);
 }
 
 export async function addProduct(product: Omit<Product, "id" | "branch_id">) {

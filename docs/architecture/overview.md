@@ -12,15 +12,18 @@
 - PWA: Service Worker (Workbox) caches shell/assets; outbox flushes to Supabase when online.
 - Tauri SQLite (`omni-db`) exists as a parallel native path but is **not** invoked by the current UI (avoids IDB↔SQLite split-brain).
 
-## Shop hardening (P0)
+## Shop hardening (P0/P1)
 
 - Stock cannot go negative on checkout; product upserts enqueue on sale/return.
+- **Stock ledger** (`stock_movements`) for sale/return/purchase/count/adjustment with `stock_version` merge on sync.
 - Sequential document numbers (orders/returns/purchases/payments).
 - PIN stored as PBKDF2 hash; weak/bootstrap PINs force change before session.
 - Scanner Enter prefers **exact** barcode/SKU match.
 - Supabase migration `009` revokes anon write; cloud sync requires authenticated session.
+- Migration `010` adds `stock_movements`, `categories`, `products.stock_version`.
 - Expenses can deduct from open cash drawer; Z-report printable on shift close.
 - Empty-shop bootstrap (optional demo seed from Settings).
+- Inventory UI: physical count, adjust, movement history, categories.
 
 ## Settings-driven POS
 

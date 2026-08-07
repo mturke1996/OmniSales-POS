@@ -261,9 +261,12 @@ export default function App() {
             {tab === "inventory" && (
               <InventoryScreen
                 products={data.products}
+                categories={data.categories}
+                stockMovements={data.stock_movements}
                 settings={draft}
                 onRefreshData={loadData}
                 canManage={can(session, "products.edit")}
+                actorId={session.cashier_id}
               />
             )}
 
