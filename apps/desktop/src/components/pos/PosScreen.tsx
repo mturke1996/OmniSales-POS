@@ -17,6 +17,7 @@ import {
   Keyboard,
   Truck,
   Storefront,
+  Camera,
 } from "@phosphor-icons/react";
 import { checkout, addHeldCart, removeHeldCart, addCustomer } from "../../lib/api";
 import { calcTotals } from "../../lib/offline-store";
@@ -41,7 +42,9 @@ import { HoldCartsModal } from "./HoldCartsModal";
 import { ReceiptModal } from "./ReceiptModal";
 import { CustomerSelectModal } from "./CustomerSelectModal";
 import { ShortcutsModal } from "./ShortcutsModal";
+import { BarcodeScannerModal } from "./BarcodeScannerModal";
 import { usePhoneLayout } from "../../hooks/use-media-query";
+import { usePrinter } from "../../hooks/use-printer";
 
 export function PosScreen({
   settings,
@@ -154,6 +157,8 @@ export function PosScreen({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isPhone = usePhoneLayout();
+  const printer = usePrinter();
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     setDeliveryFee(String(settings.default_delivery_fee ?? 5));
@@ -722,6 +727,17 @@ export function PosScreen({
               {openShiftState ? "مفتوحة" : "مغلقة"}
             </span>
           </div>
+          <div className="pos-kpi-pill hidden md:flex">
+            <span className="text-[10px] text-ink-mute">الطابعة</span>
+            <span
+              className={cn(
+                "text-sm font-bold",
+                printer.connected ? "text-success" : "text-ink-mute"
+              )}
+            >
+              {printer.connected ? "متصلة" : "—"}
+            </span>
+          </div>
           <div className="pos-kpi-pill hidden sm:flex">
             <span className="text-[10px] text-ink-mute">الأصناف</span>
             <span className="money-big text-sm font-bold">{products.length}</span>
@@ -787,6 +803,16 @@ export function PosScreen({
               />
               <span className="pos-key-badge absolute start-3.5 top-1/2 -translate-y-1/2">F1</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowScanner(true)}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-paper-line/70 bg-paper-raised px-3.5 text-sm font-semibold text-ink shadow-soft transition hover:border-highlight/35"
+              title="مسح بالكاميرا"
+            >
+              <Camera size={18} className="text-highlight" weight="duotone" />
+              <span className="hidden sm:inline">كاميرا</span>
+            </button>
 
             <div className="flex w-full gap-2 sm:w-auto sm:flex-initial">
             <button
@@ -919,12 +945,31 @@ export function PosScreen({
         <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />
       )}
 
+      {showScanner && (
+        <BarcodeScannerModal
+          onClose={() => setShowScanner(false)}
+          onDetect={(code) => {
+            const exact = findExactCatalogMatch(products, code);
+            if (exact) {
+              addProductToCart(exact);
+              setMessage(`تم مسح: ${exact.name}`);
+            } else {
+              setQuery(code);
+              setMessage(`باركود غير معروف: ${code}`);
+            }
+          }}
+        />
+      )}
+
       {completedOrder && (
         <ReceiptModal
           order={completedOrder}
           settings={settings}
           changeDue={lastChangeDue}
           onClose={() => setCompletedOrder(null)}
+          autoPrint={
+            settings.auto_print_thermal !== false && printer.connected
+          }
         />
       )}
     </div>

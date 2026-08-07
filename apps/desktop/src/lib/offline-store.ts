@@ -230,6 +230,17 @@ export async function ensurePwaSeed(): Promise<void> {
   const existingSettings = await get<BranchSettings>(KEYS.settings);
   if (!existingSettings) {
     await set(KEYS.settings, defaultSettings());
+  } else if (existingSettings.setup_complete == null) {
+    // Migrate older installs: skip wizard if shop was already named
+    const migrated = {
+      ...existingSettings,
+      setup_complete:
+        Boolean(existingSettings.name) &&
+        existingSettings.name !== "محلي" &&
+        existingSettings.name !== "OmniSales POS",
+      auto_print_thermal: existingSettings.auto_print_thermal !== false,
+    };
+    await set(KEYS.settings, migrated);
   }
 
   await ensureArrayKey<Product>(KEYS.products, []);
@@ -350,6 +361,14 @@ export async function loadPwaBootstrap() {
   const categories = (await get<ProductCategory[]>(KEYS.categories)) ?? [];
   const stock_movements = (await get<StockMovement[]>(KEYS.stock_movements)) ?? [];
   const open_shift = (await get<Shift | null>(KEYS.shift)) ?? null;
+  const shift_history = ((await get<Shift[]>(KEYS.shift_history)) ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        Date.parse(b.closed_at || b.opened_at) -
+        Date.parse(a.closed_at || a.opened_at)
+    )
+    .slice(0, 60);
   const customers = (await get<Customer[]>(KEYS.customers)) ?? [];
   const customer_ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
   const cash_movements = (await get<CashMovement[]>(KEYS.cash_movements)) ?? [];
@@ -371,6 +390,7 @@ export async function loadPwaBootstrap() {
       .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
       .slice(0, 500),
     open_shift,
+    shift_history,
     customers,
     customer_ledger,
     cash_movements,
@@ -1615,10 +1635,12 @@ export async function applyCloudPull(input: {
       owner_whatsapp: String(
         remote.owner_whatsapp ?? input.localSettings.owner_whatsapp ?? ""
       ),
-      // Keep device cloud credentials local
+      // Keep device cloud credentials + local-only flags
       supabase_url: input.localSettings.supabase_url,
       supabase_anon_key: input.localSettings.supabase_anon_key,
       cloud_sync_enabled: input.localSettings.cloud_sync_enabled,
+      auto_print_thermal: input.localSettings.auto_print_thermal,
+      setup_complete: input.localSettings.setup_complete,
       branch_id: String(remote.branch_id ?? input.localSettings.branch_id),
     };
     await set(KEYS.settings, merged);

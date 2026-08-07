@@ -285,6 +285,10 @@ export interface BranchSettings {
   default_delivery_fee?: number;
   /** Owner phone for daily WhatsApp summary */
   owner_whatsapp?: string;
+  /** Auto-print thermal ESC/POS after successful checkout */
+  auto_print_thermal?: boolean;
+  /** Setup wizard completed */
+  setup_complete?: boolean;
 }
 
 export interface Shift {
@@ -311,6 +315,7 @@ export interface Bootstrap {
   categories: ProductCategory[];
   stock_movements: StockMovement[];
   open_shift: Shift | null;
+  shift_history: Shift[];
   customers: Customer[];
   customer_ledger: CustomerLedgerEntry[];
   cash_movements: CashMovement[];
@@ -449,5 +454,7 @@ export function defaultSettings(): BranchSettings {
     receipt_footer: "شكراً لزيارتكم",
     default_delivery_fee: 5,
     owner_whatsapp: "",
+    auto_print_thermal: true,
+    setup_complete: false,
   };
 }

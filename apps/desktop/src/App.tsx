@@ -9,6 +9,7 @@ import { Sidebar, SidebarTab } from "./components/Sidebar";
 import { MobileNavDrawer } from "./components/MobileNavDrawer";
 import { MobileBottomNav } from "./components/MobileBottomNav";
 import { CashierGate } from "./components/auth/CashierGate";
+import { SetupWizard } from "./components/setup/SetupWizard";
 import { DashboardScreen } from "./components/dashboard/DashboardScreen";
 import { PosScreen } from "./components/pos/PosScreen";
 import { ShiftsScreen } from "./components/shifts/ShiftsScreen";
@@ -143,6 +144,18 @@ export default function App() {
     );
   }
 
+  if (!draft.setup_complete) {
+    return (
+      <SetupWizard
+        settings={draft}
+        onComplete={(next) => {
+          setDraft(next);
+          setData((prev) => (prev ? { ...prev, settings: next } : prev));
+        }}
+      />
+    );
+  }
+
   const isPos = tab === "pos";
 
   const sidebarProps = {
@@ -214,6 +227,7 @@ export default function App() {
                 orders={data.orders}
                 returns={data.returns}
                 cashMovements={data.cash_movements}
+                shiftHistory={data.shift_history}
                 onRefreshData={loadData}
               />
             )}

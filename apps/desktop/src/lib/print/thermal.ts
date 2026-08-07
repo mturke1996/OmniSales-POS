@@ -79,8 +79,9 @@ export async function printThermalReceiptSmart(
   changeDue = 0,
   mode: ThermalPrintMode = "auto"
 ): Promise<"escpos" | "html"> {
+  const forceEscpos = mode === "escpos";
   const tryEscpos =
-    mode === "escpos" ||
+    forceEscpos ||
     (mode === "auto" && canUseWebSerial() && isSerialConnected());
 
   if (tryEscpos) {
@@ -95,8 +96,8 @@ export async function printThermalReceiptSmart(
       await writeToSerial(bytes);
       return "escpos";
     } catch (err) {
-      if (mode === "escpos") throw err;
-      // auto mode falls through to HTML
+      if (forceEscpos) throw err;
+      // auto mode falls through to HTML — caller can inspect return value
     }
   }
 

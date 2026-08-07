@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { concatBytes, escAlign, escCut, escInit } from "./escpos";
+import {
+  canUseWebSerial,
+  concatBytes,
+  escAlign,
+  escCut,
+  escInit,
+  serialSupportMessage,
+} from "./escpos";
 
 describe("escpos primitives", () => {
   it("emits ESC @ init", () => {
@@ -14,5 +21,10 @@ describe("escpos primitives", () => {
     const out = concatBytes(escInit(), escCut());
     expect(out[0]).toBe(0x1b);
     expect(out.length).toBe(escInit().length + escCut().length);
+  });
+
+  it("exposes serial support helpers", () => {
+    expect(typeof canUseWebSerial()).toBe("boolean");
+    expect(serialSupportMessage().length).toBeGreaterThan(0);
   });
 });
