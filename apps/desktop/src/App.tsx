@@ -325,6 +325,8 @@ export default function App() {
                 expenses={data.expenses}
                 settings={draft}
                 onRefreshData={loadData}
+                hasOpenShift={shift?.status === "open"}
+                cashierId={session.cashier_id}
               />
             )}
 

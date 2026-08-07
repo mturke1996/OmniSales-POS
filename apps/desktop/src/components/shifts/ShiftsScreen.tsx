@@ -10,6 +10,7 @@ import {
 import { openShift, closeShift, recordCashMovement } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 import { buildZSummary } from "../../lib/analytics";
+import { printZReport } from "../../lib/z-report";
 import type {
   BranchSettings,
   CashMovement,
@@ -79,15 +80,46 @@ export function ShiftsScreen({
     setBusy(true);
     setMessage(null);
     try {
-      const counted = closingCount ? Number(closingCount) : openShiftState.expected_cash;
-      await closeShift(counted);
+      const counted = closingCount
+        ? Number(closingCount)
+        : openShiftState.expected_cash;
+      const closed = await closeShift(counted);
+      try {
+        printZReport({
+          settings,
+          shift: closed,
+          orders,
+          returns,
+          cashMovements,
+          cashierName: cashierId,
+        });
+      } catch {
+        /* print blocked — still closed */
+      }
       onShiftChange(null);
       setClosingCount("");
-      setMessage("تم إغلاق الوردية وحفظ تقرير الزيد Z-Report بنجاح");
+      onRefreshData?.();
+      setMessage("تم إغلاق الوردية وطباعة تقرير Z بنجاح");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "فشل إغلاق الوردية");
     } finally {
       setBusy(false);
+    }
+  }
+
+  function handlePrintOpenZ() {
+    if (!openShiftState) return;
+    try {
+      printZReport({
+        settings,
+        shift: openShiftState,
+        orders,
+        returns,
+        cashMovements,
+        cashierName: cashierId,
+      });
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "تعذر الطباعة");
     }
   }
 
@@ -213,7 +245,16 @@ export function ShiftsScreen({
             </div>
 
             <div className="mt-4 rounded-xl border border-highlight/25 bg-highlight/5 p-4">
-              <p className="text-xs font-bold text-ink">ملخص Z-Report</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-ink">ملخص Z-Report</p>
+                <button
+                  type="button"
+                  onClick={handlePrintOpenZ}
+                  className="inline-flex items-center gap-1 rounded-full border border-highlight/30 bg-paper-raised px-2.5 py-1 text-[11px] font-bold text-highlight"
+                >
+                  <Printer size={14} /> طباعة
+                </button>
+              </div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                 <div>
                   <p className="text-ink-mute">فواتير</p>

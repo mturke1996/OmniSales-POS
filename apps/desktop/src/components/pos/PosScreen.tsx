@@ -24,6 +24,8 @@ import { formatMoney } from "../../lib/format";
 import { cn } from "../../lib/cn";
 import { useCart } from "../../stores/cart";
 import { industryCaps, promptSerialMeta } from "../../lib/industry";
+import { filterCatalog, findExactCatalogMatch } from "../../lib/catalog";
+import { availableForProduct, findStockIssues } from "../../lib/stock";
 import type {
   BranchSettings,
   Customer,
@@ -66,7 +68,17 @@ export function PosScreen({
   onOpenCompletedSales?: () => void;
   onOpenShifts?: () => void;
 }) {
-  const { lines, discount, add, setQty, remove, clear, setDiscount } = useCart();
+  const {
+    lines,
+    discount,
+    add,
+    setQty,
+    remove,
+    clear,
+    setDiscount,
+    priceMode,
+    setPriceMode,
+  } = useCart();
   const caps = industryCaps(settings.industry);
 
   function addProductToCart(p: Product) {
@@ -78,13 +90,44 @@ export function PosScreen({
       setMessage("افتح وردية أولاً قبل إضافة أصناف إلى السلة");
       return;
     }
+    if (!p.is_active) {
+      setMessage(`الصنف «${p.name}» غير نشط`);
+      return;
+    }
+    if (p.track_stock) {
+      const avail = availableForProduct(p, lines);
+      if (avail < 1) {
+        setMessage(`لا يتوفر مخزون لـ «${p.name}» (المتوفر ${p.stock_quantity})`);
+        return;
+      }
+    }
     if (caps.track_imei || caps.track_serial) {
       const meta = promptSerialMeta(settings, p.name);
       if (!meta) return;
-      add(p, { qty: 1, ...meta });
+      add(p, { qty: 1, ...meta, priceMode });
       return;
     }
-    add(p);
+    add(p, { qty: 1, priceMode });
+  }
+
+  function handleScanOrSearchEnter() {
+    const exact = findExactCatalogMatch(products, query);
+    if (exact) {
+      addProductToCart(exact);
+      setQuery("");
+      return;
+    }
+    const soft = filterCatalog(products, query);
+    if (soft.length === 1) {
+      addProductToCart(soft[0]);
+      setQuery("");
+      return;
+    }
+    if (soft.length === 0) {
+      setMessage("لا يوجد صنف مطابق للباركود/البحث");
+      return;
+    }
+    setMessage("نتائج متعددة — اختر الصنف من الشبكة أو امسح باركوداً دقيقاً");
   }
 
   const [query, setQuery] = useState("");
@@ -116,24 +159,26 @@ export function PosScreen({
     setDeliveryFee(String(settings.default_delivery_fee ?? 5));
   }, [settings.default_delivery_fee]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.barcode.includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        (p.oem_code && p.oem_code.toLowerCase().includes(q))
-    );
-  }, [products, query]);
+  const filtered = useMemo(
+    () => filterCatalog(products, query),
+    [products, query]
+  );
+
+  const stockIssues = useMemo(
+    () => findStockIssues(lines, products),
+    [lines, products]
+  );
 
   const totals = calcTotals(lines, discount, settings.tax_rate);
   const feeNum =
     saleMode === "delivery" ? Math.max(0, Number(deliveryFee) || 0) : 0;
   const grandTotal = Math.round((totals.total + feeNum) * 100) / 100;
   const orderType: OrderType =
-    saleMode === "delivery" ? "delivery" : "pos_walk_in";
+    saleMode === "delivery"
+      ? "delivery"
+      : priceMode === "wholesale"
+        ? "wholesale"
+        : "pos_walk_in";
   const totalItemsCount = lines.reduce((s, i) => s + i.quantity, 0);
 
   const needsShift =
@@ -217,10 +262,20 @@ export function PosScreen({
     setBusy(true);
     setMessage(null);
     try {
+      if (stockIssues.length) {
+        throw new Error(
+          `مخزون غير كافٍ — ${stockIssues
+            .map((i) => `«${i.name}» (${i.available})`)
+            .join(" · ")}`
+        );
+      }
       if (saleMode === "delivery") {
         const phone = (deliveryPhone || selectedCustomer?.phone || "").trim();
         if (!phone) throw new Error("رقم هاتف التوصيل مطلوب");
         if (!deliveryAddress.trim()) throw new Error("عنوان التوصيل مطلوب");
+      }
+      if (priceMode === "wholesale" && !selectedCustomer) {
+        throw new Error("مبيعات الجملة تتطلب اختيار عميل");
       }
 
       const result = await checkout({
@@ -416,6 +471,48 @@ export function PosScreen({
           </button>
         </div>
 
+        <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-ink/[0.06] bg-paper-raised p-1">
+          <button
+            type="button"
+            onClick={() => setPriceMode("retail")}
+            className={cn(
+              "rounded-xl py-1.5 text-[11px] font-bold transition",
+              priceMode === "retail"
+                ? "bg-success/15 text-success"
+                : "text-ink-mute hover:text-ink"
+            )}
+          >
+            تجزئة
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPriceMode("wholesale");
+              if (!selectedCustomer) setShowCustomerModal(true);
+            }}
+            className={cn(
+              "rounded-xl py-1.5 text-[11px] font-bold transition",
+              priceMode === "wholesale"
+                ? "bg-warning/15 text-warning"
+                : "text-ink-mute hover:text-ink"
+            )}
+          >
+            جملة
+          </button>
+        </div>
+
+        {stockIssues.length > 0 && (
+          <p
+            role="alert"
+            className="rounded-lg border border-danger/25 bg-danger/10 px-2.5 py-2 text-[11px] font-semibold text-danger"
+          >
+            مخزون غير كافٍ:{" "}
+            {stockIssues
+              .map((i) => `«${i.name}» متاح ${i.available}`)
+              .join(" · ")}
+          </p>
+        )}
+
         {saleMode === "delivery" && (
           <div className="space-y-2 rounded-xl border border-highlight/25 bg-highlight/5 p-2.5">
             <p className="text-[11px] font-bold text-highlight">بيانات التوصيل</p>
@@ -569,7 +666,12 @@ export function PosScreen({
           <p
             className={cn(
               "rounded-lg border p-2 text-center text-xs font-semibold",
-              message.includes("فشل") || message.includes("مطلوب") || message.includes("تجاوز")
+              message.includes("فشل") ||
+              message.includes("مطلوب") ||
+              message.includes("تجاوز") ||
+              message.includes("مخزون") ||
+              message.includes("لا يوجد") ||
+              message.includes("متعددة")
                 ? "border-danger/25 bg-danger/10 text-danger"
                 : "border-success/25 bg-success/10 text-success"
             )}
@@ -581,11 +683,17 @@ export function PosScreen({
         <button
           type="button"
           className="btn-primary flex h-14 w-full items-center justify-center gap-2 text-base font-bold"
-          disabled={busy || !lines.length || needsShift}
+          disabled={
+            busy || !lines.length || needsShift || stockIssues.length > 0
+          }
           onClick={() => void handleCheckout()}
         >
           <span>
-            {saleMode === "delivery" ? "تأكيد طلب التوصيل" : "إتمام البيع"}
+            {saleMode === "delivery"
+              ? "تأكيد طلب التوصيل"
+              : priceMode === "wholesale"
+                ? "إتمام بيع جملة"
+                : "إتمام البيع"}
           </span>
           <span className="pos-key-badge border-white/20 bg-white/10 text-accent-invert">F9</span>
         </button>
@@ -667,9 +775,9 @@ export function PosScreen({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && filtered[0]) {
-                    addProductToCart(filtered[0]);
-                    setQuery("");
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleScanOrSearchEnter();
                   }
                 }}
                 placeholder="ابحث بالاسم أو الباركود أو SKU..."

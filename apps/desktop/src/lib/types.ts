@@ -119,6 +119,10 @@ export interface Expense {
   amount: number;
   note: string;
   created_at: string;
+  /** When true, amount is deducted from the open cash drawer */
+  from_drawer?: boolean;
+  shift_id?: string;
+  cash_movement_id?: string;
 }
 
 export interface HeldCart {
@@ -386,15 +390,15 @@ export const INDUSTRY_PRESETS: IndustryPreset[] = [
 
 export function defaultSettings(): BranchSettings {
   return {
-    branch_id: "branch-1",
-    name: "OmniSales POS",
-    address: "طرابلس - المركز الرئيسي",
-    phone: "091-0000000",
+    branch_id: crypto.randomUUID(),
+    name: "محلي",
+    address: "",
+    phone: "",
     currency: "LYD",
     currency_symbol: "د.ل",
     locale: "ar-LY",
     tax_rate: 0,
-    industry: "confectionery",
+    industry: "general_retail",
     work_mode: "shift_based",
     pos_layout: "grid_cart",
     theme_key: "scout",
@@ -402,7 +406,7 @@ export function defaultSettings(): BranchSettings {
     thermal_width_mm: 80,
     order_prefix: "ORD",
     invoice_prefix: "INV",
-    receipt_footer: "شكراً لزيارتكم! نعتز بخدمتكم دائماً.",
+    receipt_footer: "شكراً لزيارتكم",
     default_delivery_fee: 5,
     owner_whatsapp: "",
   };

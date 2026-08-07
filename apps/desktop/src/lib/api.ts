@@ -15,6 +15,7 @@ import {
   addProductPwa,
   updateProductPwa,
   clearAllDataPwa,
+  seedDemoCatalogPwa,
   createReturnPwa,
   updateOrderStatusPwa,
   addSupplierPwa,
@@ -177,8 +178,17 @@ export async function recordCashMovement(input: {
   return recordCashMovementPwa(input);
 }
 
-export async function addExpense(expense: Omit<Expense, "id" | "created_at">) {
+export async function addExpense(
+  expense: Omit<Expense, "id" | "created_at" | "shift_id" | "cash_movement_id"> & {
+    from_drawer?: boolean;
+    cashier_id?: string;
+  }
+) {
   return addExpensePwa(expense);
+}
+
+export async function seedDemoCatalog() {
+  return seedDemoCatalogPwa();
 }
 
 export async function addProduct(product: Omit<Product, "id" | "branch_id">) {

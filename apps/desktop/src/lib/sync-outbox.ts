@@ -65,6 +65,18 @@ export async function syncCloudFull(settings: BranchSettings): Promise<SyncResul
     };
   }
 
+  // After migration 009, anon can no longer read/write — require signed-in user
+  const session = await client.auth.getSession();
+  if (!session.data.session) {
+    return {
+      flushed: 0,
+      remaining: await pendingOutboxCount(),
+      pulled: 0,
+      error:
+        "المزامنة تتطلب تسجيل دخول سحابي (بريد/كلمة مرور) من الإعدادات — مفتاح anon لم يعد يكتب في القاعدة",
+    };
+  }
+
   // Verify OmniSales schema exists (not a foreign project)
   const probe = await client.from("settings").select("branch_id").limit(1);
   if (probe.error) {
@@ -74,13 +86,20 @@ export async function syncCloudFull(settings: BranchSettings): Promise<SyncResul
       msg.includes("schema cache") ||
       probe.error.code === "42P01" ||
       probe.error.code === "PGRST205";
+    const denied =
+      probe.error.code === "42501" ||
+      msg.toLowerCase().includes("permission") ||
+      msg.toLowerCase().includes("rls") ||
+      msg.toLowerCase().includes("row-level");
     return {
       flushed: 0,
       remaining: await pendingOutboxCount(),
       pulled: 0,
       error: missing
-        ? "هذا المشروع ليس مخطط OmniSales — أنشئ مشروعاً جديداً وطبق الهجرات 001→008"
-        : `فشل الاتصال: ${msg}`,
+        ? "هذا المشروع ليس مخطط OmniSales — أنشئ مشروعاً جديداً وطبق الهجرات 001→009"
+        : denied
+          ? "رفض الصلاحيات — سجّل دخول مستخدم authenticated وطبق الهجرة 009"
+          : `فشل الاتصال: ${msg}`,
     };
   }
 

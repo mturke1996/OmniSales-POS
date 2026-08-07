@@ -23,6 +23,9 @@ import {
   defaultSettings,
 } from "./types";
 import { remainingReturnQty } from "./analytics";
+import { formatNextDoc } from "./sequences";
+import { assertStockAvailable } from "./stock";
+import { unitNetRefund } from "./returns-math";
 
 const KEYS = {
   settings: "omni.settings",
@@ -203,127 +206,67 @@ function demoCustomers(): Customer[] {
   ];
 }
 
-function demoExpenses(): Expense[] {
-  return [
-    {
-      id: "exp-1",
-      category: "كهرباء ومرافق",
-      amount: 150.0,
-      note: "فاتورة كهرباء شهر يوليو",
-      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    },
-    {
-      id: "exp-2",
-      category: "مستلزمات تغليف",
-      amount: 85.0,
-      note: "أكياس وأشرطة تغليف هدايا",
-      created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
-    },
-  ];
-}
-
-function demoOrders(): Order[] {
-  return [
-    {
-      id: "ord-1",
-      order_number: "ORD-1001",
-      type: "special_event",
-      status: "in_prep",
-      customer_id: "cust-1",
-      customer_name: "شركة الأفق للمناسبات",
-      customer_phone: "091-2345678",
-      delivery_address: "فندق باب البحر - قاعة الفخامة",
-      delivery_date: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
-      items: [
-        {
-          product_id: "prod-3",
-          name: "بوكس هدايا مناسبات ذهبي فاخر",
-          unit_price: 180.0,
-          quantity: 5,
-          unit_type: "piece",
-        },
-      ],
-      subtotal: 900.0,
-      tax_amount: 0,
-      discount_amount: 50.0,
-      total_amount: 850.0,
-      payment_method: "debt",
-      created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-      notes: "تجهيز مع تغليف بشرائط ذهبية وحفر اسم الشركة",
-    },
-    {
-      id: "ord-2",
-      order_number: "ORD-1002",
-      type: "pos_walk_in",
-      status: "completed",
-      customer_name: "عميل نقدي",
-      items: [
-        {
-          product_id: "prod-1",
-          name: "علبة فاخرة شوكولاتة مكسرات (500 جرام)",
-          unit_price: 75.0,
-          quantity: 2,
-          unit_type: "box",
-        },
-      ],
-      subtotal: 150.0,
-      tax_amount: 0,
-      discount_amount: 0,
-      total_amount: 150.0,
-      payment_method: "cash",
-      created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-    },
-  ];
-}
-
-export async function ensurePwaSeed(): Promise<void> {
-  const existingProducts = await get<Product[]>(KEYS.products);
-  if (!existingProducts?.length) {
-    await set(KEYS.products, demoProducts());
+async function ensureArrayKey<T>(key: string, fallback: T[] = []): Promise<T[]> {
+  const existing = await get<T[]>(key);
+  if (existing == null) {
+    await set(key, fallback);
+    return fallback;
   }
+  return existing;
+}
 
+/** Initialize empty shop stores — no demo clutter in production path. */
+export async function ensurePwaSeed(): Promise<void> {
   const existingSettings = await get<BranchSettings>(KEYS.settings);
   if (!existingSettings) {
     await set(KEYS.settings, defaultSettings());
   }
 
-  const existingCustomers = await get<Customer[]>(KEYS.customers);
-  if (!existingCustomers?.length) {
-    await set(KEYS.customers, demoCustomers());
-  }
+  await ensureArrayKey<Product>(KEYS.products, []);
+  await ensureArrayKey<Customer>(KEYS.customers, []);
+  await ensureArrayKey<Expense>(KEYS.expenses, []);
+  await ensureArrayKey<Order>(KEYS.orders, []);
+  await ensureArrayKey<HeldCart>(KEYS.held_carts, []);
+  await ensureArrayKey<ReturnRecord>(KEYS.returns, []);
+  await ensureArrayKey<Supplier>(KEYS.suppliers, []);
+  await ensureArrayKey<Purchase>(KEYS.purchases, []);
+  await ensureArrayKey<Promotion>(KEYS.promotions, []);
+  await ensureArrayKey<AuditEntry>(KEYS.audit, []);
+  await ensureArrayKey<CustomerLedgerEntry>(KEYS.ledger, []);
+  await ensureArrayKey<CashMovement>(KEYS.cash_movements, []);
 
-  const existingExpenses = await get<Expense[]>(KEYS.expenses);
-  if (!existingExpenses?.length) {
-    await set(KEYS.expenses, demoExpenses());
+  if ((await get<Shift | null>(KEYS.shift)) === undefined) {
+    await set(KEYS.shift, null);
   }
+}
 
-  const existingOrders = await get<Order[]>(KEYS.orders);
-  if (!existingOrders?.length) {
-    await set(KEYS.orders, demoOrders());
+/** Optional sample catalog for demos / training — manager-triggered only. */
+export async function seedDemoCatalogPwa(): Promise<void> {
+  const products = (await get<Product[]>(KEYS.products)) ?? [];
+  if (products.length > 0) {
+    throw new Error(
+      "المخزون يحتوي أصنافاً بالفعل — امسح البيانات أولاً إن أردت البذرة التجريبية"
+    );
   }
-
-  const existingCarts = await get<HeldCart[]>(KEYS.held_carts);
-  if (!existingCarts) {
-    await set(KEYS.held_carts, []);
-  }
-
-  const existingReturns = await get<ReturnRecord[]>(KEYS.returns);
-  if (!existingReturns) {
-    await set(KEYS.returns, []);
-  }
-
-  if ((await get<Supplier[]>(KEYS.suppliers)) == null) {
-    await set(KEYS.suppliers, []);
-  }
-  if ((await get<Purchase[]>(KEYS.purchases)) == null) {
-    await set(KEYS.purchases, []);
-  }
-  if ((await get<Promotion[]>(KEYS.promotions)) == null) {
-    await set(KEYS.promotions, []);
-  }
-  if ((await get<AuditEntry[]>(KEYS.audit)) == null) {
-    await set(KEYS.audit, []);
-  }
+  const settings =
+    (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+  const demo = demoProducts().map((p) => ({
+    ...p,
+    id: crypto.randomUUID(),
+    branch_id: settings.branch_id,
+  }));
+  const customers = demoCustomers().map((c) => ({
+    ...c,
+    id: crypto.randomUUID(),
+  }));
+  await set(KEYS.products, demo);
+  await set(KEYS.customers, customers);
+  for (const p of demo) await enqueue("product.upsert", p);
+  for (const c of customers) await enqueue("customer.upsert", c);
+  await appendAudit(
+    "demo.seed",
+    `بذرة تجريبية: ${demo.length} أصناف · ${customers.length} عملاء`
+  );
 }
 
 async function appendAudit(
@@ -424,17 +367,19 @@ export async function openPwaShift(cashierId: string, openingFloat: number) {
   if (current?.status === "open") {
     throw new Error("توجد وردية مفتوحة بالفعل");
   }
+  const settings = (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+  const float = Math.max(0, Number(openingFloat) || 0);
   const shift: Shift = {
     id: crypto.randomUUID(),
-    branch_id: "branch-1",
+    branch_id: settings.branch_id || crypto.randomUUID(),
     cashier_id: cashierId,
     opened_at: new Date().toISOString(),
-    opening_float: openingFloat,
+    opening_float: float,
     cash_sales: 0,
     card_sales: 0,
     debt_sales: 0,
     cash_returns: 0,
-    expected_cash: openingFloat,
+    expected_cash: float,
     status: "open",
   };
   await set(KEYS.shift, shift);
@@ -609,6 +554,16 @@ export async function checkoutPwa(input: {
     }
   }
 
+  // Stock gate before mutating balances / shift
+  const products = (await get<Product[]>(KEYS.products)) ?? [];
+  assertStockAvailable(lines, products);
+
+  const orderNum = await formatNextDoc("order", settings.order_prefix || "ORD");
+  const invoiceRef = await formatNextDoc(
+    "invoice",
+    settings.invoice_prefix || "INV"
+  );
+
   // If debt payment, check customer balance/limit
   if (method === "debt") {
     if (!customer_id) {
@@ -619,10 +574,10 @@ export async function checkoutPwa(input: {
     if (customer) {
       if (customer.balance + total_amount > customer.credit_limit) {
         throw new Error(
-          `تجاوز حد الائتمان للعميل (${customer.name}). الحد الأقصى: ${customer.credit_limit} د.ل`
+          `تجاوز حد الائتمان للعميل (${customer.name}). الحد الأقصى: ${customer.credit_limit} ${settings.currency_symbol}`
         );
       }
-      customer.balance += total_amount;
+      customer.balance = Math.round((customer.balance + total_amount) * 100) / 100;
       await set(KEYS.customers, customers);
       await enqueue("customer.upsert", customer);
 
@@ -631,8 +586,8 @@ export async function checkoutPwa(input: {
         customer_id,
         type: "debit",
         amount: total_amount,
-        reference: settings.invoice_prefix + "-" + Math.floor(1000 + Math.random() * 9000),
-        description: "فاتورة مبيعات فرعية",
+        reference: invoiceRef,
+        description: `فاتورة مبيعات ${orderNum}`,
         created_at: new Date().toISOString(),
       };
       const ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
@@ -642,13 +597,12 @@ export async function checkoutPwa(input: {
     }
   }
 
-  const orderNum = `${settings.order_prefix}-${Math.floor(10000 + Math.random() * 90000)}`;
-
   let settled_to_shift = false;
+  let nextShift: Shift | null = null;
 
   // Update shift figures (skip for new delivery / special_event until completed)
   if (open_shift && !deferShift) {
-    const nextShift = applyShiftSale(open_shift, method, total_amount, cash_tendered);
+    nextShift = applyShiftSale(open_shift, method, total_amount, cash_tendered);
     await set(KEYS.shift, nextShift);
     settled_to_shift = true;
   }
@@ -676,15 +630,23 @@ export async function checkoutPwa(input: {
     settled_to_shift,
   };
 
-  // Deduct inventory
-  const products = (await get<Product[]>(KEYS.products)) ?? [];
-  lines.forEach((line) => {
+  // Deduct inventory + sync each touched product
+  const touched: Product[] = [];
+  for (const line of lines) {
     const p = products.find((item) => item.id === line.product_id);
     if (p && p.track_stock) {
-      p.stock_quantity = Math.max(0, p.stock_quantity - line.quantity);
+      p.stock_quantity =
+        Math.round((p.stock_quantity - line.quantity) * 1000) / 1000;
+      if (p.stock_quantity < -1e-9) {
+        throw new Error(`مخزون غير كافٍ للصنف «${p.name}»`);
+      }
+      touched.push(p);
     }
-  });
+  }
   await set(KEYS.products, products);
+  for (const p of touched) {
+    await enqueue("product.upsert", p);
+  }
 
   const orders = ((await get<Order[]>(KEYS.orders)) ?? []).concat(order);
   await set(KEYS.orders, orders);
@@ -697,11 +659,15 @@ export async function checkoutPwa(input: {
       status: order.status,
       promotion_id: appliedPromo?.id,
       delivery_fee,
+      invoice_ref: invoiceRef,
     },
     { actor_id: actor_id || input.cashier_id, actor_name }
   );
 
   await enqueue("order.create", order);
+  if (nextShift) {
+    await enqueue("shift.update", nextShift);
+  }
   return { order, change_due };
 }
 
@@ -797,6 +763,7 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
   const existingReturns = (await get<ReturnRecord[]>(KEYS.returns)) ?? [];
   const returnItems: ReturnItem[] = [];
   let totalRefund = 0;
+  const round = (n: number) => Math.round(n * 100) / 100;
 
   for (const sel of input.items) {
     if (sel.quantity <= 0) continue;
@@ -808,7 +775,8 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
         `الكمية المتاحة للإرجاع من «${line.name}» هي ${remaining} فقط`
       );
     }
-    const unitRefund = line.unit_price;
+    // Distribute order discount/tax so refund ≤ what customer actually paid
+    const unitRefund = unitNetRefund(order, sel.line_index);
     totalRefund += unitRefund * sel.quantity;
     returnItems.push({
       product_id: line.product_id,
@@ -825,12 +793,12 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
     throw new Error("رصيد العميل يتطلب عميلاً مرتبطاً بالفاتورة");
   }
 
-  const round = (n: number) => Math.round(n * 100) / 100;
   totalRefund = round(totalRefund);
+  const returnNumber = await formatNextDoc("return", "RET");
 
   const record: ReturnRecord = {
     id: crypto.randomUUID(),
-    return_number: `RET-${Math.floor(10000 + Math.random() * 90000)}`,
+    return_number: returnNumber,
     order_id: order.id,
     order_number: order.order_number,
     shift_id: input.open_shift?.id,
@@ -844,16 +812,22 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
     items: returnItems,
   };
 
-  // Restock
+  // Restock + sync
   const products = (await get<Product[]>(KEYS.products)) ?? [];
+  const touchedProducts: Product[] = [];
   for (const item of returnItems) {
     if (!item.restock) continue;
     const p = products.find((x) => x.id === item.product_id);
     if (p && p.track_stock) {
-      p.stock_quantity += item.quantity;
+      p.stock_quantity =
+        Math.round((p.stock_quantity + item.quantity) * 1000) / 1000;
+      touchedProducts.push(p);
     }
   }
   await set(KEYS.products, products);
+  for (const p of touchedProducts) {
+    await enqueue("product.upsert", p);
+  }
 
   // Cash → reduce expected drawer (re-read shift to avoid stale App state)
   if (input.refund_method === "cash") {
@@ -862,63 +836,65 @@ export async function createReturnPwa(input: CreateReturnInput): Promise<ReturnR
     if (liveShift?.status === "open") {
       const shift: Shift = {
         ...liveShift,
-        cash_returns: (liveShift.cash_returns ?? 0) + totalRefund,
-        expected_cash: Math.max(0, liveShift.expected_cash - totalRefund),
+        cash_returns: round((liveShift.cash_returns ?? 0) + totalRefund),
+        expected_cash: Math.max(
+          0,
+          round(liveShift.expected_cash - totalRefund)
+        ),
       };
       await set(KEYS.shift, shift);
       record.shift_id = shift.id;
+      await enqueue("shift.update", shift);
     }
+  }
+
+  const returnCustomerId = order.customer_id;
+  async function creditCustomerDebt(description: string) {
+    if (!returnCustomerId) return;
+    const customers = (await get<Customer[]>(KEYS.customers)) ?? [];
+    const customer = customers.find((c) => c.id === returnCustomerId);
+    if (!customer) return;
+    customer.balance = Math.max(0, round(customer.balance - totalRefund));
+    await set(KEYS.customers, customers);
+    await enqueue("customer.upsert", customer);
+    const ledgerEntry: CustomerLedgerEntry = {
+      id: crypto.randomUUID(),
+      customer_id: returnCustomerId,
+      type: "credit",
+      amount: totalRefund,
+      reference: record.return_number,
+      description,
+      created_at: record.created_at,
+    };
+    const ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
+    ledger.push(ledgerEntry);
+    await set(KEYS.ledger, ledger);
+    await enqueue("ledger.append", ledgerEntry);
   }
 
   // Store credit / reverse debt balance
   if (input.refund_method === "credit" && order.customer_id) {
-    const customers = (await get<Customer[]>(KEYS.customers)) ?? [];
-    const customer = customers.find((c) => c.id === order.customer_id);
-    if (customer) {
-      customer.balance = Math.max(0, customer.balance - totalRefund);
-      await set(KEYS.customers, customers);
-      const ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
-      ledger.push({
-        id: crypto.randomUUID(),
-        customer_id: order.customer_id,
-        type: "credit",
-        amount: totalRefund,
-        reference: record.return_number,
-        description: `مرتجع على فاتورة ${order.order_number}`,
-        created_at: record.created_at,
-      });
-      await set(KEYS.ledger, ledger);
-    }
+    await creditCustomerDebt(`مرتجع على فاتورة ${order.order_number}`);
   }
 
-  // Debt sale refunded as cash/card still reduces customer debt if they paid on account
+  // Debt sale refunded as cash/card still reduces customer debt
   if (
     order.payment_method === "debt" &&
     order.customer_id &&
     input.refund_method !== "credit"
   ) {
-    const customers = (await get<Customer[]>(KEYS.customers)) ?? [];
-    const customer = customers.find((c) => c.id === order.customer_id);
-    if (customer) {
-      customer.balance = Math.max(0, customer.balance - totalRefund);
-      await set(KEYS.customers, customers);
-      const ledger = (await get<CustomerLedgerEntry[]>(KEYS.ledger)) ?? [];
-      ledger.push({
-        id: crypto.randomUUID(),
-        customer_id: order.customer_id,
-        type: "credit",
-        amount: totalRefund,
-        reference: record.return_number,
-        description: `عكس آجل — مرتجع ${order.order_number}`,
-        created_at: record.created_at,
-      });
-      await set(KEYS.ledger, ledger);
-    }
+    await creditCustomerDebt(`عكس آجل — مرتجع ${order.order_number}`);
   }
 
   const nextReturns = existingReturns.concat(record);
   await set(KEYS.returns, nextReturns);
   await enqueue("return.create", record);
+  await appendAudit(
+    "return.create",
+    `مرتجع ${record.return_number} — ${totalRefund}`,
+    { order_id: order.id, refund_method: input.refund_method },
+    { actor_id: input.cashier_id }
+  );
   return record;
 }
 
@@ -992,7 +968,7 @@ export async function recordCustomerPaymentPwa(customerId: string, amount: numbe
     customer_id: customerId,
     type: "credit",
     amount,
-    reference: "PAY-" + Math.floor(1000 + Math.random() * 9000),
+    reference: await formatNextDoc("payment", "PAY"),
     description: note || "سداد دفعة من الحساب",
     created_at: new Date().toISOString(),
   };
@@ -1042,10 +1018,41 @@ export async function recordCashMovementPwa(input: {
   return { movement, shift: next };
 }
 
-export async function addExpensePwa(expense: Omit<Expense, "id" | "created_at">) {
+export async function addExpensePwa(
+  expense: Omit<Expense, "id" | "created_at" | "shift_id" | "cash_movement_id"> & {
+    from_drawer?: boolean;
+    cashier_id?: string;
+  }
+) {
+  const amount = Math.round(Number(expense.amount) * 100) / 100;
+  if (!(amount > 0)) throw new Error("مبلغ المصروف غير صالح");
+
+  let shift_id: string | undefined;
+  let cash_movement_id: string | undefined;
+
+  if (expense.from_drawer) {
+    const shift = await get<Shift | null>(KEYS.shift);
+    if (!shift || shift.status !== "open") {
+      throw new Error("لا يمكن خصم المصروف من الصندوق بدون وردية مفتوحة");
+    }
+    const moved = await recordCashMovementPwa({
+      type: "out",
+      amount,
+      reason: `مصروف: ${expense.category}${expense.note ? ` — ${expense.note}` : ""}`,
+      cashier_id: expense.cashier_id,
+    });
+    shift_id = moved.shift.id;
+    cash_movement_id = moved.movement.id;
+  }
+
   const expenses = (await get<Expense[]>(KEYS.expenses)) ?? [];
   const newExp: Expense = {
-    ...expense,
+    category: expense.category,
+    amount,
+    note: expense.note,
+    from_drawer: !!expense.from_drawer,
+    shift_id,
+    cash_movement_id,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
   };
@@ -1056,11 +1063,12 @@ export async function addExpensePwa(expense: Omit<Expense, "id" | "created_at">)
 }
 
 export async function addProductPwa(product: Omit<Product, "id" | "branch_id">) {
+  const settings = (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
   const products = (await get<Product[]>(KEYS.products)) ?? [];
   const newProd: Product = {
     ...product,
     id: crypto.randomUUID(),
-    branch_id: "branch-1",
+    branch_id: settings.branch_id,
   };
   products.push(newProd);
   await set(KEYS.products, products);
@@ -1126,7 +1134,7 @@ export async function createPurchasePwa(input: {
 
   let purchase: Purchase = {
     id: crypto.randomUUID(),
-    purchase_number: `PO-${Math.floor(10000 + Math.random() * 90000)}`,
+    purchase_number: await formatNextDoc("purchase", "PO"),
     supplier_id: supplier.id,
     supplier_name: supplier.name,
     items: input.items,

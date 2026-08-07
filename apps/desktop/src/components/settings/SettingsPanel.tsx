@@ -20,6 +20,7 @@ import {
   clearAllData,
   exportBackup,
   importBackup,
+  seedDemoCatalog,
 } from "../../lib/api";
 import { applyTheme, THEME_PRESETS, ThemePresetKey } from "../../lib/theme";
 import {
@@ -113,10 +114,31 @@ export function SettingsPanel({
   };
 
   const handleClearData = async () => {
-    if (confirm("هل أنت تأكد من مسح جميع البيانات والتجربة والبدء الصافي لقاعدة البيانات النظيفة؟")) {
+    if (
+      confirm(
+        "هل أنت متأكد من مسح جميع البيانات المحلية والبدء بمحل نظيف؟ لا يمكن التراجع."
+      )
+    ) {
       await clearAllData();
-      alert("تم مسح البيانات والبدء بحساب صافي جديد بنجاح!");
+      alert("تم مسح البيانات. أعد تسمية الفرع من الإعدادات بعد الدخول.");
       window.location.reload();
+    }
+  };
+
+  const handleSeedDemo = async () => {
+    if (
+      !confirm(
+        "تحميل أصناف وعملاء تجريبيين للتدريب؟ يعمل فقط إذا كان المخزون فارغاً."
+      )
+    ) {
+      return;
+    }
+    try {
+      await seedDemoCatalog();
+      alert("تم تحميل البذرة التجريبية. حدّث الصفحة إن لزم.");
+      window.location.reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "فشل تحميل البذرة");
     }
   };
 
@@ -724,20 +746,30 @@ export function SettingsPanel({
       <div className="rounded-2xl border border-red-200 bg-red-50/50 p-5 space-y-3">
         <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
           <Database size={18} />
-          <span>إدارة وإعادة ضبط قاعدة البيانات الحقيقية</span>
+          <span>بيانات المحل</span>
         </div>
         <p className="text-xs text-red-600 leading-relaxed">
-          إزالة كافة المعاملات والبيانات الوهمية والبدء الصافي لقاعدة البيانات النظيفة الحقيقية.
+          المحل يبدأ فارغاً. يمكنك تحميل بذرة تدريب اختيارية، أو مسح كل شيء للبدء من الصفر.
         </p>
 
-        <button
-          type="button"
-          onClick={() => void handleClearData()}
-          className="inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition"
-        >
-          <Trash size={16} />
-          مسح البيانات الصورية والبدء الصافي
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void handleSeedDemo()}
+            className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 bg-paper-raised px-4 py-2 text-xs font-bold text-ink hover:bg-paper transition"
+          >
+            <Database size={16} />
+            تحميل بيانات تجريبية (تدريب)
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleClearData()}
+            className="inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition"
+          >
+            <Trash size={16} />
+            مسح كل البيانات المحلية
+          </button>
+        </div>
       </div>
 
       <div className="pt-2">
