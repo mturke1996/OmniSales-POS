@@ -29,9 +29,14 @@ export async function downloadPdf(
 export async function openPdf(component: ReactElement): Promise<void> {
   const blob = await generatePdfBlob(component);
   const url = URL.createObjectURL(blob);
-  const tab = window.open(url, "_blank", "noopener,noreferrer");
-  if (!tab) {
-    // popup blocked — still revoke later
+  try {
+    const tab = window.open(url, "_blank", "noopener,noreferrer");
+    if (!tab) {
+      // Fallback for mobile WebViews / blocked popups
+      window.location.href = url;
+    }
+  } catch {
+    window.location.href = url;
   }
   setTimeout(() => URL.revokeObjectURL(url), 120_000);
 }

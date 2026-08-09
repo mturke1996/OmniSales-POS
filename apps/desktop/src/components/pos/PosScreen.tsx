@@ -111,7 +111,9 @@ export function PosScreen({
         return;
       }
     }
-    if (caps.track_imei || caps.track_serial) {
+    // Only prompt for IMEI/Serial if the specific product requires serial/IMEI tracking
+    const requiresSerialMeta = Boolean(p.imei || p.serial);
+    if (requiresSerialMeta && (caps.track_imei || caps.track_serial)) {
       const meta = promptSerialMeta(settings, p.name);
       if (!meta) return;
       add(p, { qty: 1, ...meta, priceMode });

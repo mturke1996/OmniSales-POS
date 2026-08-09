@@ -148,18 +148,30 @@ export function InvoicesScreen({
                 onClick={() => setSelected(o)}
                 className={cn(selected?.id === o.id && "border-highlight/40 ring-1 ring-highlight/25")}
                 actions={
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-1 text-[11px] font-bold",
-                      o.status === "completed"
-                        ? "bg-success/12 text-success"
-                        : o.status === "cancelled"
-                          ? "bg-danger/12 text-danger"
-                          : "bg-highlight/12 text-highlight"
-                    )}
-                  >
-                    {STATUS_AR[o.status] || o.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full px-2.5 py-1 text-[11px] font-bold",
+                        o.status === "completed"
+                          ? "bg-success/12 text-success"
+                          : o.status === "cancelled"
+                            ? "bg-danger/12 text-danger"
+                            : "bg-highlight/12 text-highlight"
+                      )}
+                    >
+                      {STATUS_AR[o.status] || o.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelected(o);
+                      }}
+                      className="touch-chip bg-ink text-paper text-[11px] font-bold px-3 py-1"
+                    >
+                      عرض الفاتورة
+                    </button>
+                  </div>
                 }
               />
             ))}
