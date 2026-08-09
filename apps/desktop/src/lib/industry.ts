@@ -1,11 +1,15 @@
-import { INDUSTRY_PRESETS, type BranchSettings, type IndustryKey } from "./types";
+import type { BranchSettings, IndustryKey } from "./types";
 
-export function industryCaps(industry: IndustryKey | string | undefined) {
-  const key = (industry || "general_retail") as IndustryKey;
-  return (
-    INDUSTRY_PRESETS.find((p) => p.key === key)?.capabilities ||
-    INDUSTRY_PRESETS[0].capabilities
-  );
+export function industryCaps(_industry?: IndustryKey | string | undefined) {
+  return {
+    track_serial: true,
+    track_imei: true,
+    track_expiry: true,
+    weight_scale: true,
+    vehicle_fitment: true,
+    modifiers: true,
+    tables: true,
+  };
 }
 
 export function promptSerialMeta(

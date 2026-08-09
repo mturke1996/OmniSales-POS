@@ -14,7 +14,7 @@ import {
   printTestSlip,
   serialSupportMessage,
 } from "../../lib/print/escpos";
-import { INDUSTRY_PRESETS, type BranchSettings, type IndustryKey } from "../../lib/types";
+import { type BranchSettings } from "../../lib/types";
 import { cn } from "../../lib/cn";
 
 export function SetupWizard({
@@ -30,7 +30,7 @@ export function SetupWizard({
   );
   const [phone, setPhone] = useState(settings.phone || "");
   const [address, setAddress] = useState(settings.address || "");
-  const [industry, setIndustry] = useState<IndustryKey>(
+  const [industry] = useState(
     settings.industry || "general_retail"
   );
   const [widthMm, setWidthMm] = useState(settings.thermal_width_mm || 80);
@@ -62,9 +62,7 @@ export function SetupWizard({
         industry,
         thermal_width_mm: widthMm,
         auto_print_thermal: autoPrint,
-        pos_layout:
-          INDUSTRY_PRESETS.find((p) => p.key === industry)?.suggested_layout ||
-          settings.pos_layout,
+        pos_layout: settings.pos_layout,
       };
       await saveSettings(next);
       onComplete(next);
@@ -195,20 +193,12 @@ export function SetupWizard({
                 onChange={(e) => setAddress(e.target.value)}
               />
             </label>
-            <label className="block space-y-1 text-right">
-              <span className="text-[11px] font-semibold text-ink-mute">نوع النشاط</span>
-              <select
-                className="input w-full text-sm"
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value as IndustryKey)}
-              >
-                {INDUSTRY_PRESETS.map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.label_ar}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="rounded-xl border border-highlight/30 bg-highlight/8 p-3 text-right">
+              <span className="text-[11px] font-bold text-highlight">نظام متكامل شامل</span>
+              <p className="mt-0.5 text-[10px] text-ink-mute">
+                جميع خيارات المبيعات والمخزون (IMEI، السيريال، الصلاحية، الموازين، وقطع الغيار) مفعّلة بمرونة كاملة في محلك.
+              </p>
+            </div>
             <button
               type="button"
               className="btn-primary min-h-11 w-full text-sm font-bold"

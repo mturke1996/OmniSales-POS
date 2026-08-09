@@ -16,7 +16,6 @@ import { PwaInstallButton } from "../pwa/PwaInstallBanner";
 import { usePwaInstall } from "../../hooks/use-pwa-install";
 import { detectRuntime } from "../../lib/native";
 import {
-  industryPresets,
   clearAllData,
   exportBackup,
   importBackup,
@@ -67,7 +66,6 @@ export function SettingsPanel({
   onSync?: () => void;
   currentUserId?: string;
 }) {
-  const presets = industryPresets();
   const [testingCloud, setTestingCloud] = useState(false);
   const [cloudMsg, setCloudMsg] = useState<string | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
@@ -536,40 +534,17 @@ export function SettingsPanel({
         </div>
       </div>
 
-      {/* Industry Vertical Selection */}
+      {/* Unified System Capabilities */}
       <div className="space-y-3">
-        <h2 className="text-base font-bold text-ink">مجال ونوع النشاط التجاري</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {presets.map((p) => {
-            const active = settings.industry === p.key;
-            return (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() =>
-                  onChange({
-                    ...settings,
-                    industry: p.key,
-                    pos_layout: p.suggested_layout,
-                  })
-                }
-                className={cn(
-                  "rounded-2xl border p-4 text-right transition active:scale-[0.99]",
-                  active
-                    ? "border-ink bg-ink text-paper shadow-sm"
-                    : "border-paper-line bg-paper-raised hover:border-ink/30"
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="font-bold text-xs">{p.label_ar}</span>
-                  {active && <Check size={16} weight="bold" />}
-                </div>
-                <p className={cn("mt-2 text-[11px]", active ? "text-paper/70" : "text-ink-mute")}>
-                  تخطيط مقترح: {LAYOUTS.find((l) => l.id === p.suggested_layout)?.label}
-                </p>
-              </button>
-            );
-          })}
+        <h2 className="text-base font-bold text-ink">نظام OmniSales الشامل</h2>
+        <div className="rounded-2xl border border-highlight/30 bg-highlight/8 p-4 text-right">
+          <div className="flex items-center gap-2 text-sm font-bold text-highlight">
+            <Check size={18} weight="bold" />
+            <span>منظومة متكاملة - جميع المميزات والخصائص مفعّلة تلقائياً</span>
+          </div>
+          <p className="mt-1 text-xs text-ink-mute">
+            يدعم النظام تتبع الأرقام التسلسلية (Serial/IMEI)، تواريخ الصلاحية، الموازين الإلكترونية، قطع الغيار والملاءمة، وتفاصيل الوجبات والتعديلات لجميع الأصناف دون قيود.
+          </p>
         </div>
       </div>
 

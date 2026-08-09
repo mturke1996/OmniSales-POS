@@ -102,17 +102,18 @@ export function ProductGrid({
   }
 
   const cols = columnsFor(layout, width);
+  const isMobile = width < 640;
   const showImages = layout !== "list_barcode";
   const rowHeight =
     layout === "touch_tiles"
       ? showImages
-        ? 240
-        : 160
+        ? isMobile ? 165 : 240
+        : 135
       : layout === "list_barcode"
-        ? 80
+        ? 72
         : showImages
-          ? 220
-          : 132;
+          ? isMobile ? 155 : 220
+          : 115;
 
   const rows = useMemo(() => {
     const out: Product[][] = [];
@@ -204,6 +205,7 @@ export function ProductGrid({
                         currencySymbol={currencySymbol}
                         onAdd={onAdd}
                         tall={layout === "touch_tiles"}
+                        isMobile={isMobile}
                         disabled={disabled}
                         shortcut={
                           vRow.index === 0 && idx < 9 ? idx + 1 : undefined
@@ -251,6 +253,7 @@ function ProductTile({
   currencySymbol,
   onAdd,
   tall,
+  isMobile,
   shortcut,
   disabled = false,
 }: {
@@ -258,6 +261,7 @@ function ProductTile({
   currencySymbol: string;
   onAdd: (p: Product) => void;
   tall?: boolean;
+  isMobile?: boolean;
   shortcut?: number;
   disabled?: boolean;
 }) {
@@ -271,19 +275,20 @@ function ProductTile({
       onClick={() => onAdd(product)}
       disabled={locked}
       className={cn(
-        "bonbon-tile group flex flex-col overflow-hidden",
+        "bonbon-tile group flex flex-col overflow-hidden transition active:scale-[0.97]",
+        isMobile ? "!p-2 rounded-xl" : "",
         locked && "pointer-events-none opacity-45",
-        tall && "min-h-[12rem]"
+        tall && !isMobile && "min-h-[12rem]"
       )}
     >
-      <div className="relative -mx-1 -mt-1 mb-2.5 overflow-hidden rounded-t-[0.65rem]">
+      <div className={cn("relative overflow-hidden", isMobile ? "-mx-2 -mt-2 mb-1.5 rounded-t-xl" : "-mx-1 -mt-1 mb-2.5 rounded-t-[0.65rem]")}>
         {product.image_url ? (
           <img
             src={product.image_url}
             alt={product.name}
             className={cn(
               "w-full object-cover",
-              tall ? "h-40" : "h-32"
+              isMobile ? "h-20" : tall ? "h-40" : "h-32"
             )}
             loading="lazy"
           />
@@ -291,10 +296,10 @@ function ProductTile({
           <div
             className={cn(
               "flex w-full items-center justify-center bg-accent-mute",
-              tall ? "h-40" : "h-32"
+              isMobile ? "h-20" : tall ? "h-40" : "h-32"
             )}
           >
-            <ImageIcon size={28} className="text-ink-mute/50" weight="duotone" />
+            <ImageIcon size={isMobile ? 22 : 28} className="text-ink-mute/50" weight="duotone" />
           </div>
         )}
 
@@ -305,25 +310,27 @@ function ProductTile({
         ) : null}
 
         {low && (
-          <span className="absolute top-2 end-2 rounded-md bg-danger/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
+          <span className="absolute top-1.5 end-1.5 rounded-md bg-danger/90 px-1 py-0.5 text-[9px] font-bold text-white">
             منخفض
           </span>
         )}
       </div>
 
-      <p className="line-clamp-2 min-h-[2.4rem] px-0.5 text-sm font-semibold leading-tight text-ink">
+      <p className={cn("px-0.5 leading-tight text-ink font-semibold", isMobile ? "line-clamp-1 text-xs font-bold" : "line-clamp-2 min-h-[2.4rem] text-sm")}>
         {product.name}
       </p>
-      <p className="mt-0.5 truncate px-0.5 font-mono text-[10px] text-ink-mute">
-        {product.sku || product.barcode}
-      </p>
+      {!isMobile && (
+        <p className="mt-0.5 truncate px-0.5 font-mono text-[10px] text-ink-mute">
+          {product.sku || product.barcode}
+        </p>
+      )}
 
-      <div className="mt-auto flex items-end justify-between gap-2 px-0.5 pt-2.5">
-        <span className="money-big text-sm font-bold text-ink">
+      <div className={cn("mt-auto flex items-end justify-between gap-1 px-0.5", isMobile ? "pt-1" : "pt-2.5")}>
+        <span className={cn("money-big font-bold text-ink", isMobile ? "text-xs font-mono" : "text-sm")}>
           {formatMoney(product.retail_price, currencySymbol)}
         </span>
-        <span className="grid h-7 w-7 place-items-center rounded-full border border-ink/[0.08] bg-paper text-ink transition group-hover:border-highlight/40 group-hover:bg-highlight-soft">
-          <Plus size={12} weight="bold" />
+        <span className={cn("grid place-items-center rounded-full border border-ink/[0.08] bg-paper text-ink transition group-hover:border-highlight/40 group-hover:bg-highlight-soft", isMobile ? "h-6 w-6" : "h-7 w-7")}>
+          <Plus size={isMobile ? 10 : 12} weight="bold" />
         </span>
       </div>
     </button>

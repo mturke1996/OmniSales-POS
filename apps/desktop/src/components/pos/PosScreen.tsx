@@ -992,13 +992,23 @@ export function PosScreen({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setMobileCartOpen(true)}
-          className="btn-primary px-4 py-2.5 text-xs font-bold"
-        >
-          عرض السلة
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowScanner(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-paper-line bg-paper text-ink transition active:scale-95"
+            title="مسح باركود بالكاميرا"
+          >
+            <Camera size={20} weight="duotone" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileCartOpen(true)}
+            className="btn-primary px-4 py-2.5 text-xs font-bold"
+          >
+            عرض السلة
+          </button>
+        </div>
       </div>
 
       {mobileCartOpen && (

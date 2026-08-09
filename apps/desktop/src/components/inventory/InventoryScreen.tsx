@@ -9,6 +9,7 @@ import {
   ArrowsDownUp,
   Tag,
   ClockCounterClockwise,
+  Camera,
 } from "@phosphor-icons/react";
 import {
   addProduct,
@@ -26,6 +27,7 @@ import type {
   StockMovement,
 } from "../../lib/types";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import { BarcodeScannerModal } from "../pos/BarcodeScannerModal";
 
 type TabKey = "catalog" | "count" | "movements" | "categories";
 
@@ -55,6 +57,7 @@ export function InventoryScreen({
   const [countProduct, setCountProduct] = useState<Product | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [movementFilter, setMovementFilter] = useState<string>("");
+  const [showScanner, setShowScanner] = useState(false);
 
   const categoryName = useMemo(() => {
     const map = new Map(categories.map((c) => [c.id, c.name]));
@@ -145,18 +148,28 @@ export function InventoryScreen({
       )}
 
       {(tab === "catalog" || tab === "count") && (
-        <div className="relative">
-          <MagnifyingGlass
-            size={18}
-            className="absolute right-3.5 top-3 text-ink-mute"
-          />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="ابحث بالاسم، الباركود، SKU، التصنيف..."
-            className="w-full rounded-full border border-paper-line bg-paper-raised py-2.5 pl-4 pr-10 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ink"
-          />
+        <div className="relative flex items-center gap-2">
+          <div className="relative flex-1">
+            <MagnifyingGlass
+              size={18}
+              className="absolute right-3.5 top-3 text-ink-mute"
+            />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="ابحث بالاسم، الباركود، SKU، التصنيف..."
+              className="w-full rounded-full border border-paper-line bg-paper-raised py-2.5 pl-4 pr-10 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ink"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowScanner(true)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-paper-line bg-paper-raised text-ink transition active:scale-95"
+            title="مسح باركود بالكاميرا"
+          >
+            <Camera size={18} weight="duotone" />
+          </button>
         </div>
       )}
 
@@ -438,8 +451,16 @@ export function InventoryScreen({
               note,
               actor_id: actorId,
             });
-            setAdjustProduct(null);
-            onRefreshData();
+          }}
+        />
+      )}
+
+      {showScanner && (
+        <BarcodeScannerModal
+          onClose={() => setShowScanner(false)}
+          onDetect={(code) => {
+            setQuery(code);
+            setShowScanner(false);
           }}
         />
       )}
