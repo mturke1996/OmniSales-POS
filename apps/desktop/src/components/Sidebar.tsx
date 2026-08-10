@@ -193,14 +193,15 @@ export function Sidebar({
                   }
                 />
               ))}
+              {group.title === "الرئيسية" && (
+                <AppDownloadLink nav collapsed={slim} />
+              )}
             </div>
           </div>
         ))}
       </nav>
 
       <div className="shrink-0 space-y-2 border-t border-white/10 p-2">
-        {!slim && <AppDownloadLink />}
-
         {!slim && (
           <div className="rounded-xl bg-white/5 p-2.5">
             <div className="flex items-center justify-between gap-2">

@@ -4,14 +4,21 @@
 
 المستودع: [github.com/mturke1996/OmniSales-POS](https://github.com/mturke1996/OmniSales-POS)
 
+## تحميل تطبيق Android (APK)
+
+| | |
+|---|---|
+| **من GitHub (main)** | [**تحميل OmniSales.apk**](https://github.com/mturke1996/OmniSales-POS/raw/main/apps/desktop/public/downloads/OmniSales.apk) |
+| **من التطبيق** | القائمة الرئيسية → **تطبيق Android** |
+| **بعد النشر على Vercel** | `/downloads/OmniSales.apk` |
+
+## المنصات
+
 | المنصة | التقنية | الأمر |
 |--------|---------|--------|
 | **الويب / PWA** | React 19 + Vite 6 + IndexedDB | `pnpm dev` · `pnpm build:web` |
 | **سطح المكتب** | Tauri 2 + Rust | `pnpm desktop:dev` · `pnpm desktop:build` |
-| **Android APK** | Capacitor 7 | `pnpm apk` (أو `pnpm android:apk`) |
-
-**تحميل مباشر:** بعد النشر على Vercel → [`/downloads/OmniSales.apk`](/downloads/OmniSales.apk)  
-أو من القائمة الجانبية داخل التطبيق → **تحميل تطبيق Android**.
+| **Android APK** | Capacitor 7 | `pnpm apk` |
 | **Vercel** | Vite static + SPA rewrite | اربط المستودع على Vercel (يستخدم `vercel.json`) |
 
 ## تشغيل سريع

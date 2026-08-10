@@ -3,6 +3,10 @@ export const APK_PUBLIC_PATH = "/downloads/OmniSales.apk";
 
 export const APK_FILENAME = "OmniSales.apk";
 
+/** Direct download from GitHub main branch (works from README / anywhere). */
+export const GITHUB_APK_URL =
+  "https://github.com/mturke1996/OmniSales-POS/raw/main/apps/desktop/public/downloads/OmniSales.apk";
+
 export function resolveApkDownloadUrl(): string {
   if (typeof window === "undefined") return APK_PUBLIC_PATH;
   const base = import.meta.env.BASE_URL || "/";
