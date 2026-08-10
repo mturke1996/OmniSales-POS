@@ -13,12 +13,13 @@ function columnsFor(layout: PosLayout, width: number) {
     if (width < 1280) return 4;
     return 5;
   }
-  if (width < 480) return 2;
   if (layout === "touch_tiles") {
-    if (width < 700) return 2;
-    if (width < 1100) return 3;
+    if (width < 380) return 2;
+    if (width < 520) return 3;
+    if (width < 900) return 3;
     return 4;
   }
+  if (width < 480) return 2;
   if (width < 640) return 2;
   if (width < 900) return 3;
   if (width < 1200) return 4;
@@ -42,6 +43,7 @@ export function ProductGrid({
   currencySymbol,
   onAdd,
   disabled = false,
+  phoneLayout = false,
 }: {
   products: Product[];
   categories?: ProductCategory[];
@@ -49,6 +51,7 @@ export function ProductGrid({
   currencySymbol: string;
   onAdd: (p: Product) => void;
   disabled?: boolean;
+  phoneLayout?: boolean;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
@@ -102,17 +105,17 @@ export function ProductGrid({
   }
 
   const cols = columnsFor(layout, width);
-  const isMobile = width < 640;
+  const isMobile = phoneLayout || width < 640;
   const showImages = layout !== "list_barcode";
   const rowHeight =
     layout === "touch_tiles"
       ? showImages
-        ? isMobile ? 165 : 240
+        ? isMobile ? 148 : 240
         : 135
       : layout === "list_barcode"
         ? 72
         : showImages
-          ? isMobile ? 155 : 220
+          ? isMobile ? 148 : 220
           : 115;
 
   const rows = useMemo(() => {
@@ -276,7 +279,7 @@ function ProductTile({
       disabled={locked}
       className={cn(
         "bonbon-tile group flex flex-col overflow-hidden transition active:scale-[0.97]",
-        isMobile ? "!p-2 rounded-xl" : "",
+        isMobile ? "!p-2 rounded-2xl min-h-[8.5rem]" : "",
         locked && "pointer-events-none opacity-45",
         tall && !isMobile && "min-h-[12rem]"
       )}
@@ -303,7 +306,7 @@ function ProductTile({
           </div>
         )}
 
-        {shortcut ? (
+        {shortcut && !isMobile ? (
           <span className="pos-key-badge absolute bottom-2 start-2 bg-paper-raised/90 backdrop-blur-sm">
             {shortcut}
           </span>
@@ -316,10 +319,16 @@ function ProductTile({
         )}
       </div>
 
-      <p className={cn("px-0.5 leading-tight text-ink font-semibold", isMobile ? "line-clamp-1 text-xs font-bold" : "line-clamp-2 min-h-[2.4rem] text-sm")}>
+      <p className={cn("px-0.5 leading-tight text-ink font-semibold", isMobile ? "line-clamp-2 text-[11px] font-bold" : "line-clamp-2 min-h-[2.4rem] text-sm")}>
         {product.name}
       </p>
-      {!isMobile && (
+      {isMobile ? (
+        product.track_stock && (
+          <p className="mt-0.5 px-0.5 text-[9px] font-semibold text-ink-mute">
+            مخزون: {product.stock_quantity}
+          </p>
+        )
+      ) : (
         <p className="mt-0.5 truncate px-0.5 font-mono text-[10px] text-ink-mute">
           {product.sku || product.barcode}
         </p>
@@ -329,8 +338,8 @@ function ProductTile({
         <span className={cn("money-big font-bold text-ink", isMobile ? "text-xs font-mono" : "text-sm")}>
           {formatMoney(product.retail_price, currencySymbol)}
         </span>
-        <span className={cn("grid place-items-center rounded-full border border-ink/[0.08] bg-paper text-ink transition group-hover:border-highlight/40 group-hover:bg-highlight-soft", isMobile ? "h-6 w-6" : "h-7 w-7")}>
-          <Plus size={isMobile ? 10 : 12} weight="bold" />
+        <span className={cn("grid place-items-center rounded-full border border-ink/[0.08] bg-paper text-ink transition group-hover:border-highlight/40 group-hover:bg-highlight-soft", isMobile ? "h-7 w-7" : "h-7 w-7")}>
+          <Plus size={isMobile ? 12 : 12} weight="bold" />
         </span>
       </div>
     </button>

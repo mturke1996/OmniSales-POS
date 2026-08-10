@@ -1,22 +1,11 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import {
   MagnifyingGlass,
-  Minus,
-  Plus,
-  Trash,
   User,
   Clock,
-  Pause,
-  CreditCard,
-  Bank,
-  Wallet,
   Receipt,
-  ShoppingCart,
-  X,
   ArrowLeft,
   Keyboard,
-  Truck,
-  Storefront,
   Camera,
 } from "@phosphor-icons/react";
 import { checkout, addHeldCart, removeHeldCart, addCustomer } from "../../lib/api";
@@ -46,6 +35,10 @@ import { ReceiptModal } from "./ReceiptModal";
 import { CustomerSelectModal } from "./CustomerSelectModal";
 import { ShortcutsModal } from "./ShortcutsModal";
 import { BarcodeScannerModal } from "./BarcodeScannerModal";
+import { PosCartPanel } from "./PosCartPanel";
+import { MobilePosHeader } from "./MobilePosHeader";
+import { MobilePosTabBar, type MobilePosTab } from "./MobilePosTabBar";
+import { PosQuickActions } from "./PosQuickActions";
 import { usePhoneLayout } from "../../hooks/use-media-query";
 import { usePrinter } from "../../hooks/use-printer";
 
@@ -92,6 +85,14 @@ export function PosScreen({
     setPriceMode,
   } = useCart();
   const caps = industryCaps(settings.industry);
+  const isPhone = usePhoneLayout();
+
+  function notifyAdded(name: string) {
+    if (!isPhone) return;
+    setAddToast(name);
+    window.setTimeout(() => setAddToast(null), 1600);
+    feedbackScan(true);
+  }
 
   function addProductToCart(p: Product) {
     if (
@@ -119,9 +120,11 @@ export function PosScreen({
       const meta = promptSerialMeta(settings, p.name);
       if (!meta) return;
       add(p, { qty: 1, ...meta, priceMode });
+      notifyAdded(p.name);
       return;
     }
     add(p, { qty: 1, priceMode });
+    notifyAdded(p.name);
   }
 
   function handleScanOrSearchEnter() {
@@ -134,14 +137,12 @@ export function PosScreen({
     const exact = findExactCatalogMatch(products, code);
     if (exact) {
       addProductToCart(exact);
-      feedbackScan(true);
       setQuery("");
       return;
     }
     const soft = filterCatalog(products, code);
     if (soft.length === 1) {
       addProductToCart(soft[0]);
-      feedbackScan(true);
       setQuery("");
       return;
     }
@@ -161,7 +162,8 @@ export function PosScreen({
   const [note, setNote] = useState("");
 
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<MobilePosTab>("products");
+  const [addToast, setAddToast] = useState<string | null>(null);
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [saleMode, setSaleMode] = useState<"walk_in" | "delivery">("walk_in");
   const [deliveryAddress, setDeliveryAddress] = useState("");
@@ -176,7 +178,6 @@ export function PosScreen({
   const [lastChangeDue, setLastChangeDue] = useState<number | undefined>(undefined);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const isPhone = usePhoneLayout();
   const printer = usePrinter();
   const [showScanner, setShowScanner] = useState(false);
   /** "auto" | "none" | promotion id */
@@ -287,7 +288,7 @@ export function PosScreen({
       setNote("");
       setSelectedCustomer(null);
       setMessage("تم تعليق الفاتورة بنجاح");
-      setMobileCartOpen(false);
+      setMobileTab("products");
       onRefreshData();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "فشل تعليق الفاتورة");
@@ -381,7 +382,7 @@ export function PosScreen({
       setDeliveryAddress("");
       setDeliveryPhone("");
       setPromoChoice("auto");
-      setMobileCartOpen(false);
+      setMobileTab("products");
       setMessage(
         saleMode === "delivery"
           ? `تم تسجيل طلب التوصيل ${result.order.order_number}`
@@ -399,425 +400,172 @@ export function PosScreen({
     }
   }
 
-  const CartContent = (
-    <div className="flex h-full flex-col">
-      <div className="pos-chrome flex items-center justify-between px-4 py-3">
-        <div>
-          <p className="text-sm font-bold text-ink">سلة المبيعات</p>
-          <p className="text-xs text-ink-mute">
-            {lines.length} أصناف · {totalItemsCount} قطعة
-          </p>
-        </div>
-        {lines.length > 0 && (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => void handleHoldCart()}
-              title="تعليق السلة (F4)"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ink/[0.08] bg-paper px-2.5 py-1.5 text-xs font-semibold text-ink transition hover:border-highlight/40 hover:bg-highlight-soft"
-            >
-              <Pause size={14} />
-              <span>تعليق</span>
-              <span className="pos-key-badge">F4</span>
-            </button>
-            <button
-              type="button"
-              onClick={clear}
-              title="مسح السلة"
-              className="rounded-lg p-1.5 text-ink-mute transition hover:bg-danger/10 hover:text-danger"
-            >
-              <Trash size={16} />
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-3">
-        {lines.map((line, lineIdx) => (
-          <div
-            key={`${line.product_id}-${line.imei || ""}-${line.serial || ""}-${lineIdx}`}
-            className="rounded-xl border border-ink/[0.08] bg-paper-raised px-3 py-2.5 transition hover:border-highlight/30"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-ink">{line.name}</p>
-                {(line.imei || line.serial) && (
-                  <p className="mt-0.5 font-mono text-[10px] text-ink-mute">
-                    {line.imei ? `IMEI ${line.imei}` : ""}
-                    {line.imei && line.serial ? " · " : ""}
-                    {line.serial ? `S/N ${line.serial}` : ""}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                aria-label="حذف"
-                onClick={() =>
-                  remove(
-                    line.product_id,
-                    `${line.product_id}|${line.imei || ""}|${line.serial || ""}`
-                  )
-                }
-                className="text-ink-mute hover:text-danger"
-              >
-                <Trash size={14} />
-              </button>
-            </div>
-            <div className="mt-2 flex items-center justify-between">
-              <div className="inline-flex items-center gap-1.5">
-                <button
-                  type="button"
-                  className="grid size-9 place-items-center rounded-lg border border-ink/[0.08] bg-paper transition hover:bg-highlight-soft md:size-7"
-                  onClick={() => setQty(line.product_id, line.quantity - 1)}
-                >
-                  <Minus size={12} />
-                </button>
-                <span className="money-big min-w-6 text-center text-xs font-bold">
-                  {line.quantity}
-                </span>
-                <button
-                  type="button"
-                  className="grid size-9 place-items-center rounded-lg border border-ink/[0.08] bg-paper transition hover:bg-highlight-soft md:size-7"
-                  onClick={() => setQty(line.product_id, line.quantity + 1)}
-                >
-                  <Plus size={12} />
-                </button>
-              </div>
-              <p className="money-big text-xs font-bold text-ink">
-                {formatMoney(line.unit_price * line.quantity, settings.currency_symbol)}
-              </p>
-            </div>
-          </div>
-        ))}
-
-        {!lines.length && (
-          <div className="rounded-xl border border-dashed border-ink/[0.12] px-4 py-14 text-center text-xs text-ink-mute">
-            السلة فارغة. اضغط أو امسح باركود أي صنف للإضافة.
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-3 border-t border-ink/[0.08] bg-gradient-to-b from-transparent to-ink/[0.03] p-3">
-        <div className="grid grid-cols-2 gap-1.5 rounded-2xl bg-paper p-1">
-          <button
-            type="button"
-            onClick={() => setSaleMode("walk_in")}
-            className={cn(
-              "inline-flex items-center justify-center gap-1.5 rounded-xl py-2 text-[11px] font-bold transition",
-              saleMode === "walk_in"
-                ? "bg-ink text-paper"
-                : "text-ink-mute hover:text-ink"
-            )}
-          >
-            <Storefront size={14} />
-            بيع مباشر
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSaleMode("delivery");
-              if (selectedCustomer?.phone && !deliveryPhone) {
-                setDeliveryPhone(selectedCustomer.phone);
-              }
-              if (selectedCustomer?.address && !deliveryAddress) {
-                setDeliveryAddress(selectedCustomer.address);
-              }
-            }}
-            className={cn(
-              "inline-flex items-center justify-center gap-1.5 rounded-xl py-2 text-[11px] font-bold transition",
-              saleMode === "delivery"
-                ? "bg-highlight text-white"
-                : "text-ink-mute hover:text-ink"
-            )}
-          >
-            <Truck size={14} />
-            توصيل
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-ink/[0.06] bg-paper-raised p-1">
-          <button
-            type="button"
-            onClick={() => setPriceMode("retail")}
-            className={cn(
-              "rounded-xl py-1.5 text-[11px] font-bold transition",
-              priceMode === "retail"
-                ? "bg-success/15 text-success"
-                : "text-ink-mute hover:text-ink"
-            )}
-          >
-            تجزئة
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setPriceMode("wholesale");
-              if (!selectedCustomer) setShowCustomerModal(true);
-            }}
-            className={cn(
-              "rounded-xl py-1.5 text-[11px] font-bold transition",
-              priceMode === "wholesale"
-                ? "bg-warning/15 text-warning"
-                : "text-ink-mute hover:text-ink"
-            )}
-          >
-            جملة
-          </button>
-        </div>
-
-        {stockIssues.length > 0 && (
-          <p
-            role="alert"
-            className="rounded-lg border border-danger/25 bg-danger/10 px-2.5 py-2 text-[11px] font-semibold text-danger"
-          >
-            مخزون غير كافٍ:{" "}
-            {stockIssues
-              .map((i) => `«${i.name}» متاح ${i.available}`)
-              .join(" · ")}
-          </p>
-        )}
-
-        {saleMode === "delivery" && (
-          <div className="space-y-2 rounded-xl border border-highlight/25 bg-highlight/5 p-2.5">
-            <p className="text-[11px] font-bold text-highlight">بيانات التوصيل</p>
-            <input
-              type="tel"
-              placeholder="هاتف المستلم *"
-              value={deliveryPhone}
-              onChange={(e) => setDeliveryPhone(e.target.value)}
-              className="input-field font-mono text-xs"
-            />
-            <input
-              type="text"
-              placeholder="عنوان التوصيل *"
-              value={deliveryAddress}
-              onChange={(e) => setDeliveryAddress(e.target.value)}
-              className="input-field text-xs"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-                className="input-field text-xs"
-              />
-              <input
-                type="number"
-                min={0}
-                step="0.5"
-                placeholder="رسوم التوصيل"
-                value={deliveryFee}
-                onChange={(e) => setDeliveryFee(e.target.value)}
-                className="input-field font-mono text-xs"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowCustomerModal(true)}
-              className="btn-ghost w-full text-[11px] font-bold"
-            >
-              <User size={14} className="inline" /> ربط عميل / اختيار من الدليل
-            </button>
-          </div>
-        )}
-
-        {activePromos.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-semibold text-ink-mute">العروض</p>
-            <div className="flex flex-wrap gap-1.5">
-              <PromoChip
-                active={promoChoice === "auto"}
-                onClick={() => setPromoChoice("auto")}
-                label="أفضل عرض"
-              />
-              <PromoChip
-                active={promoChoice === "none"}
-                onClick={() => setPromoChoice("none")}
-                label="بدون عرض"
-              />
-              {activePromos.map((p) => (
-                <PromoChip
-                  key={p.id}
-                  active={promoChoice === p.id}
-                  onClick={() => setPromoChoice(p.id)}
-                  label={
-                    p.kind === "percent"
-                      ? `${p.name} · ${p.value}%`
-                      : `${p.name} · ${p.value}`
-                  }
-                />
-              ))}
-            </div>
-            {promoPreview && (
-              <p className="text-[11px] font-semibold text-success">
-                يُطبَّق: {promoPreview.promotion.name} (−
-                {formatMoney(promoPreview.amount, settings.currency_symbol)})
-              </p>
-            )}
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block text-[11px] font-semibold text-ink-mute">
-            خصم إضافي
-            <input
-              type="number"
-              min={0}
-              placeholder="0.0"
-              value={discount || ""}
-              onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-              className="input-field mt-1 font-mono text-xs"
-            />
-          </label>
-          <label className="block text-[11px] font-semibold text-ink-mute">
-            ملاحظة
-            <input
-              type="text"
-              placeholder="ملاحظات..."
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="input-field mt-1 text-xs"
-            />
-          </label>
-        </div>
-
-        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
-          <PaymentTab
-            active={method === "cash"}
-            onClick={() => setMethod("cash")}
-            icon={<Wallet size={14} />}
-            label="نقداً"
-          />
-          <PaymentTab
-            active={method === "card"}
-            onClick={() => setMethod("card")}
-            icon={<CreditCard size={14} />}
-            label="بطاقة"
-          />
-          <PaymentTab
-            active={method === "transfer"}
-            onClick={() => setMethod("transfer")}
-            icon={<Bank size={14} />}
-            label="تحويل"
-          />
-          <PaymentTab
-            active={method === "mixed"}
-            onClick={() => setMethod("mixed")}
-            icon={<Wallet size={14} />}
-            label="مختلط"
-          />
-          <PaymentTab
-            active={method === "debt"}
-            onClick={() => setMethod("debt")}
-            icon={<Receipt size={14} />}
-            label="آجل"
-          />
-        </div>
-
-        {(method === "cash" || method === "mixed") && (
-          <input
-            type="number"
-            inputMode="decimal"
-            placeholder={
-              method === "mixed"
-                ? "الجزء النقدي من الإجمالي..."
-                : "المبلغ النقدي المستلم..."
-            }
-            value={cash}
-            onChange={(e) => setCash(e.target.value)}
-            className="input-field font-mono text-xs"
-          />
-        )}
-
-        <div className="space-y-1 rounded-xl border border-ink/[0.06] bg-paper-raised p-3 text-xs">
-          <div className="flex justify-between text-ink-mute">
-            <span>الفرعي</span>
-            <span className="money-big">{formatMoney(totals.subtotal, settings.currency_symbol)}</span>
-          </div>
-          {promoPreview && promoPreview.amount > 0 && (
-            <div className="flex justify-between font-semibold text-success">
-              <span>عرض: {promoPreview.promotion.name}</span>
-              <span className="money-big">
-                -{formatMoney(promoPreview.amount, settings.currency_symbol)}
-              </span>
-            </div>
-          )}
-          {discount > 0 && (
-            <div className="flex justify-between font-semibold text-danger">
-              <span>خصم إضافي</span>
-              <span className="money-big">
-                -{formatMoney(Math.min(discount, cartSubtotal), settings.currency_symbol)}
-              </span>
-            </div>
-          )}
-          {totals.tax > 0 && (
-            <div className="flex justify-between text-ink-mute">
-              <span>الضريبة</span>
-              <span className="money-big">+{formatMoney(totals.tax, settings.currency_symbol)}</span>
-            </div>
-          )}
-          {priceMode === "wholesale" && (
-            <div className="text-[10px] font-semibold text-warning">
-              أسعار الجملة مفعّلة
-            </div>
-          )}
-          {feeNum > 0 && (
-            <div className="flex justify-between font-semibold text-highlight">
-              <span>رسوم التوصيل</span>
-              <span className="money-big">
-                +{formatMoney(feeNum, settings.currency_symbol)}
-              </span>
-            </div>
-          )}
-          <div className="flex justify-between border-t border-ink/[0.06] pt-1.5 text-sm font-bold text-ink">
-            <span>الإجمالي</span>
-            <span className="money-big text-base">
-              {formatMoney(grandTotal, settings.currency_symbol)}
-            </span>
-          </div>
-        </div>
-
-        {message && (
-          <p
-            className={cn(
-              "rounded-lg border p-2 text-center text-xs font-semibold",
-              message.includes("فشل") ||
-              message.includes("مطلوب") ||
-              message.includes("تجاوز") ||
-              message.includes("مخزون") ||
-              message.includes("لا يوجد") ||
-              message.includes("متعددة")
-                ? "border-danger/25 bg-danger/10 text-danger"
-                : "border-success/25 bg-success/10 text-success"
-            )}
-          >
-            {message}
-          </p>
-        )}
-
-        <button
-          type="button"
-          className="btn-primary flex h-14 w-full items-center justify-center gap-2 text-base font-bold"
-          disabled={
-            busy || !lines.length || needsShift || stockIssues.length > 0
-          }
-          onClick={() => void handleCheckout()}
-        >
-          <span>
-            {saleMode === "delivery"
-              ? "تأكيد طلب التوصيل"
-              : priceMode === "wholesale"
-                ? "إتمام بيع جملة"
-                : "إتمام البيع"}
-          </span>
-          <span className="pos-key-badge border-white/20 bg-white/10 text-accent-invert">F9</span>
-        </button>
-      </div>
-    </div>
+  const cartPanel = (
+    <PosCartPanel
+      settings={settings}
+      lines={lines}
+      totalItemsCount={totalItemsCount}
+      selectedCustomer={selectedCustomer}
+      saleMode={saleMode}
+      priceMode={priceMode}
+      deliveryPhone={deliveryPhone}
+      deliveryAddress={deliveryAddress}
+      deliveryDate={deliveryDate}
+      deliveryFee={deliveryFee}
+      activePromos={activePromos}
+      promoChoice={promoChoice}
+      promoPreview={promoPreview}
+      discount={discount}
+      note={note}
+      method={method}
+      cash={cash}
+      stockIssues={stockIssues}
+      cartSubtotal={cartSubtotal}
+      totals={totals}
+      feeNum={feeNum}
+      grandTotal={grandTotal}
+      message={message}
+      busy={busy}
+      needsShift={needsShift}
+      isMobile={isPhone}
+      onHold={() => void handleHoldCart()}
+      onClear={clear}
+      onRemoveLine={(productId, key) => remove(productId, key)}
+      onSetQty={(productId, qty) => setQty(productId, qty)}
+      onSaleModeChange={setSaleMode}
+      onPriceModeChange={setPriceMode}
+      onDeliveryPhoneChange={setDeliveryPhone}
+      onDeliveryAddressChange={setDeliveryAddress}
+      onDeliveryDateChange={setDeliveryDate}
+      onDeliveryFeeChange={setDeliveryFee}
+      onPromoChoiceChange={setPromoChoice}
+      onDiscountChange={setDiscount}
+      onNoteChange={setNote}
+      onMethodChange={setMethod}
+      onCashChange={setCash}
+      onCustomerClick={() => setShowCustomerModal(true)}
+      onCheckout={() => void handleCheckout()}
+    />
   );
 
   return (
     <div className="pos-console relative flex h-app min-h-0 flex-col overflow-hidden">
+      {isPhone ? (
+        <>
+          <MobilePosHeader
+            branchName={settings.name}
+            shiftOpen={Boolean(openShiftState)}
+            heldCount={heldCarts.length}
+            onExit={onExit}
+            onOpenSales={onOpenCompletedSales}
+            onOpenHeld={() => setShowHoldModal(true)}
+          />
+
+          {mobileTab === "products" ? (
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-2 pt-2">
+              <div className="relative mb-2 shrink-0">
+                <MagnifyingGlass
+                  className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-ink-mute"
+                  size={18}
+                />
+                <input
+                  ref={searchInputRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleScanOrSearchEnter();
+                    }
+                  }}
+                  placeholder="بحث أو باركود..."
+                  className="input-field h-11 pe-10 ps-3 text-sm font-medium"
+                  inputMode="search"
+                />
+              </div>
+
+              <div className="mb-2 shrink-0">
+                <PosQuickActions
+                  customerName={selectedCustomer?.name}
+                  saleMode={saleMode}
+                  priceMode={priceMode}
+                  onCustomer={() => setShowCustomerModal(true)}
+                  onHold={() => void handleHoldCart()}
+                  holdDisabled={!lines.length}
+                  onToggleSaleMode={() => {
+                    if (saleMode === "delivery") {
+                      setSaleMode("walk_in");
+                      return;
+                    }
+                    setSaleMode("delivery");
+                    if (selectedCustomer?.phone && !deliveryPhone) {
+                      setDeliveryPhone(selectedCustomer.phone);
+                    }
+                    if (selectedCustomer?.address && !deliveryAddress) {
+                      setDeliveryAddress(selectedCustomer.address);
+                    }
+                  }}
+                  onTogglePriceMode={() => {
+                    if (priceMode === "wholesale") {
+                      setPriceMode("retail");
+                      return;
+                    }
+                    setPriceMode("wholesale");
+                    if (!selectedCustomer) setShowCustomerModal(true);
+                  }}
+                />
+              </div>
+
+              {needsShift && (
+                <div className="mb-2 shrink-0 rounded-2xl border border-warning/25 bg-warning/10 px-3 py-2.5">
+                  <p className="text-xs font-bold text-warning">
+                    افتح وردية قبل البيع
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => (onOpenShifts ?? onExit)?.()}
+                    className="touch-chip mt-2 bg-warning text-white"
+                  >
+                    فتح الوردية
+                  </button>
+                </div>
+              )}
+
+              <ProductGrid
+                products={filtered}
+                categories={categories}
+                layout="touch_tiles"
+                currencySymbol={settings.currency_symbol}
+                onAdd={addProductToCart}
+                disabled={needsShift}
+                phoneLayout
+              />
+            </section>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              {cartPanel}
+            </div>
+          )}
+
+          <MobilePosTabBar
+            activeTab={mobileTab}
+            onTabChange={setMobileTab}
+            itemCount={totalItemsCount}
+            grandTotal={grandTotal}
+            currencySymbol={settings.currency_symbol}
+            onScan={() => setShowScanner(true)}
+          />
+
+          {addToast && (
+            <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 flex justify-center px-4">
+              <div className="rounded-full bg-ink/95 px-4 py-2 text-xs font-bold text-white shadow-lift">
+                + {addToast}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
       <header className="pos-chrome flex shrink-0 flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-2.5">
           {onExit && (
@@ -888,7 +636,7 @@ export function PosScreen({
         </div>
       </header>
 
-      <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-cols-[minmax(0,1fr)_30rem] pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
+      <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-cols-[minmax(0,1fr)_30rem]">
         <section className="flex min-h-0 flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
             <div className="relative min-w-0 w-full flex-1 sm:min-w-[14rem]">
@@ -980,64 +728,10 @@ export function PosScreen({
         </section>
 
         <aside className="hidden min-h-0 flex-col border-s border-paper-line/60 bg-paper-raised lg:flex">
-          {CartContent}
+          {cartPanel}
         </aside>
       </div>
-
-      {/* Mobile cart bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between border-t border-ink/[0.08] bg-paper-raised/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md lg:hidden">
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <ShoppingCart size={22} className="text-ink" weight="duotone" />
-            {totalItemsCount > 0 && (
-              <span className="absolute -top-2 -end-2 grid h-5 w-5 place-items-center rounded-full bg-ink text-[10px] font-bold text-accent-invert">
-                {totalItemsCount}
-              </span>
-            )}
-          </div>
-          <div>
-            <div className="text-[10px] text-ink-mute">إجمالي السلة</div>
-            <div className="money-big text-sm font-bold text-ink">
-              {formatMoney(grandTotal, settings.currency_symbol)}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowScanner(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-paper-line bg-paper text-ink transition active:scale-95"
-            title="مسح باركود بالكاميرا"
-          >
-            <Camera size={20} weight="duotone" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileCartOpen(true)}
-            className="btn-primary px-4 py-2.5 text-xs font-bold"
-          >
-            عرض السلة
-          </button>
-        </div>
-      </div>
-
-      {mobileCartOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-ink/50 backdrop-blur-sm lg:hidden">
-          <div className="flex max-h-[min(90dvh,var(--app-height))] w-full flex-col overflow-hidden rounded-t-2xl border-t border-ink/[0.08] bg-paper-raised shadow-lift pb-[env(safe-area-inset-bottom)]">
-            <div className="flex items-center justify-between border-b border-ink/[0.08] px-4 py-3">
-              <span className="text-sm font-bold text-ink">سلة المبيعات</span>
-              <button
-                type="button"
-                onClick={() => setMobileCartOpen(false)}
-                className="rounded-lg p-1 text-ink-mute hover:bg-paper"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto">{CartContent}</div>
-          </div>
-        </div>
+        </>
       )}
 
       {showHoldModal && (
@@ -1074,7 +768,6 @@ export function PosScreen({
             const exact = findExactCatalogMatch(products, code);
             if (exact) {
               addProductToCart(exact);
-              feedbackScan(true);
               setMessage(`تم مسح: ${exact.name}`);
             } else {
               feedbackScan(false);
@@ -1097,58 +790,5 @@ export function PosScreen({
         />
       )}
     </div>
-  );
-}
-
-function PromoChip({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-lg px-2.5 py-1 text-[10px] font-bold transition",
-        active
-          ? "bg-success/15 text-success ring-1 ring-success/30"
-          : "bg-paper text-ink-mute hover:text-ink"
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
-function PaymentTab({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex flex-col items-center justify-center gap-1 rounded-2xl py-2.5 text-[11px] font-bold transition duration-200 ease-spring active:scale-[0.98]",
-        active
-          ? "bg-highlight text-white shadow-soft"
-          : "bg-paper text-ink hover:bg-highlight/10"
-      )}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
   );
 }
