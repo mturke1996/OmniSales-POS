@@ -29,6 +29,8 @@ import { cn } from "../../lib/cn";
 import { SalesTrendChart } from "../charts/SalesTrendChart";
 import { TopProductsChart } from "../charts/TopProductsChart";
 import { PaymentMixChart } from "../charts/PaymentMixChart";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 
 const PERIODS: { key: PeriodKey; label: string }[] = [
   { key: "today", label: "اليوم" },
@@ -76,42 +78,42 @@ export function ReportsScreen({
   };
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-5 px-3 py-4 sm:px-6 sm:py-6">
-      <header className="flex flex-col gap-3 border-b border-paper-line pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-ink">التحليلات والتقارير</h2>
-          <p className="text-xs text-ink-mute">
-            صافي المبيعات = الإجمالي − المرتجعات · {snap.range.label}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-paper p-1">
-            {PERIODS.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => setPeriod(p.key)}
-                className={cn(
-                  "shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition",
-                  period === p.key
-                    ? "bg-highlight text-white shadow-soft"
-                    : "text-ink-mute hover:text-ink"
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
+    <>
+      <PageHeader
+        title="التحليلات والتقارير"
+        description={`صافي المبيعات = الإجمالي − المرتجعات · ${snap.range.label}`}
+        breadcrumbs={[{ label: "OmniSales" }, { label: "الإدارة" }, { label: "التقارير" }]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-paper p-1">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setPeriod(p.key)}
+                  className={cn(
+                    "shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                    period === p.key
+                      ? "bg-highlight text-white shadow-soft"
+                      : "text-ink-mute hover:text-ink"
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={exportCsv}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-paper-line bg-paper-raised px-3 py-2 text-xs font-bold text-ink transition hover:bg-highlight/10"
+            >
+              <DownloadSimple size={16} />
+              CSV
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={exportCsv}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-paper-line bg-paper-raised px-3 py-2 text-xs font-bold text-ink transition hover:bg-highlight/10"
-          >
-            <DownloadSimple size={16} />
-            CSV
-          </button>
-        </div>
-      </header>
+        }
+      />
+      <PageContent size="wide" className="space-y-5">
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-4">
         <Kpi
@@ -279,7 +281,8 @@ export function ReportsScreen({
           </table>
         </div>
       </section>
-    </div>
+      </PageContent>
+    </>
   );
 }
 

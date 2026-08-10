@@ -30,6 +30,7 @@ import { computeAnalytics } from "../../lib/analytics";
 import { formatMoney } from "../../lib/format";
 import { SalesTrendChart } from "../charts/SalesTrendChart";
 import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -205,7 +206,7 @@ export function DashboardScreen({
         }
       />
 
-      <div className="mx-auto max-w-[1400px] space-y-5 px-5 py-6 sm:px-8">
+      <PageContent size="wide" className="space-y-5">
         {/* Hero command — one soft card */}
         <div className="panel flex flex-col gap-5 p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
@@ -440,7 +441,7 @@ export function DashboardScreen({
             مصروفات اليوم: {formatMoney(today.expensesTotal, settings.currency_symbol)}
           </span>
         </div>
-      </div>
+      </PageContent>
     </div>
   );
 }

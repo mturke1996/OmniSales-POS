@@ -3,6 +3,9 @@ import { Plus, X } from "@phosphor-icons/react";
 import { addExpense } from "../../lib/api";
 import type { BranchSettings, Expense } from "../../lib/types";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
+import { SearchField } from "../ui/SearchField";
 
 interface ExpensesScreenProps {
   expenses: Expense[];
@@ -29,25 +32,23 @@ export function ExpensesScreen({
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between border-b border-paper-line pb-4 gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-ink">إدارة المصروفات والتكاليف (Expenses Ledger)</h2>
-          <p className="text-xs text-ink-mute">
-            تسجيل المصروفات التشغيلية اليومية وتتبع التكاليف.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowAddModal(true)}
-          className="btn-primary text-xs inline-flex items-center gap-1.5 font-bold"
-        >
-          <Plus size={16} />
-          تسجيل مصروف جديد
-        </button>
-      </div>
+    <>
+      <PageHeader
+        title="المصروفات"
+        description="تسجيل المصروفات التشغيلية اليومية وتتبع التكاليف"
+        breadcrumbs={[{ label: "OmniSales" }, { label: "المالية" }, { label: "المصروفات" }]}
+        actions={
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="btn-primary inline-flex items-center gap-1.5 text-xs font-bold"
+          >
+            <Plus size={16} />
+            تسجيل مصروف
+          </button>
+        }
+      />
+      <PageContent size="narrow" className="space-y-6">
 
       {/* Stats Box */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -64,16 +65,11 @@ export function ExpensesScreen({
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="relative">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ابحث بتصنيف المصروف أو البيان..."
-          className="w-full rounded-full border border-paper-line bg-paper-raised px-4 py-2.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ink"
-        />
-      </div>
+      <SearchField
+        value={query}
+        onChange={setQuery}
+        placeholder="ابحث بتصنيف المصروف أو البيان…"
+      />
 
       <MobileDataList empty={!filtered.length} emptyLabel="لا توجد مصروفات مسجلة">
         {filtered.map((exp) => (
@@ -148,7 +144,8 @@ export function ExpensesScreen({
           }}
         />
       )}
-    </div>
+      </PageContent>
+    </>
   );
 }
 

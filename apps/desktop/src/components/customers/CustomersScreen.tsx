@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   UserPlus,
-  MagnifyingGlass,
   PlusCircle,
   X,
   UserCircle,
@@ -11,6 +10,11 @@ import { formatMoney } from "../../lib/format";
 import { debtReminderMessage, paymentReceiptMessage } from "../../lib/whatsapp";
 import { WhatsAppButton } from "../ui/WhatsAppButton";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
+import { SearchField } from "../ui/SearchField";
+import { DataTable } from "../ui/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 import type { BranchSettings, Customer } from "../../lib/types";
 
 interface CustomersScreenProps {
@@ -39,25 +43,87 @@ export function CustomersScreen({
 
   const totalDebts = customers.reduce((sum, c) => sum + c.balance, 0);
 
-  return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-line pb-4">
-        <div>
-          <h2 className="text-xl font-bold text-ink">العملاء والديون</h2>
-          <p className="text-xs text-ink-mute">
-            ملف لكل عميل · كشف حساب · مبيعات · واتساب · تحصيل
-          </p>
-        </div>
-
+  const columns: ColumnDef<Customer, unknown>[] = [
+    {
+      accessorKey: "name",
+      header: "اسم العميل",
+      cell: ({ row }) => (
         <button
           type="button"
-          onClick={() => setShowAddModal(true)}
-          className="btn-primary inline-flex items-center gap-1.5 text-xs font-bold"
+          onClick={() => onOpenProfile(row.original.id)}
+          className="font-bold text-ink hover:text-highlight"
         >
-          <UserPlus size={16} />
-          إضافة عميل جديد
+          {row.original.name}
         </button>
-      </div>
+      ),
+    },
+    { accessorKey: "phone", header: "الهاتف" },
+    {
+      accessorKey: "address",
+      header: "العنوان",
+      cell: ({ row }) => row.original.address || "—",
+    },
+    {
+      accessorKey: "credit_limit",
+      header: "حد الائتمان",
+      cell: ({ row }) => formatMoney(row.original.credit_limit, settings.currency_symbol),
+    },
+    {
+      accessorKey: "balance",
+      header: "الدين",
+      cell: ({ row }) => (
+        <span className={row.original.balance > 0 ? "font-bold text-danger" : "text-success"}>
+          {formatMoney(row.original.balance, settings.currency_symbol)}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "إجراءات",
+      cell: ({ row }) => {
+        const cust = row.original;
+        return (
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={() => onOpenProfile(cust.id)}
+              className="text-xs font-bold text-highlight"
+            >
+              الملف
+            </button>
+            {cust.balance > 0 && (
+              <button
+                type="button"
+                onClick={() => setPaymentCustomer(cust)}
+                className="text-xs font-bold text-success"
+              >
+                تسديد
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <>
+      <PageHeader
+        title="العملاء والديون"
+        description="ملف لكل عميل · كشف حساب · مبيعات · واتساب · تحصيل"
+        breadcrumbs={[{ label: "OmniSales" }, { label: "المبيعات" }, { label: "العملاء" }]}
+        actions={
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="btn-primary inline-flex items-center gap-1.5 text-xs font-bold"
+          >
+            <UserPlus size={16} />
+            إضافة عميل
+          </button>
+        }
+      />
+      <PageContent className="space-y-6">
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-paper-line bg-paper-raised p-4 shadow-xs">
@@ -80,19 +146,11 @@ export function CustomersScreen({
         </div>
       </div>
 
-      <div className="relative">
-        <MagnifyingGlass
-          size={18}
-          className="absolute end-3.5 top-3 text-ink-mute"
-        />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ابحث بالاسم أو الهاتف..."
-          className="w-full rounded-full border border-paper-line bg-paper-raised py-2.5 pe-10 ps-4 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ink"
-        />
-      </div>
+      <SearchField
+        value={query}
+        onChange={setQuery}
+        placeholder="ابحث بالاسم أو الهاتف…"
+      />
 
       <MobileDataList empty={!filtered.length} emptyLabel="لا يوجد عملاء مطابقون">
         {filtered.map((cust) => (
@@ -160,94 +218,12 @@ export function CustomersScreen({
         ))}
       </MobileDataList>
 
-      <div className="hidden overflow-x-auto rounded-2xl border border-paper-line bg-paper-raised shadow-xs md:block">
-        <table className="w-full text-right text-xs">
-          <thead className="border-b border-paper-line bg-paper font-bold text-ink-mute">
-            <tr>
-              <th className="p-3">اسم العميل</th>
-              <th className="p-3">الهاتف</th>
-              <th className="p-3">العنوان</th>
-              <th className="p-3">حد الائتمان</th>
-              <th className="p-3">الدين</th>
-              <th className="p-3 text-left">إجراءات</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-paper-line">
-            {!filtered.length ? (
-              <tr>
-                <td colSpan={6} className="p-10 text-center text-ink-mute">
-                  لا يوجد عملاء مطابقون
-                </td>
-              </tr>
-            ) : (
-              filtered.map((cust) => (
-                <tr key={cust.id} className="hover:bg-paper/50">
-                  <td className="p-3">
-                    <button
-                      type="button"
-                      onClick={() => onOpenProfile(cust.id)}
-                      className="font-bold text-ink hover:text-highlight hover:underline"
-                    >
-                      {cust.name}
-                    </button>
-                  </td>
-                  <td className="p-3 font-mono text-ink-mute">{cust.phone}</td>
-                  <td className="p-3 text-ink-mute">{cust.address || "—"}</td>
-                  <td className="p-3 font-mono">
-                    {formatMoney(cust.credit_limit, settings.currency_symbol)}
-                  </td>
-                  <td className="p-3 font-mono">
-                    <span
-                      className={
-                        cust.balance > 0
-                          ? "rounded bg-danger/10 px-2 py-0.5 font-bold text-danger"
-                          : "font-bold text-success"
-                      }
-                    >
-                      {formatMoney(cust.balance, settings.currency_symbol)}
-                    </span>
-                  </td>
-                  <td className="p-3 text-left">
-                    <div className="inline-flex flex-wrap items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => onOpenProfile(cust.id)}
-                        className="inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1 text-[11px] font-bold text-paper"
-                      >
-                        <UserCircle size={14} />
-                        الملف
-                      </button>
-                      <WhatsAppButton
-                        phone={cust.phone}
-                        message={
-                          cust.balance > 0
-                            ? debtReminderMessage(
-                                cust.name,
-                                cust.balance,
-                                settings.currency_symbol,
-                                settings.name
-                              )
-                            : undefined
-                        }
-                        variant="ghost"
-                      />
-                      {cust.balance > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setPaymentCustomer(cust)}
-                          className="inline-flex items-center gap-1 rounded-full bg-success px-3 py-1 text-[11px] font-semibold text-white"
-                        >
-                          <PlusCircle size={14} />
-                          تسديد
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="hidden md:block">
+        <DataTable
+          data={filtered}
+          columns={columns}
+          emptyMessage="لا يوجد عملاء مطابقون"
+        />
       </div>
 
       {paymentCustomer && (
@@ -271,7 +247,8 @@ export function CustomersScreen({
           }}
         />
       )}
-    </div>
+      </PageContent>
+    </>
   );
 }
 

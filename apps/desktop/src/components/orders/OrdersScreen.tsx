@@ -22,6 +22,8 @@ import type {
   OrderStatus,
 } from "../../lib/types";
 import { cn } from "../../lib/cn";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 
 const NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
   new: "in_prep",
@@ -130,78 +132,69 @@ export function OrdersScreen({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-line pb-4">
-        <div>
-          <h2 className="text-xl font-bold text-ink">لوحة التوصيل والطلبات</h2>
-          <p className="text-xs text-ink-mute">
-            من نقطة البيع → وضع توصيل · ثم تتبّع الحالات حتى التسليم
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="rounded-full border border-paper-line bg-paper-raised px-3 py-1.5 text-xs font-semibold"
-          >
-            <option value="all">كل الحالات</option>
-            <option value="new">جديد</option>
-            <option value="in_prep">تحضير</option>
-            <option value="ready">جاهز</option>
-            <option value="delivering">جاري التوصيل</option>
-            <option value="completed">مكتمل</option>
-            <option value="cancelled">ملغى</option>
-          </select>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="rounded-full border border-paper-line bg-paper-raised px-3 py-1.5 text-xs font-semibold"
-          >
-            <option value="delivery">توصيل فقط</option>
-            <option value="special_event">مناسبات</option>
-            <option value="all">كل الأنواع</option>
-            <option value="pos_walk_in">بيع مباشر</option>
-          </select>
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="rounded-full border border-paper-line bg-paper-raised px-3 py-1.5 text-xs font-semibold"
-            title="تصفية بتاريخ التوصيل"
-          />
-          {filterDate && (
-            <button
-              type="button"
-              className="rounded-full px-2 text-[11px] font-bold text-ink-mute"
-              onClick={() => setFilterDate("")}
+    <>
+      <PageHeader
+        title="التوصيل والطلبات"
+        description="من نقطة البيع → وضع توصيل · ثم تتبّع الحالات حتى التسليم"
+        breadcrumbs={[{ label: "OmniSales" }, { label: "المبيعات" }, { label: "التوصيل" }]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="rounded-xl border border-paper-line bg-paper-raised px-3 py-2 text-xs font-semibold"
             >
-              مسح التاريخ
-            </button>
-          )}
-          <div className="flex rounded-full border border-paper-line p-0.5 text-[11px] font-bold">
-            <button
-              type="button"
-              onClick={() => setView("list")}
-              className={cn(
-                "rounded-full px-3 py-1",
-                view === "list" ? "bg-ink text-paper" : "text-ink-mute"
-              )}
+              <option value="all">كل الحالات</option>
+              <option value="new">جديد</option>
+              <option value="in_prep">تحضير</option>
+              <option value="ready">جاهز</option>
+              <option value="delivering">جاري التوصيل</option>
+              <option value="completed">مكتمل</option>
+              <option value="cancelled">ملغى</option>
+            </select>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="rounded-xl border border-paper-line bg-paper-raised px-3 py-2 text-xs font-semibold"
             >
-              قائمة
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("calendar")}
-              className={cn(
-                "rounded-full px-3 py-1",
-                view === "calendar" ? "bg-ink text-paper" : "text-ink-mute"
-              )}
-            >
-              حسب اليوم
-            </button>
+              <option value="delivery">توصيل فقط</option>
+              <option value="special_event">مناسبات</option>
+              <option value="all">كل الأنواع</option>
+              <option value="pos_walk_in">بيع مباشر</option>
+            </select>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="rounded-xl border border-paper-line bg-paper-raised px-3 py-2 text-xs font-semibold"
+              title="تصفية بتاريخ التوصيل"
+            />
+            <div className="flex rounded-xl border border-paper-line p-0.5 text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setView("list")}
+                className={cn(
+                  "rounded-lg px-3 py-1",
+                  view === "list" ? "bg-ink text-paper" : "text-ink-mute"
+                )}
+              >
+                قائمة
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("calendar")}
+                className={cn(
+                  "rounded-lg px-3 py-1",
+                  view === "calendar" ? "bg-ink text-paper" : "text-ink-mute"
+                )}
+              >
+                حسب اليوم
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
+        }
+      />
+      <PageContent className="space-y-6">
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <PipeCard icon={<ShoppingBag size={18} />} label="طلبات توصيل" count={pipeline.total} />
@@ -263,7 +256,8 @@ export function OrdersScreen({
           ))
         )}
       </div>
-    </div>
+      </PageContent>
+    </>
   );
 }
 

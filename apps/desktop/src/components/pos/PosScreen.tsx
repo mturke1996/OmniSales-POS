@@ -808,7 +808,7 @@ export function PosScreen({
   );
 
   return (
-    <div className="pos-console relative flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden">
+    <div className="pos-console relative flex h-app min-h-0 flex-col overflow-hidden">
       <header className="pos-chrome flex shrink-0 flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-2.5">
           {onExit && (
@@ -879,7 +879,7 @@ export function PosScreen({
         </div>
       </header>
 
-      <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-cols-[minmax(0,1fr)_30rem] pb-[4.5rem] lg:pb-0">
+      <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-cols-[minmax(0,1fr)_30rem] pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
         <section className="flex min-h-0 flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
             <div className="relative min-w-0 w-full flex-1 sm:min-w-[14rem]">
@@ -1015,7 +1015,7 @@ export function PosScreen({
 
       {mobileCartOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end bg-ink/50 backdrop-blur-sm lg:hidden">
-          <div className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl border-t border-ink/[0.08] bg-paper-raised shadow-lift">
+          <div className="flex max-h-[min(90dvh,var(--app-height))] w-full flex-col overflow-hidden rounded-t-2xl border-t border-ink/[0.08] bg-paper-raised shadow-lift pb-[env(safe-area-inset-bottom)]">
             <div className="flex items-center justify-between border-b border-ink/[0.08] px-4 py-3">
               <span className="text-sm font-bold text-ink">سلة المبيعات</span>
               <button

@@ -11,6 +11,8 @@ import type {
   Expense,
   Customer,
 } from "../../lib/types";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 
 export function OpsScreen({
   promotions,
@@ -64,11 +66,13 @@ export function OpsScreen({
   const debts = customers.reduce((s, c) => s + c.balance, 0);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-4 py-6">
-      <div>
-        <h2 className="text-xl font-bold text-ink">العروض · التدقيق · ملخص المالك</h2>
-        <p className="text-xs text-ink-mute">إدارة ترويجية وحوكمة يومية</p>
-      </div>
+    <>
+      <PageHeader
+        title="العروض والتدقيق"
+        description="إدارة ترويجية وحوكمة يومية وملخص المالك"
+        breadcrumbs={[{ label: "OmniSales" }, { label: "الإدارة" }, { label: "عروض وتدقيق" }]}
+      />
+      <PageContent size="narrow" className="space-y-6">
 
       <div className="flex gap-1 rounded-2xl border border-paper-line bg-paper-raised p-1">
         {(
@@ -283,6 +287,7 @@ export function OpsScreen({
           </button>
         </div>
       )}
-    </div>
+      </PageContent>
+    </>
   );
 }

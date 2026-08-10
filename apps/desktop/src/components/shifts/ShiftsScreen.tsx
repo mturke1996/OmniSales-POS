@@ -18,6 +18,8 @@ import type {
   ReturnRecord,
   Shift,
 } from "../../lib/types";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 
 export function ShiftsScreen({
   settings,
@@ -126,30 +128,26 @@ export function ShiftsScreen({
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 border-b border-paper-line pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-ink">إدارة الخزينة والورديات</h2>
-          <p className="text-xs text-ink-mute">
-            تتبع العهد النقدية، المبيعات المباشرة، وحساب فروقات الخزينة وإصدار تقرير Z-Report.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {openShiftState ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+    <>
+      <PageHeader
+        title="الورديات والخزينة"
+        description="تتبع العهد النقدية، المبيعات المباشرة، وفروقات الخزينة وتقرير Z"
+        breadcrumbs={[{ label: "OmniSales" }, { label: "الرئيسية" }, { label: "الورديات" }]}
+        actions={
+          openShiftState ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success/12 px-3 py-1.5 text-xs font-bold text-success">
               <LockOpen size={14} />
-              <span>الوردية مفتوحة حالياً</span>
+              وردية مفتوحة
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/12 px-3 py-1.5 text-xs font-bold text-warning">
               <LockKey size={14} />
-              <span>لا توجد وردية مفتوحة</span>
+              لا توجد وردية
             </span>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
+      <PageContent size="narrow" className="space-y-6">
 
       {message && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
@@ -499,7 +497,8 @@ export function ShiftsScreen({
           </div>
         </div>
       )}
-    </div>
+      </PageContent>
+    </>
   );
 }
 

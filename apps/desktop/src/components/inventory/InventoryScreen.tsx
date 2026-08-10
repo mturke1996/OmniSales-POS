@@ -27,6 +27,8 @@ import type {
   StockMovement,
 } from "../../lib/types";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 import { BarcodeScannerModal } from "../pos/BarcodeScannerModal";
 
 type TabKey = "catalog" | "count" | "movements" | "categories";
@@ -97,28 +99,28 @@ export function InventoryScreen({
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-line pb-4">
-        <div>
-          <h2 className="text-xl font-bold text-ink">المخزون والجرد</h2>
-          <p className="text-xs text-ink-mute">
-            أصناف · جرد فعلي · تسوية · دفتر حركات · تصنيفات
-          </p>
-        </div>
-        {canManage && tab === "catalog" && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditingProduct(null);
-              setShowAddModal(true);
-            }}
-            className="btn-primary inline-flex items-center gap-1.5 text-xs font-bold"
-          >
-            <Plus size={16} />
-            إضافة صنف
-          </button>
-        )}
-      </div>
+    <>
+      <PageHeader
+        title="المخزون والجرد"
+        description="أصناف · جرد فعلي · تسوية · دفتر حركات · تصنيفات"
+        breadcrumbs={[{ label: "OmniSales" }, { label: "المخزون" }]}
+        actions={
+          canManage && tab === "catalog" ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingProduct(null);
+                setShowAddModal(true);
+              }}
+              className="btn-primary inline-flex items-center gap-1.5 text-xs font-bold"
+            >
+              <Plus size={16} />
+              إضافة صنف
+            </button>
+          ) : undefined
+        }
+      />
+      <PageContent className="space-y-5">
 
       <div className="grid grid-cols-4 gap-1 rounded-2xl bg-paper p-1">
         {tabs.map((t) => (
@@ -464,7 +466,8 @@ export function InventoryScreen({
           }}
         />
       )}
-    </div>
+      </PageContent>
+    </>
   );
 }
 

@@ -15,6 +15,8 @@ import type {
   Supplier,
   SupplierPayment,
 } from "../../lib/types";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 
 const PAY_AR: Record<string, string> = {
   unpaid: "غير مدفوع",
@@ -70,31 +72,31 @@ export function PurchasesScreen({
   );
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-line pb-4">
-        <div>
-          <h2 className="text-xl font-bold text-ink">المشتريات والموردون</h2>
-          <p className="text-xs text-ink-mute">
-            استلام بضاعة يحدّث المخزون والتكلفة وذمم الموردين
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn-ghost text-xs font-bold"
-            onClick={() => setShowSupplier(true)}
-          >
-            + مورد
-          </button>
-          <button
-            type="button"
-            className="btn-primary text-xs font-bold"
-            onClick={() => setShowPurchase(true)}
-          >
-            <Plus size={14} className="inline" /> أمر شراء
-          </button>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title="المشتريات والموردون"
+        description="استلام بضاعة يحدّث المخزون والتكلفة وذمم الموردين"
+        breadcrumbs={[{ label: "OmniSales" }, { label: "المخزون" }, { label: "المشتريات" }]}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-ghost text-xs font-bold"
+              onClick={() => setShowSupplier(true)}
+            >
+              + مورد
+            </button>
+            <button
+              type="button"
+              className="btn-primary text-xs font-bold"
+              onClick={() => setShowPurchase(true)}
+            >
+              <Plus size={14} className="inline" /> أمر شراء
+            </button>
+          </div>
+        }
+      />
+      <PageContent className="space-y-6">
 
       <div className="rounded-2xl border border-warning/25 bg-warning/10 px-4 py-3 text-sm">
         <span className="font-bold text-warning">ذمم الموردين: </span>
@@ -381,7 +383,8 @@ export function PurchasesScreen({
           }}
         />
       )}
-    </div>
+      </PageContent>
+    </>
   );
 }
 

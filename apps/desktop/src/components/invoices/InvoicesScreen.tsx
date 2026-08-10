@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   FilePdf,
   Printer,
-  MagnifyingGlass,
   Receipt,
   ArrowUUpLeft,
   Eye,
@@ -18,6 +17,11 @@ import { formatMoney } from "../../lib/format";
 import { saleShareMessage } from "../../lib/whatsapp";
 import { WhatsAppButton } from "../ui/WhatsAppButton";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
+import { SearchField } from "../ui/SearchField";
+import { DataTable } from "../ui/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 import { cn } from "../../lib/cn";
 import { usePhoneLayout } from "../../hooks/use-media-query";
 
@@ -95,31 +99,91 @@ export function InvoicesScreen({
     run,
   };
 
+  const columns: ColumnDef<Order, unknown>[] = [
+    {
+      accessorKey: "order_number",
+      header: "الرقم",
+      cell: ({ row }) => (
+        <span className="font-bold text-ink">{row.original.order_number}</span>
+      ),
+    },
+    {
+      id: "customer",
+      header: "العميل",
+      cell: ({ row }) => (
+        <span className="text-ink-mute">{row.original.customer_name || "نقدي"}</span>
+      ),
+    },
+    {
+      id: "status",
+      header: "الحالة",
+      cell: ({ row }) => {
+        const o = row.original;
+        return (
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-1 text-[11px] font-bold",
+              o.status === "completed"
+                ? "bg-success/12 text-success"
+                : o.status === "cancelled"
+                  ? "bg-danger/12 text-danger"
+                  : "bg-highlight/12 text-highlight"
+            )}
+          >
+            {STATUS_AR[o.status] || o.status}
+          </span>
+        );
+      },
+    },
+    {
+      id: "payment",
+      header: "الدفع",
+      cell: ({ row }) => (
+        <span className="rounded-full bg-paper px-2.5 py-1 text-[11px] font-bold text-ink">
+          {PAYMENT_AR[row.original.payment_method] || row.original.payment_method}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "total_amount",
+      header: "الإجمالي",
+      cell: ({ row }) => (
+        <span className="money-big font-bold text-ink">
+          {formatMoney(row.original.total_amount, settings.currency_symbol)}
+        </span>
+      ),
+    },
+    {
+      id: "action",
+      header: "إجراء",
+      cell: ({ row }) => (
+        <button
+          type="button"
+          className="text-xs font-bold text-highlight"
+          onClick={() => setSelected(row.original)}
+        >
+          تفاصيل
+        </button>
+      ),
+    },
+  ];
+
   return (
-    <div className="mx-auto max-w-[1500px] space-y-5 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
-      <div className="flex flex-col gap-3 border-b border-paper-line pb-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink">
-            المبيعات المنفذة
-          </h1>
-          <p className="mt-1 hidden text-sm text-ink-mute sm:block">
-            فواتير مكتملة · PDF · حرارية {settings.thermal_width_mm}مم · واتساب ·{" "}
-            {settings.name}
-          </p>
-        </div>
-        <div className="relative w-full max-w-sm">
-          <MagnifyingGlass
-            size={16}
-            className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-ink-mute"
-          />
-          <input
-            className="input ps-9"
-            placeholder="بحث برقم الفاتورة أو العميل…"
+    <>
+      <PageHeader
+        title="المبيعات المنفذة"
+        description={`فواتير مكتملة · PDF · حرارية ${settings.thermal_width_mm}مم · ${settings.name}`}
+        breadcrumbs={[{ label: "OmniSales" }, { label: "المبيعات" }, { label: "الفواتير" }]}
+        actions={
+          <SearchField
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={setQ}
+            placeholder="بحث برقم الفاتورة أو العميل…"
+            className="max-w-xs"
           />
-        </div>
-      </div>
+        }
+      />
+      <PageContent size="wide" className="space-y-5">
 
       {msg && (
         <div className="rounded-xl border border-highlight/30 bg-highlight/10 px-4 py-2 text-xs font-semibold text-ink">
@@ -177,79 +241,12 @@ export function InvoicesScreen({
             ))}
           </MobileDataList>
 
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[680px] text-sm">
-              <thead className="bg-paper text-xs text-ink-mute">
-                <tr>
-                  <th className="px-4 py-3 text-start font-semibold">الرقم</th>
-                  <th className="px-4 py-3 text-start font-semibold">العميل</th>
-                  <th className="px-4 py-3 text-start font-semibold">الحالة</th>
-                  <th className="px-4 py-3 text-start font-semibold">الدفع</th>
-                  <th className="px-4 py-3 text-start font-semibold">الإجمالي</th>
-                  <th className="px-4 py-3 text-end font-semibold">إجراء</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!filtered.length ? (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-12 text-center text-ink-mute"
-                    >
-                      لا توجد فواتير مطابقة
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((o) => (
-                    <tr
-                      key={o.id}
-                      className={cn(
-                        "border-t border-paper-line transition",
-                        selected?.id === o.id && "bg-highlight/5"
-                      )}
-                    >
-                      <td className="px-4 py-3 font-bold text-ink">
-                        {o.order_number}
-                      </td>
-                      <td className="px-4 py-3 text-ink-mute">
-                        {o.customer_name || "نقدي"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={cn(
-                            "rounded-full px-2.5 py-1 text-[11px] font-bold",
-                            o.status === "completed"
-                              ? "bg-success/12 text-success"
-                              : o.status === "cancelled"
-                                ? "bg-danger/12 text-danger"
-                                : "bg-highlight/12 text-highlight"
-                          )}
-                        >
-                          {STATUS_AR[o.status] || o.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full bg-paper px-2.5 py-1 text-[11px] font-bold text-ink">
-                          {PAYMENT_AR[o.payment_method] || o.payment_method}
-                        </span>
-                      </td>
-                      <td className="money-big px-4 py-3 font-bold text-ink">
-                        {formatMoney(o.total_amount, settings.currency_symbol)}
-                      </td>
-                      <td className="px-4 py-3 text-end">
-                        <button
-                          type="button"
-                          className="text-xs font-bold text-highlight"
-                          onClick={() => setSelected(o)}
-                        >
-                          تفاصيل
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="hidden md:block">
+            <DataTable
+              data={filtered}
+              columns={columns}
+              emptyMessage="لا توجد فواتير مطابقة"
+            />
           </div>
         </div>
 
@@ -294,7 +291,8 @@ export function InvoicesScreen({
           </div>
         </div>
       )}
-    </div>
+      </PageContent>
+    </>
   );
 }
 

@@ -16,6 +16,8 @@ import { remainingReturnQty } from "../../lib/analytics";
 import { createReturn } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 import { cn } from "../../lib/cn";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 
 const REFUND_LABEL: Record<RefundMethod, string> = {
   cash: "نقداً",
@@ -135,18 +137,18 @@ export function ReturnsScreen({
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-3 py-4 sm:px-4 sm:py-6">
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-paper-line pb-4">
-        <div>
-          <h2 className="text-xl font-bold text-ink">المرتجعات</h2>
-          <p className="text-xs text-ink-mute">
-            إرجاع بنود من فاتورة — إعادة مخزون وتحديث الصندوق/رصيد العميل
-          </p>
-        </div>
-        <div className="rounded-xl bg-highlight/10 px-3 py-2 text-xs font-semibold text-highlight">
-          {returns.length} مرتجع مسجّل
-        </div>
-      </header>
+    <>
+      <PageHeader
+        title="المرتجعات"
+        description="إرجاع بنود من فاتورة — إعادة مخزون وتحديث الصندوق/رصيد العميل"
+        breadcrumbs={[{ label: "OmniSales" }, { label: "المبيعات" }, { label: "المرتجعات" }]}
+        actions={
+          <span className="rounded-xl bg-highlight/10 px-3 py-2 text-xs font-semibold text-highlight">
+            {returns.length} مرتجع مسجّل
+          </span>
+        }
+      />
+      <PageContent className="space-y-4">
 
       {msg && (
         <div
@@ -428,6 +430,7 @@ export function ReturnsScreen({
           </table>
         </div>
       </section>
-    </div>
+      </PageContent>
+    </>
   );
 }

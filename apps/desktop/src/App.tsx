@@ -28,6 +28,7 @@ import { ShortcutsModal } from "./components/pos/ShortcutsModal";
 import { PwaInstallBanner } from "./components/pwa/PwaInstallBanner";
 import { PwaUpdateToast } from "./components/pwa/PwaUpdateToast";
 import { AppShell } from "./components/layout/AppShell";
+import { CommandPalette } from "./components/layout/CommandPalette";
 import { can } from "./lib/permissions";
 
 function initialTab(): SidebarTab {
@@ -64,6 +65,7 @@ export default function App() {
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
   const [profileCustomerId, setProfileCustomerId] = useState<string | null>(null);
   const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(null);
+  const [commandOpen, setCommandOpen] = useState(false);
 
   const navigate = useCallback((next: SidebarTab) => {
     setTab(next);
@@ -180,6 +182,7 @@ export default function App() {
             cashierName={session.cashier_name}
             pendingSync={pendingSync}
             onMenuOpen={() => setMobileMenuOpen(true)}
+            onOpenCommand={() => setCommandOpen(true)}
             onOpenShortcuts={() => setShowShortcutsModal(true)}
             onLock={() => {
               void lockSession().then(() => setSession(null));
@@ -476,6 +479,11 @@ export default function App() {
 
       <PwaInstallBanner />
       <PwaUpdateToast />
+      <CommandPalette
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        onNavigate={navigate}
+      />
     </AppShell>
   );
 }

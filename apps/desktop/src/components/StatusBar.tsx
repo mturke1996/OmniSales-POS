@@ -17,6 +17,7 @@ export function StatusBar({
   cashierName,
   pendingSync = 0,
   onOpenShortcuts,
+  onOpenCommand,
   onLock,
   onMenuOpen,
 }: {
@@ -25,6 +26,7 @@ export function StatusBar({
   cashierName?: string;
   pendingSync?: number;
   onOpenShortcuts?: () => void;
+  onOpenCommand?: () => void;
   onLock?: () => void;
   onMenuOpen?: () => void;
 }) {
@@ -64,17 +66,19 @@ export function StatusBar({
             )}
           </div>
 
-          <div className="hidden max-w-xs flex-1 items-center gap-2 rounded-xl border border-paper-line/60 bg-paper px-3 py-2 lg:flex">
-            <MagnifyingGlass size={16} className="text-ink-mute" />
-            <input
-              readOnly
-              placeholder="بحث سريع (قريباً)…"
-              className="min-w-0 flex-1 bg-transparent text-xs text-ink outline-none placeholder:text-ink-mute"
-            />
-            <kbd className="rounded-md bg-paper-raised px-1.5 py-0.5 font-mono text-[10px] text-ink-mute">
-              ⌘K
-            </kbd>
-          </div>
+          {onOpenCommand && (
+            <button
+              type="button"
+              onClick={onOpenCommand}
+              className="hidden max-w-xs flex-1 items-center gap-2 rounded-xl border border-paper-line/60 bg-paper px-3 py-2 text-start transition hover:border-highlight/30 lg:flex"
+            >
+              <MagnifyingGlass size={16} className="text-ink-mute" />
+              <span className="min-w-0 flex-1 text-xs text-ink-mute">بحث سريع…</span>
+              <kbd className="rounded-md bg-paper-raised px-1.5 py-0.5 font-mono text-[10px] text-ink-mute">
+                ⌘K
+              </kbd>
+            </button>
+          )}
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             {pendingSync > 0 && (
