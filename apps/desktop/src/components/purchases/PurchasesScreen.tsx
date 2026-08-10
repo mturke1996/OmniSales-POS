@@ -17,6 +17,9 @@ import type {
 } from "../../lib/types";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
+import { DataTable } from "../ui/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
+import { cn } from "../../lib/cn";
 
 const PAY_AR: Record<string, string> = {
   unpaid: "غير مدفوع",
@@ -69,6 +72,145 @@ export function PurchasesScreen({
         )
         .slice(0, 40),
     [supplierPayments]
+  );
+
+  const purchaseColumns: ColumnDef<Purchase, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "purchase_number",
+        header: "رقم الأمر",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.purchase_number}</span>
+        ),
+      },
+      {
+        accessorKey: "supplier_name",
+        header: "المورد",
+      },
+      {
+        accessorKey: "created_at",
+        header: "التاريخ",
+        cell: ({ row }) =>
+          new Date(row.original.created_at).toLocaleString("ar-LY"),
+      },
+      {
+        accessorKey: "total_cost",
+        header: "الإجمالي",
+        cell: ({ row }) => (
+          <span className="money-big font-bold">
+            {formatMoney(row.original.total_cost, settings.currency_symbol)}
+          </span>
+        ),
+      },
+      {
+        id: "status",
+        header: "الحالة",
+        cell: ({ row }) => {
+          const p = row.original;
+          const paid = Number(p.paid_amount) || 0;
+          const due = Math.max(0, p.total_cost - paid);
+          const status = p.payment_status || (paid <= 0 ? "unpaid" : "partial");
+          return (
+            <div className="space-y-0.5">
+              <span
+                className={cn(
+                  "text-[11px] font-bold",
+                  p.status === "received" ? "text-success" : "text-warning"
+                )}
+              >
+                {p.status === "received" ? "مستلم" : "مسودة"}
+              </span>
+              {p.status === "received" && (
+                <p className="text-[10px] text-ink-mute">
+                  {PAY_AR[status] || status}
+                  {due > 0 ? ` · ${formatMoney(due, settings.currency_symbol)}` : ""}
+                </p>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "إجراء",
+        cell: ({ row }) => {
+          const p = row.original;
+          const paid = Number(p.paid_amount) || 0;
+          const due = Math.max(0, p.total_cost - paid);
+          return (
+            <div className="flex flex-wrap gap-1">
+              {p.status === "draft" && (
+                <button
+                  type="button"
+                  className="text-xs font-bold text-highlight"
+                  onClick={() => {
+                    void receivePurchase(p.id)
+                      .then(() => onRefreshData())
+                      .catch((e) =>
+                        alert(e instanceof Error ? e.message : "فشل الاستلام")
+                      );
+                  }}
+                >
+                  استلام
+                </button>
+              )}
+              {p.status === "received" && due > 0 && (
+                <button
+                  type="button"
+                  className="text-xs font-bold text-success"
+                  onClick={() => {
+                    const s = suppliers.find((x) => x.id === p.supplier_id);
+                    if (s) setPayTarget(s);
+                  }}
+                >
+                  سداد
+                </button>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [onRefreshData, settings.currency_symbol, suppliers]
+  );
+
+  const supplierColumns: ColumnDef<Supplier, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: "المورد",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.name}</span>
+        ),
+      },
+      { accessorKey: "phone", header: "الهاتف" },
+      {
+        accessorKey: "balance",
+        header: "مستحق علينا",
+        cell: ({ row }) => (
+          <span className="font-bold text-warning">
+            {formatMoney(row.original.balance || 0, settings.currency_symbol)}
+          </span>
+        ),
+      },
+      {
+        id: "pay",
+        header: "إجراء",
+        cell: ({ row }) =>
+          (row.original.balance || 0) > 0 ? (
+            <button
+              type="button"
+              className="text-xs font-bold text-highlight"
+              onClick={() => setPayTarget(row.original)}
+            >
+              سداد
+            </button>
+          ) : (
+            "—"
+          ),
+      },
+    ],
+    [settings.currency_symbol]
   );
 
   return (
@@ -127,45 +269,54 @@ export function PurchasesScreen({
       </div>
 
       {tab === "suppliers" && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {!suppliers.length && (
-            <p className="col-span-full py-10 text-center text-xs text-ink-mute">
-              لا يوجد موردون بعد
-            </p>
-          )}
-          {suppliers.map((s) => (
-            <div
-              key={s.id}
-              className="rounded-2xl border border-paper-line bg-paper-raised p-4"
-            >
-              <div className="flex items-center gap-2 font-bold text-ink">
-                <Truck size={18} className="text-highlight" />
-                {s.name}
-              </div>
-              <p className="mt-1 font-mono text-xs text-ink-mute">{s.phone}</p>
-              {s.address && (
-                <p className="mt-1 text-xs text-ink-mute">{s.address}</p>
-              )}
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[10px] text-ink-mute">مستحق علينا</p>
-                  <p className="font-mono text-sm font-bold text-warning">
-                    {formatMoney(s.balance || 0, settings.currency_symbol)}
-                  </p>
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 md:hidden">
+            {!suppliers.length && (
+              <p className="col-span-full py-10 text-center text-xs text-ink-mute">
+                لا يوجد موردون بعد
+              </p>
+            )}
+            {suppliers.map((s) => (
+              <div
+                key={s.id}
+                className="rounded-2xl border border-paper-line bg-paper-raised p-4"
+              >
+                <div className="flex items-center gap-2 font-bold text-ink">
+                  <Truck size={18} className="text-highlight" />
+                  {s.name}
                 </div>
-                {(s.balance || 0) > 0 && (
-                  <button
-                    type="button"
-                    className="btn-primary text-[11px] font-bold"
-                    onClick={() => setPayTarget(s)}
-                  >
-                    <Wallet size={14} className="inline" /> سداد
-                  </button>
+                <p className="mt-1 font-mono text-xs text-ink-mute">{s.phone}</p>
+                {s.address && (
+                  <p className="mt-1 text-xs text-ink-mute">{s.address}</p>
                 )}
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] text-ink-mute">مستحق علينا</p>
+                    <p className="font-mono text-sm font-bold text-warning">
+                      {formatMoney(s.balance || 0, settings.currency_symbol)}
+                    </p>
+                  </div>
+                  {(s.balance || 0) > 0 && (
+                    <button
+                      type="button"
+                      className="btn-primary text-[11px] font-bold"
+                      onClick={() => setPayTarget(s)}
+                    >
+                      <Wallet size={14} className="inline" /> سداد
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <div className="hidden md:block">
+            <DataTable
+              data={suppliers}
+              columns={supplierColumns}
+              emptyMessage="لا يوجد موردون بعد"
+            />
+          </div>
+        </>
       )}
 
       {tab === "payables" && (
@@ -243,10 +394,11 @@ export function PurchasesScreen({
       {tab === "purchases" && (
         <div className="space-y-3">
           {!sorted.length && (
-            <p className="py-10 text-center text-xs text-ink-mute">
+            <p className="py-10 text-center text-xs text-ink-mute md:hidden">
               لا توجد مشتريات — أنشئ أمر شراء واستلمه لإضافة المخزون
             </p>
           )}
+          <div className="space-y-3 md:hidden">
           {sorted.map((p) => {
             const paid = Number(p.paid_amount) || 0;
             const due = Math.max(0, p.total_cost - paid);
@@ -328,6 +480,14 @@ export function PurchasesScreen({
               </div>
             );
           })}
+          </div>
+          <div className="hidden md:block">
+            <DataTable
+              data={sorted}
+              columns={purchaseColumns}
+              emptyMessage="لا توجد مشتريات — أنشئ أمر شراء واستلمه"
+            />
+          </div>
         </div>
       )}
 

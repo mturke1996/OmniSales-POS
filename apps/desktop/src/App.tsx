@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { bootstrap, saveSettings, syncCloud, getPendingSyncCount } from "./lib/api";
 import { applyTheme, isThemeKey } from "./lib/theme";
 import type { Bootstrap, BranchSettings, Shift } from "./lib/types";
@@ -9,27 +9,63 @@ import { Sidebar, SidebarTab } from "./components/Sidebar";
 import { MobileNavDrawer } from "./components/MobileNavDrawer";
 import { MobileBottomNav } from "./components/MobileBottomNav";
 import { CashierGate } from "./components/auth/CashierGate";
-import { SetupWizard } from "./components/setup/SetupWizard";
-import { DashboardScreen } from "./components/dashboard/DashboardScreen";
-import { PosScreen } from "./components/pos/PosScreen";
-import { ShiftsScreen } from "./components/shifts/ShiftsScreen";
-import { OrdersScreen } from "./components/orders/OrdersScreen";
-import { InvoicesScreen } from "./components/invoices/InvoicesScreen";
-import { ReturnsScreen } from "./components/returns/ReturnsScreen";
-import { InventoryScreen } from "./components/inventory/InventoryScreen";
-import { CustomersScreen } from "./components/customers/CustomersScreen";
-import { CustomerProfileScreen } from "./components/customers/CustomerProfileScreen";
-import { ExpensesScreen } from "./components/expenses/ExpensesScreen";
-import { PurchasesScreen } from "./components/purchases/PurchasesScreen";
-import { OpsScreen } from "./components/ops/OpsScreen";
-import { ReportsScreen } from "./components/reports/ReportsScreen";
-import { SettingsPanel } from "./components/settings/SettingsPanel";
-import { ShortcutsModal } from "./components/pos/ShortcutsModal";
 import { PwaInstallBanner } from "./components/pwa/PwaInstallBanner";
 import { PwaUpdateToast } from "./components/pwa/PwaUpdateToast";
 import { AppShell } from "./components/layout/AppShell";
 import { CommandPalette } from "./components/layout/CommandPalette";
+import { ScreenLoader } from "./components/ui/ScreenLoader";
 import { can } from "./lib/permissions";
+
+const SetupWizard = lazy(() =>
+  import("./components/setup/SetupWizard").then((m) => ({ default: m.SetupWizard }))
+);
+const DashboardScreen = lazy(() =>
+  import("./components/dashboard/DashboardScreen").then((m) => ({ default: m.DashboardScreen }))
+);
+const PosScreen = lazy(() =>
+  import("./components/pos/PosScreen").then((m) => ({ default: m.PosScreen }))
+);
+const ShiftsScreen = lazy(() =>
+  import("./components/shifts/ShiftsScreen").then((m) => ({ default: m.ShiftsScreen }))
+);
+const OrdersScreen = lazy(() =>
+  import("./components/orders/OrdersScreen").then((m) => ({ default: m.OrdersScreen }))
+);
+const InvoicesScreen = lazy(() =>
+  import("./components/invoices/InvoicesScreen").then((m) => ({ default: m.InvoicesScreen }))
+);
+const ReturnsScreen = lazy(() =>
+  import("./components/returns/ReturnsScreen").then((m) => ({ default: m.ReturnsScreen }))
+);
+const InventoryScreen = lazy(() =>
+  import("./components/inventory/InventoryScreen").then((m) => ({ default: m.InventoryScreen }))
+);
+const CustomersScreen = lazy(() =>
+  import("./components/customers/CustomersScreen").then((m) => ({ default: m.CustomersScreen }))
+);
+const CustomerProfileScreen = lazy(() =>
+  import("./components/customers/CustomerProfileScreen").then((m) => ({
+    default: m.CustomerProfileScreen,
+  }))
+);
+const ExpensesScreen = lazy(() =>
+  import("./components/expenses/ExpensesScreen").then((m) => ({ default: m.ExpensesScreen }))
+);
+const PurchasesScreen = lazy(() =>
+  import("./components/purchases/PurchasesScreen").then((m) => ({ default: m.PurchasesScreen }))
+);
+const OpsScreen = lazy(() =>
+  import("./components/ops/OpsScreen").then((m) => ({ default: m.OpsScreen }))
+);
+const ReportsScreen = lazy(() =>
+  import("./components/reports/ReportsScreen").then((m) => ({ default: m.ReportsScreen }))
+);
+const SettingsPanel = lazy(() =>
+  import("./components/settings/SettingsPanel").then((m) => ({ default: m.SettingsPanel }))
+);
+const ShortcutsModal = lazy(() =>
+  import("./components/pos/ShortcutsModal").then((m) => ({ default: m.ShortcutsModal }))
+);
 
 function initialTab(): SidebarTab {
   const q = new URLSearchParams(window.location.search).get("tab") as SidebarTab | null;
@@ -149,13 +185,15 @@ export default function App() {
 
   if (!draft.setup_complete) {
     return (
-      <SetupWizard
-        settings={draft}
-        onComplete={(next) => {
-          setDraft(next);
-          setData((prev) => (prev ? { ...prev, settings: next } : prev));
-        }}
-      />
+      <Suspense fallback={<ScreenLoader label="جاري تحميل معالج الإعداد…" />}>
+        <SetupWizard
+          settings={draft}
+          onComplete={(next) => {
+            setDraft(next);
+            setData((prev) => (prev ? { ...prev, settings: next } : prev));
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -216,6 +254,7 @@ export default function App() {
       }
       contentClassName={!isPos ? "lg:pb-[max(1rem,env(safe-area-inset-bottom))]" : undefined}
     >
+      <Suspense fallback={<ScreenLoader />}>
       {isPos ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden safe-top">
           <PosScreen
@@ -472,9 +511,12 @@ export default function App() {
               ))}
         </>
       )}
+      </Suspense>
 
       {showShortcutsModal && !isPos && (
-        <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />
+        <Suspense fallback={null}>
+          <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />
+        </Suspense>
       )}
 
       <PwaInstallBanner />

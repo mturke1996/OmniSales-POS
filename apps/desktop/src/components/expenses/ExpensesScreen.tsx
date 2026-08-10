@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, X } from "@phosphor-icons/react";
 import { addExpense } from "../../lib/api";
 import type { BranchSettings, Expense } from "../../lib/types";
@@ -6,6 +6,8 @@ import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
 import { SearchField } from "../ui/SearchField";
+import { DataTable } from "../ui/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 
 interface ExpensesScreenProps {
   expenses: Expense[];
@@ -30,6 +32,39 @@ export function ExpensesScreen({
   );
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const columns: ColumnDef<Expense, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "category",
+        header: "التصنيف",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.category}</span>
+        ),
+      },
+      {
+        accessorKey: "amount",
+        header: "المبلغ",
+        cell: ({ row }) => (
+          <span className="money-big font-bold text-danger">
+            −{row.original.amount.toFixed(2)} {settings.currency_symbol}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "note",
+        header: "البيان",
+        cell: ({ row }) => row.original.note || "—",
+      },
+      {
+        accessorKey: "created_at",
+        header: "التاريخ",
+        cell: ({ row }) =>
+          new Date(row.original.created_at).toLocaleString("ar-LY"),
+      },
+    ],
+    [settings.currency_symbol]
+  );
 
   return (
     <>
@@ -96,39 +131,12 @@ export function ExpensesScreen({
         ))}
       </MobileDataList>
 
-      <div className="hidden overflow-x-auto rounded-2xl border border-paper-line bg-paper-raised shadow-xs md:block">
-        <table className="w-full text-right text-xs">
-          <thead className="bg-paper text-ink-mute font-bold border-b border-paper-line">
-            <tr>
-              <th className="p-3">التصنيف</th>
-              <th className="p-3">المبلغ</th>
-              <th className="p-3">البيان / الملاحظة</th>
-              <th className="p-3">التاريخ والوقت</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-paper-line">
-            {!filtered.length ? (
-              <tr>
-                <td colSpan={4} className="p-8 text-center text-ink-mute">
-                  لا توجد مصروفات مسجلة
-                </td>
-              </tr>
-            ) : (
-              filtered.map((exp) => (
-                <tr key={exp.id} className="hover:bg-paper/50">
-                  <td className="p-3 font-bold text-ink">{exp.category}</td>
-                  <td className="p-3 font-mono font-bold text-red-600">
-                    -{exp.amount.toFixed(2)} {settings.currency_symbol}
-                  </td>
-                  <td className="p-3 text-ink-mute">{exp.note || "-"}</td>
-                  <td className="p-3 text-ink-mute">
-                    {new Date(exp.created_at).toLocaleString("ar-LY")}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="hidden md:block">
+        <DataTable
+          data={filtered}
+          columns={columns}
+          emptyMessage="لا توجد مصروفات مسجلة"
+        />
       </div>
 
       {/* Add Expense Modal */}

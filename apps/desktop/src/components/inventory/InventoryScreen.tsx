@@ -29,6 +29,8 @@ import type {
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
+import { DataTable } from "../ui/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 import { BarcodeScannerModal } from "../pos/BarcodeScannerModal";
 
 type TabKey = "catalog" | "count" | "movements" | "categories";
@@ -97,6 +99,151 @@ export function InventoryScreen({
     { id: "movements", label: "الحركات", icon: <ClockCounterClockwise size={14} /> },
     { id: "categories", label: "التصنيفات", icon: <ArrowsDownUp size={14} /> },
   ];
+
+  const catalogColumns: ColumnDef<Product, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "name",
+        header: "المنتج",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.name}</span>
+        ),
+      },
+      {
+        id: "category",
+        header: "التصنيف",
+        cell: ({ row }) => (
+          <span className="text-ink-mute">{categoryName(row.original.category_id)}</span>
+        ),
+      },
+      { accessorKey: "barcode", header: "الباركود" },
+      {
+        accessorKey: "retail_price",
+        header: "البيع",
+        cell: ({ row }) => (
+          <span className="money-big font-bold">
+            {row.original.retail_price.toFixed(2)} {settings.currency_symbol}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "stock_quantity",
+        header: "المخزون",
+        cell: ({ row }) => {
+          const p = row.original;
+          const isLow = p.track_stock && p.stock_quantity <= p.min_stock;
+          return (
+            <span
+              className={cn(
+                "font-mono font-bold",
+                isLow && "rounded bg-danger/10 px-2 py-0.5 text-danger"
+              )}
+            >
+              {p.stock_quantity} {p.unit_type}
+            </span>
+          );
+        },
+      },
+      {
+        id: "version",
+        header: "إصدار",
+        cell: ({ row }) => (
+          <span className="font-mono text-ink-mute">v{row.original.stock_version ?? 0}</span>
+        ),
+      },
+      ...(canManage
+        ? [
+            {
+              id: "actions",
+              header: "إجراءات",
+              cell: ({ row }: { row: { original: Product } }) => {
+                const prod = row.original;
+                return (
+                  <div className="inline-flex gap-1">
+                    <button
+                      type="button"
+                      title="جرد"
+                      onClick={() => setCountProduct(prod)}
+                      className="rounded-lg p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
+                    >
+                      <Scales size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      title="تسوية"
+                      onClick={() => setAdjustProduct(prod)}
+                      className="rounded-lg p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
+                    >
+                      <ArrowsDownUp size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      title="تعديل"
+                      onClick={() => {
+                        setEditingProduct(prod);
+                        setShowAddModal(true);
+                      }}
+                      className="rounded-lg p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
+                    >
+                      <PencilSimple size={16} />
+                    </button>
+                  </div>
+                );
+              },
+            } as ColumnDef<Product, unknown>,
+          ]
+        : []),
+    ],
+    [canManage, categoryName, settings.currency_symbol]
+  );
+
+  const movementColumns: ColumnDef<StockMovement, unknown>[] = useMemo(
+    () => [
+      {
+        id: "product",
+        header: "الصنف",
+        cell: ({ row }) => (
+          <span className="font-semibold text-ink">{productName(row.original.product_id)}</span>
+        ),
+      },
+      {
+        id: "reason",
+        header: "السبب",
+        cell: ({ row }) => STOCK_REASON_AR[row.original.reason] || row.original.reason,
+      },
+      {
+        accessorKey: "delta",
+        header: "التغيير",
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              "font-mono font-bold",
+              row.original.delta >= 0 ? "text-success" : "text-danger"
+            )}
+          >
+            {row.original.delta >= 0 ? "+" : ""}
+            {row.original.delta}
+          </span>
+        ),
+      },
+      {
+        id: "qty",
+        header: "قبل → بعد",
+        cell: ({ row }) => (
+          <span className="font-mono text-ink-mute">
+            {row.original.qty_before} → {row.original.qty_after}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "created_at",
+        header: "التاريخ",
+        cell: ({ row }) =>
+          new Date(row.original.created_at).toLocaleString("ar-LY"),
+      },
+    ],
+    [productName]
+  );
 
   return (
     <>
@@ -238,87 +385,12 @@ export function InventoryScreen({
             })}
           </MobileDataList>
 
-          <div className="hidden overflow-x-auto rounded-2xl border border-paper-line bg-paper-raised md:block">
-            <table className="w-full text-right text-xs">
-              <thead className="border-b border-paper-line bg-paper font-bold text-ink-mute">
-                <tr>
-                  <th className="p-3">المنتج</th>
-                  <th className="p-3">التصنيف</th>
-                  <th className="p-3">الباركود</th>
-                  <th className="p-3">البيع</th>
-                  <th className="p-3">المخزون</th>
-                  <th className="p-3">إصدار</th>
-                  <th className="p-3 text-left">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-paper-line">
-                {filtered.map((prod) => {
-                  const isLow =
-                    prod.track_stock && prod.stock_quantity <= prod.min_stock;
-                  return (
-                    <tr key={prod.id} className="hover:bg-paper/50">
-                      <td className="p-3 font-bold text-ink">{prod.name}</td>
-                      <td className="p-3 text-ink-mute">
-                        {categoryName(prod.category_id)}
-                      </td>
-                      <td className="p-3 font-mono text-ink-mute">
-                        {prod.barcode}
-                      </td>
-                      <td className="p-3 font-mono font-bold">
-                        {prod.retail_price.toFixed(2)}
-                      </td>
-                      <td className="p-3 font-mono">
-                        <span
-                          className={
-                            isLow
-                              ? "rounded bg-red-50 px-2 py-0.5 font-bold text-red-600"
-                              : "font-bold"
-                          }
-                        >
-                          {prod.stock_quantity}
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono text-ink-mute">
-                        v{prod.stock_version ?? 0}
-                      </td>
-                      <td className="p-3 text-left">
-                        {canManage && (
-                          <div className="inline-flex gap-1">
-                            <button
-                              type="button"
-                              title="جرد"
-                              onClick={() => setCountProduct(prod)}
-                              className="rounded-full p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
-                            >
-                              <Scales size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              title="تسوية"
-                              onClick={() => setAdjustProduct(prod)}
-                              className="rounded-full p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
-                            >
-                              <ArrowsDownUp size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              title="تعديل"
-                              onClick={() => {
-                                setEditingProduct(prod);
-                                setShowAddModal(true);
-                              }}
-                              className="rounded-full p-1.5 text-ink-mute hover:bg-paper hover:text-ink"
-                            >
-                              <PencilSimple size={16} />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="hidden md:block">
+            <DataTable
+              data={filtered}
+              columns={catalogColumns}
+              emptyMessage="لا توجد منتجات"
+            />
           </div>
         </>
       )}
@@ -396,6 +468,13 @@ export function InventoryScreen({
               />
             ))}
           </MobileDataList>
+          <div className="hidden md:block">
+            <DataTable
+              data={movements}
+              columns={movementColumns}
+              emptyMessage="لا حركات بعد"
+            />
+          </div>
         </div>
       )}
 
