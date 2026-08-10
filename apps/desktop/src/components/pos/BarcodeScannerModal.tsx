@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Camera, X, Barcode } from "@phosphor-icons/react";
 
 /**
@@ -9,23 +9,43 @@ import { Camera, X, Barcode } from "@phosphor-icons/react";
 export function BarcodeScannerModal({
   onDetect,
   onClose,
+  continuous = false,
 }: {
   onDetect: (code: string) => void;
   onClose: () => void;
+  /** Keep camera open after each scan (mobile POS flow) */
+  continuous?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState("");
+  const [lastScan, setLastScan] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef(0);
+  const pausedRef = useRef(false);
+
+  const handleDetect = useCallback(
+    (code: string) => {
+      setLastScan(code);
+      onDetect(code);
+      if (!continuous) onClose();
+      else {
+        pausedRef.current = true;
+        window.setTimeout(() => {
+          pausedRef.current = false;
+        }, 900);
+      }
+    },
+    [continuous, onClose, onDetect]
+  );
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const clean = manualCode.trim();
     if (clean) {
-      onDetect(clean);
-      onClose();
+      handleDetect(clean);
+      setManualCode("");
     }
   };
 
@@ -75,15 +95,17 @@ export function BarcodeScannerModal({
         }
 
         const tick = async () => {
-          if (cancelled || !videoRef.current) return;
+          if (cancelled || !videoRef.current || pausedRef.current) {
+            if (!cancelled) rafRef.current = window.setTimeout(() => void tick(), 200) as unknown as number;
+            return;
+          }
           try {
             if (video.readyState >= 2) {
               if (detector) {
                 const codes = await detector.detect(video);
                 if (codes[0]?.rawValue) {
-                  onDetect(codes[0].rawValue);
-                  onClose();
-                  return;
+                  handleDetect(codes[0].rawValue);
+                  if (!continuous) return;
                 }
               }
             }
@@ -110,7 +132,7 @@ export function BarcodeScannerModal({
       window.clearTimeout(rafRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-  }, [onClose, onDetect]);
+  }, [continuous, handleDetect]);
 
   return (
     <div className="app-modal-backdrop">
@@ -128,6 +150,12 @@ export function BarcodeScannerModal({
             <X size={18} />
           </button>
         </div>
+
+        {continuous && lastScan && (
+          <p className="rounded-xl bg-success/10 px-3 py-2 text-center text-xs font-semibold text-success">
+            آخر مسح: {lastScan}
+          </p>
+        )}
 
         <div className="relative overflow-hidden rounded-2xl bg-ink min-h-[180px] flex items-center justify-center">
           <video
@@ -169,6 +197,12 @@ export function BarcodeScannerModal({
             إضافة
           </button>
         </form>
+
+        {continuous && (
+          <button type="button" onClick={onClose} className="btn-ghost w-full text-xs font-bold">
+            إنهاء المسح
+          </button>
+        )}
       </div>
     </div>
   );

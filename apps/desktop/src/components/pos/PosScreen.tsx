@@ -39,8 +39,16 @@ import { PosCartPanel } from "./PosCartPanel";
 import { MobilePosHeader } from "./MobilePosHeader";
 import { MobilePosTabBar, type MobilePosTab } from "./MobilePosTabBar";
 import { PosQuickActions } from "./PosQuickActions";
+import { PosProductStrip } from "./PosProductStrip";
 import { usePhoneLayout } from "../../hooks/use-media-query";
 import { usePrinter } from "../../hooks/use-printer";
+import {
+  getPinnedProductIds,
+  getRecentProductIds,
+  togglePinnedProductId,
+  recordRecentProductId,
+  resolveProductsByIds,
+} from "../../lib/pos-product-memory";
 
 export function PosScreen({
   settings,
@@ -120,10 +128,14 @@ export function PosScreen({
       const meta = promptSerialMeta(settings, p.name);
       if (!meta) return;
       add(p, { qty: 1, ...meta, priceMode });
+      recordRecentProductId(p.id);
+      setRecentIds(getRecentProductIds());
       notifyAdded(p.name);
       return;
     }
     add(p, { qty: 1, priceMode });
+    recordRecentProductId(p.id);
+    setRecentIds(getRecentProductIds());
     notifyAdded(p.name);
   }
 
@@ -164,6 +176,8 @@ export function PosScreen({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [mobileTab, setMobileTab] = useState<MobilePosTab>("products");
   const [addToast, setAddToast] = useState<string | null>(null);
+  const [pinnedIds, setPinnedIds] = useState<string[]>(() => getPinnedProductIds());
+  const [recentIds, setRecentIds] = useState<string[]>(() => getRecentProductIds());
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [saleMode, setSaleMode] = useState<"walk_in" | "delivery">("walk_in");
   const [deliveryAddress, setDeliveryAddress] = useState("");
@@ -238,6 +252,30 @@ export function PosScreen({
         ? "wholesale"
         : "pos_walk_in";
   const totalItemsCount = lines.reduce((s, i) => s + i.quantity, 0);
+
+  const pinnedProducts = useMemo(
+    () => resolveProductsByIds(products, pinnedIds),
+    [products, pinnedIds]
+  );
+  const recentProducts = useMemo(
+    () =>
+      resolveProductsByIds(
+        products,
+        recentIds.filter((id) => !pinnedIds.includes(id))
+      ).slice(0, 8),
+    [products, recentIds, pinnedIds]
+  );
+  const pinnedIdSet = useMemo(() => new Set(pinnedIds), [pinnedIds]);
+
+  function handleTogglePin(p: Product) {
+    const next = togglePinnedProductId(p.id);
+    setPinnedIds(next);
+    if (isPhone) {
+      const nowPinned = next.includes(p.id);
+      setAddToast(nowPinned ? `★ «${p.name}» في المفضلة` : `أُزيل «${p.name}» من المفضلة`);
+      window.setTimeout(() => setAddToast(null), 1400);
+    }
+  }
 
   const needsShift =
     settings.walk_in_sales_enabled &&
@@ -531,6 +569,29 @@ export function PosScreen({
                 </div>
               )}
 
+              {!query.trim() && (
+                <>
+                  <PosProductStrip
+                    title="مفضّلة سريعة"
+                    icon="pinned"
+                    products={pinnedProducts}
+                    pinnedIds={pinnedIdSet}
+                    currencySymbol={settings.currency_symbol}
+                    onAdd={addProductToCart}
+                    onTogglePin={handleTogglePin}
+                    disabled={needsShift}
+                  />
+                  <PosProductStrip
+                    title="أُضيف مؤخراً"
+                    icon="recent"
+                    products={recentProducts}
+                    currencySymbol={settings.currency_symbol}
+                    onAdd={addProductToCart}
+                    disabled={needsShift}
+                  />
+                </>
+              )}
+
               <ProductGrid
                 products={filtered}
                 categories={categories}
@@ -539,6 +600,8 @@ export function PosScreen({
                 onAdd={addProductToCart}
                 disabled={needsShift}
                 phoneLayout
+                pinnedIds={pinnedIdSet}
+                onTogglePin={isPhone ? handleTogglePin : undefined}
               />
             </section>
           ) : (
@@ -743,6 +806,7 @@ export function PosScreen({
             await removeHeldCart(id);
             onRefreshData();
           }}
+          mobile={isPhone}
         />
       )}
 
@@ -753,6 +817,7 @@ export function PosScreen({
           onSelect={(c) => setSelectedCustomer(c)}
           onAddCustomer={addCustomer}
           onClose={() => setShowCustomerModal(false)}
+          mobile={isPhone}
         />
       )}
 
@@ -762,13 +827,14 @@ export function PosScreen({
 
       {showScanner && (
         <BarcodeScannerModal
+          continuous={isPhone}
           onClose={() => setShowScanner(false)}
           onDetect={(code) => {
             if (!acceptScan(code)) return;
             const exact = findExactCatalogMatch(products, code);
             if (exact) {
               addProductToCart(exact);
-              setMessage(`تم مسح: ${exact.name}`);
+              if (!isPhone) setMessage(`تم مسح: ${exact.name}`);
             } else {
               feedbackScan(false);
               setQuery(code);

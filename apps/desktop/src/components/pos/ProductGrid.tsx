@@ -44,6 +44,8 @@ export function ProductGrid({
   onAdd,
   disabled = false,
   phoneLayout = false,
+  pinnedIds,
+  onTogglePin,
 }: {
   products: Product[];
   categories?: ProductCategory[];
@@ -52,6 +54,8 @@ export function ProductGrid({
   onAdd: (p: Product) => void;
   disabled?: boolean;
   phoneLayout?: boolean;
+  pinnedIds?: Set<string>;
+  onTogglePin?: (p: Product) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
@@ -210,6 +214,8 @@ export function ProductGrid({
                         tall={layout === "touch_tiles"}
                         isMobile={isMobile}
                         disabled={disabled}
+                        pinned={pinnedIds?.has(p.id)}
+                        onTogglePin={onTogglePin}
                         shortcut={
                           vRow.index === 0 && idx < 9 ? idx + 1 : undefined
                         }
@@ -259,6 +265,8 @@ function ProductTile({
   isMobile,
   shortcut,
   disabled = false,
+  pinned,
+  onTogglePin,
 }: {
   product: Product;
   currencySymbol: string;
@@ -267,21 +275,45 @@ function ProductTile({
   isMobile?: boolean;
   shortcut?: number;
   disabled?: boolean;
+  pinned?: boolean;
+  onTogglePin?: (p: Product) => void;
 }) {
+  const longPressRef = useRef<number | null>(null);
+
   const low =
     product.track_stock && product.stock_quantity <= product.min_stock;
   const locked = disabled || !product.is_active;
+
+  function clearLongPress() {
+    if (longPressRef.current != null) {
+      window.clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }
 
   return (
     <button
       type="button"
       onClick={() => onAdd(product)}
       disabled={locked}
+      onContextMenu={(e) => {
+        if (!onTogglePin) return;
+        e.preventDefault();
+        onTogglePin(product);
+      }}
+      onTouchStart={() => {
+        if (!onTogglePin) return;
+        clearLongPress();
+        longPressRef.current = window.setTimeout(() => onTogglePin(product), 550);
+      }}
+      onTouchEnd={clearLongPress}
+      onTouchMove={clearLongPress}
       className={cn(
         "bonbon-tile group flex flex-col overflow-hidden transition active:scale-[0.97]",
         isMobile ? "!p-2 rounded-2xl min-h-[8.5rem]" : "",
         locked && "pointer-events-none opacity-45",
-        tall && !isMobile && "min-h-[12rem]"
+        tall && !isMobile && "min-h-[12rem]",
+        pinned && "ring-2 ring-warning/50"
       )}
     >
       <div className={cn("relative overflow-hidden", isMobile ? "-mx-2 -mt-2 mb-1.5 rounded-t-xl" : "-mx-1 -mt-1 mb-2.5 rounded-t-[0.65rem]")}>
@@ -315,6 +347,11 @@ function ProductTile({
         {low && (
           <span className="absolute top-1.5 end-1.5 rounded-md bg-danger/90 px-1 py-0.5 text-[9px] font-bold text-white">
             منخفض
+          </span>
+        )}
+        {pinned && (
+          <span className="absolute top-1.5 start-1.5 rounded-md bg-warning/90 px-1 py-0.5 text-[9px] font-bold text-white">
+            ★
           </span>
         )}
       </div>
