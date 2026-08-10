@@ -24,6 +24,12 @@ export function isAndroidBrowser(): boolean {
 }
 
 export function shouldOfferApkDownload(runtime: "tauri" | "capacitor" | "pwa"): boolean {
+  // Already running inside the Android APK — hide download entry.
   if (runtime === "capacitor") return false;
-  return isAndroidBrowser() || runtime === "pwa";
+  return true;
+}
+
+/** Main-menu download always points at GitHub main (stable even before Vercel deploy). */
+export function mainMenuApkDownloadUrl(): string {
+  return GITHUB_APK_URL;
 }

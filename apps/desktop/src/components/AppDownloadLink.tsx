@@ -3,6 +3,7 @@ import { cn } from "../lib/cn";
 import {
   APK_FILENAME,
   GITHUB_APK_URL,
+  mainMenuApkDownloadUrl,
   resolveApkDownloadUrl,
   shouldOfferApkDownload,
 } from "../lib/app-download";
@@ -23,7 +24,7 @@ export function AppDownloadLink({
   const runtime = detectRuntime();
   if (!shouldOfferApkDownload(runtime)) return null;
 
-  const href = resolveApkDownloadUrl();
+  const href = nav ? mainMenuApkDownloadUrl() : resolveApkDownloadUrl();
 
   if (nav) {
     return (

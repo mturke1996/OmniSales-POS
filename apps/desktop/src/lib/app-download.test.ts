@@ -1,7 +1,9 @@
 import { describe, expect, it, afterEach } from "vitest";
 import {
   APK_PUBLIC_PATH,
+  GITHUB_APK_URL,
   isAndroidBrowser,
+  mainMenuApkDownloadUrl,
   shouldOfferApkDownload,
 } from "./app-download";
 
@@ -21,14 +23,19 @@ describe("app-download", () => {
     expect(APK_PUBLIC_PATH).toBe("/downloads/OmniSales.apk");
   });
 
-  it("offers APK on PWA desktop but not inside native shell", () => {
+  it("main menu links to GitHub main branch APK", () => {
+    expect(mainMenuApkDownloadUrl()).toBe(GITHUB_APK_URL);
+    expect(GITHUB_APK_URL).toContain("/main/");
+  });
+
+  it("offers APK on web/desktop but not inside Android APK shell", () => {
     Object.defineProperty(globalThis.navigator, "userAgent", {
       value: "Mozilla/5.0 (Windows NT 10.0)",
       configurable: true,
     });
     expect(shouldOfferApkDownload("pwa")).toBe(true);
+    expect(shouldOfferApkDownload("tauri")).toBe(true);
     expect(shouldOfferApkDownload("capacitor")).toBe(false);
-    expect(shouldOfferApkDownload("tauri")).toBe(false);
   });
 
   it("detects Android user agent", () => {

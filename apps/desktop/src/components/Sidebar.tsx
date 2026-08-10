@@ -17,11 +17,18 @@ import {
   Handshake,
   ShieldCheck,
   MagnifyingGlass,
+  DeviceMobile,
+  DownloadSimple,
 } from "@phosphor-icons/react";
 import type { BranchSettings, Shift } from "../lib/types";
 import type { CashierSession } from "../lib/session";
 import { cn } from "../lib/cn";
-import { AppDownloadLink } from "./AppDownloadLink";
+import {
+  APK_FILENAME,
+  mainMenuApkDownloadUrl,
+  shouldOfferApkDownload,
+} from "../lib/app-download";
+import { detectRuntime } from "../lib/native";
 
 export type SidebarTab =
   | "dashboard"
@@ -50,40 +57,59 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-type NavItem = { id: SidebarTab; label: string; icon: ReactNode };
+type NavTabItem = { kind: "tab"; id: SidebarTab; label: string; icon: ReactNode };
+type NavExternalItem = {
+  kind: "external";
+  id: string;
+  label: string;
+  icon: ReactNode;
+  href: string;
+  download?: string;
+  when?: () => boolean;
+};
+type NavItem = NavTabItem | NavExternalItem;
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "الرئيسية",
     items: [
-      { id: "dashboard", label: "لوحة التحكم", icon: <House size={17} weight="duotone" /> },
-      { id: "pos", label: "نقطة البيع", icon: <Storefront size={17} weight="duotone" /> },
-      { id: "shifts", label: "الورديات", icon: <ClockAfternoon size={17} weight="duotone" /> },
+      { kind: "tab", id: "dashboard", label: "لوحة التحكم", icon: <House size={17} weight="duotone" /> },
+      { kind: "tab", id: "pos", label: "نقطة البيع", icon: <Storefront size={17} weight="duotone" /> },
+      { kind: "tab", id: "shifts", label: "الورديات", icon: <ClockAfternoon size={17} weight="duotone" /> },
+      {
+        kind: "external",
+        id: "android-apk",
+        label: "تطبيق Android",
+        icon: <DeviceMobile size={17} weight="duotone" />,
+        href: mainMenuApkDownloadUrl(),
+        download: APK_FILENAME,
+        when: () => shouldOfferApkDownload(detectRuntime()),
+      },
     ],
   },
   {
     title: "المبيعات",
     items: [
-      { id: "orders", label: "التوصيل", icon: <Truck size={17} weight="duotone" /> },
-      { id: "invoices", label: "المبيعات المنفذة", icon: <FileText size={17} weight="duotone" /> },
-      { id: "returns", label: "المرتجعات", icon: <ArrowUUpLeft size={17} weight="duotone" /> },
-      { id: "customers", label: "العملاء", icon: <Users size={17} weight="duotone" /> },
+      { kind: "tab", id: "orders", label: "التوصيل", icon: <Truck size={17} weight="duotone" /> },
+      { kind: "tab", id: "invoices", label: "المبيعات المنفذة", icon: <FileText size={17} weight="duotone" /> },
+      { kind: "tab", id: "returns", label: "المرتجعات", icon: <ArrowUUpLeft size={17} weight="duotone" /> },
+      { kind: "tab", id: "customers", label: "العملاء", icon: <Users size={17} weight="duotone" /> },
     ],
   },
   {
     title: "المخزون والمشتريات",
     items: [
-      { id: "inventory", label: "المخزون", icon: <Package size={17} weight="duotone" /> },
-      { id: "purchases", label: "المشتريات", icon: <Handshake size={17} weight="duotone" /> },
+      { kind: "tab", id: "inventory", label: "المخزون", icon: <Package size={17} weight="duotone" /> },
+      { kind: "tab", id: "purchases", label: "المشتريات", icon: <Handshake size={17} weight="duotone" /> },
     ],
   },
   {
     title: "المالية والإدارة",
     items: [
-      { id: "expenses", label: "المصروفات", icon: <Receipt size={17} weight="duotone" /> },
-      { id: "ops", label: "عروض وتدقيق", icon: <ShieldCheck size={17} weight="duotone" /> },
-      { id: "reports", label: "التقارير", icon: <ChartBar size={17} weight="duotone" /> },
-      { id: "settings", label: "الإعدادات", icon: <GearSix size={17} weight="duotone" /> },
+      { kind: "tab", id: "expenses", label: "المصروفات", icon: <Receipt size={17} weight="duotone" /> },
+      { kind: "tab", id: "ops", label: "عروض وتدقيق", icon: <ShieldCheck size={17} weight="duotone" /> },
+      { kind: "tab", id: "reports", label: "التقارير", icon: <ChartBar size={17} weight="duotone" /> },
+      { kind: "tab", id: "settings", label: "الإعدادات", icon: <GearSix size={17} weight="duotone" /> },
     ],
   },
 ];
@@ -113,9 +139,15 @@ export function Sidebar({
   const groups = q
     ? NAV_GROUPS.map((g) => ({
         ...g,
-        items: g.items.filter((i) => i.label.toLowerCase().includes(q)),
+        items: g.items.filter((i) => {
+          if (i.kind === "external" && i.when && !i.when()) return false;
+          return i.label.toLowerCase().includes(q);
+        }),
       })).filter((g) => g.items.length > 0)
-    : NAV_GROUPS;
+    : NAV_GROUPS.map((g) => ({
+        ...g,
+        items: g.items.filter((i) => !(i.kind === "external" && i.when && !i.when())),
+      }));
 
   return (
     <aside
@@ -176,25 +208,33 @@ export function Sidebar({
               </p>
             )}
             <div className="flex flex-col gap-0.5">
-              {group.items.map((item) => (
-                <SidebarItem
-                  key={item.id}
-                  active={currentTab === item.id}
-                  onClick={() => go(item.id)}
-                  icon={item.icon}
-                  label={item.label}
-                  collapsed={slim}
-                  badge={
-                    item.id === "pos" && heldCartsCount > 0
-                      ? heldCartsCount
-                      : item.id === "shifts" && openShift
-                        ? "●"
-                        : undefined
-                  }
-                />
-              ))}
-              {group.title === "الرئيسية" && (
-                <AppDownloadLink nav collapsed={slim} />
+              {group.items.map((item) =>
+                item.kind === "external" ? (
+                  <SidebarExternalItem
+                    key={item.id}
+                    href={item.href}
+                    download={item.download}
+                    icon={item.icon}
+                    label={item.label}
+                    collapsed={slim}
+                  />
+                ) : (
+                  <SidebarItem
+                    key={item.id}
+                    active={currentTab === item.id}
+                    onClick={() => go(item.id)}
+                    icon={item.icon}
+                    label={item.label}
+                    collapsed={slim}
+                    badge={
+                      item.id === "pos" && heldCartsCount > 0
+                        ? heldCartsCount
+                        : item.id === "shifts" && openShift
+                          ? "●"
+                          : undefined
+                    }
+                  />
+                )
               )}
             </div>
           </div>
@@ -254,6 +294,47 @@ export function Sidebar({
         )}
       </div>
     </aside>
+  );
+}
+
+function SidebarExternalItem({
+  href,
+  download,
+  icon,
+  label,
+  collapsed,
+}: {
+  href: string;
+  download?: string;
+  icon: ReactNode;
+  label: string;
+  collapsed: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      download={download}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={collapsed ? label : undefined}
+      className={cn(
+        "group relative flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition duration-150",
+        "text-sidebar-mute hover:bg-white/[0.06] hover:text-sidebar-text",
+        collapsed && "min-h-10 justify-center px-2"
+      )}
+    >
+      <span className="shrink-0">{icon}</span>
+      {!collapsed && (
+        <>
+          <span className="truncate">{label}</span>
+          <DownloadSimple
+            size={14}
+            weight="duotone"
+            className="ms-auto shrink-0 opacity-60 group-hover:opacity-100"
+          />
+        </>
+      )}
+    </a>
   );
 }
 
