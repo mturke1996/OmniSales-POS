@@ -16,12 +16,16 @@ export function DataTable<T>({
   emptyMessage = "لا توجد بيانات",
   className,
   stickyHeader = true,
+  onRowClick,
+  getRowClassName,
 }: {
   data: T[];
   columns: ColumnDef<T, unknown>[];
   emptyMessage?: string;
   className?: string;
   stickyHeader?: boolean;
+  onRowClick?: (row: T) => void;
+  getRowClassName?: (row: T) => string | undefined;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -81,7 +85,12 @@ export function DataTable<T>({
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className="border-t border-paper-line/50 transition hover:bg-paper/60"
+                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                className={cn(
+                  "border-t border-paper-line/50 transition hover:bg-paper/60",
+                  onRowClick && "cursor-pointer",
+                  getRowClassName?.(row.original)
+                )}
               >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="px-4 py-3 align-middle">

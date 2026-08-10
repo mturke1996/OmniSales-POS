@@ -31,6 +31,9 @@ import { TopProductsChart } from "../charts/TopProductsChart";
 import { PaymentMixChart } from "../charts/PaymentMixChart";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
+import { DataTable } from "../ui/DataTable";
+import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import type { ColumnDef } from "@tanstack/react-table";
 
 const PERIODS: { key: PeriodKey; label: string }[] = [
   { key: "today", label: "اليوم" },
@@ -76,6 +79,39 @@ export function ReportsScreen({
     const csv = exportAnalyticsCsv(snap, settings.currency_symbol);
     downloadCsv(`omnisales-analytics-${snap.range.key}`, csv);
   };
+
+  const returnColumns: ColumnDef<ReturnRecord, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "return_number",
+        header: "الرقم",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.return_number}</span>
+        ),
+      },
+      {
+        accessorKey: "order_number",
+        header: "الفاتورة",
+        cell: ({ row }) => row.original.order_number,
+      },
+      {
+        accessorKey: "total_refund",
+        header: "المبلغ",
+        cell: ({ row }) => (
+          <span className="font-mono font-bold text-danger">
+            −{formatMoney(row.original.total_refund, settings.currency_symbol)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "created_at",
+        header: "التاريخ",
+        cell: ({ row }) =>
+          new Date(row.original.created_at).toLocaleString("ar-LY"),
+      },
+    ],
+    [settings.currency_symbol]
+  );
 
   return (
     <>
@@ -220,65 +256,27 @@ export function ReportsScreen({
         <div className="border-b border-paper-line px-4 py-3">
           <h3 className="text-sm font-bold text-ink">مرتجعات الفترة</h3>
         </div>
-        <div className="space-y-2 p-3 md:hidden">
-          {!snap.returns.length ? (
-            <p className="py-8 text-center text-xs text-ink-mute">
-              لا مرتجعات في هذه الفترة
-            </p>
-          ) : (
-            snap.returns.map((r) => (
-              <div
-                key={r.id}
-                className="flex items-center justify-between gap-2 rounded-xl border border-paper-line bg-paper/40 px-3 py-2.5"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-bold text-ink">
-                    {r.return_number}
-                  </p>
-                  <p className="truncate text-[11px] text-ink-mute">
-                    {r.order_number} ·{" "}
-                    {new Date(r.created_at).toLocaleDateString("ar-LY")}
-                  </p>
-                </div>
-                <span className="shrink-0 font-mono text-xs font-bold text-danger">
+        <MobileDataList empty={!snap.returns.length} emptyLabel="لا مرتجعات في هذه الفترة" className="p-3">
+          {snap.returns.map((r) => (
+            <MobileDataCard
+              key={r.id}
+              title={r.return_number}
+              subtitle={`${r.order_number} · ${new Date(r.created_at).toLocaleDateString("ar-LY")}`}
+              badge={
+                <span className="font-mono text-xs font-bold text-danger">
                   −{formatMoney(r.total_refund, settings.currency_symbol)}
                 </span>
-              </div>
-            ))
-          )}
-        </div>
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[560px] text-xs">
-            <thead className="bg-paper text-ink-mute">
-              <tr>
-                <th className="px-3 py-2 text-start font-semibold">الرقم</th>
-                <th className="px-3 py-2 text-start font-semibold">الفاتورة</th>
-                <th className="px-3 py-2 text-start font-semibold">المبلغ</th>
-                <th className="px-3 py-2 text-start font-semibold">التاريخ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {snap.returns.map((r) => (
-                <tr key={r.id} className="border-t border-paper-line">
-                  <td className="px-3 py-2 font-bold">{r.return_number}</td>
-                  <td className="px-3 py-2">{r.order_number}</td>
-                  <td className="px-3 py-2 font-mono font-bold text-danger">
-                    −{formatMoney(r.total_refund, settings.currency_symbol)}
-                  </td>
-                  <td className="px-3 py-2 text-ink-mute">
-                    {new Date(r.created_at).toLocaleString("ar-LY")}
-                  </td>
-                </tr>
-              ))}
-              {!snap.returns.length && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-8 text-center text-ink-mute">
-                    لا مرتجعات في هذه الفترة
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              }
+            />
+          ))}
+        </MobileDataList>
+        <div className="hidden md:block">
+          <DataTable
+            data={snap.returns}
+            columns={returnColumns}
+            emptyMessage="لا مرتجعات في هذه الفترة"
+            className="rounded-none border-0"
+          />
         </div>
       </section>
       </PageContent>

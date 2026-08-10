@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import {
   ArrowUUpLeft,
-  MagnifyingGlass,
-  Package,
   CheckCircle,
+  Package,
 } from "@phosphor-icons/react";
 import type {
   BranchSettings,
@@ -18,6 +17,10 @@ import { formatMoney } from "../../lib/format";
 import { cn } from "../../lib/cn";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
+import { SearchField } from "../ui/SearchField";
+import { DataTable } from "../ui/DataTable";
+import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import type { ColumnDef } from "@tanstack/react-table";
 
 const REFUND_LABEL: Record<RefundMethod, string> = {
   cash: "نقداً",
@@ -74,6 +77,92 @@ export function ReturnsScreen({
         (o.customer_name || "").toLowerCase().includes(needle)
     );
   }, [completed, q]);
+
+  const sortedReturns = useMemo(
+    () =>
+      returns
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ),
+    [returns]
+  );
+
+  const orderColumns: ColumnDef<Order, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "order_number",
+        header: "الفاتورة",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.order_number}</span>
+        ),
+      },
+      {
+        id: "customer",
+        header: "العميل",
+        cell: ({ row }) => (
+          <span className="text-ink-mute">{row.original.customer_name || "نقدي"}</span>
+        ),
+      },
+      {
+        accessorKey: "created_at",
+        header: "التاريخ",
+        cell: ({ row }) =>
+          new Date(row.original.created_at).toLocaleString("ar-LY"),
+      },
+      {
+        accessorKey: "total_amount",
+        header: "الإجمالي",
+        cell: ({ row }) => (
+          <span className="font-mono font-bold text-ink">
+            {formatMoney(row.original.total_amount, settings.currency_symbol)}
+          </span>
+        ),
+      },
+    ],
+    [settings.currency_symbol]
+  );
+
+  const returnColumns: ColumnDef<ReturnRecord, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "return_number",
+        header: "الرقم",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.return_number}</span>
+        ),
+      },
+      {
+        accessorKey: "order_number",
+        header: "الفاتورة",
+        cell: ({ row }) => (
+          <span className="text-ink-soft">{row.original.order_number}</span>
+        ),
+      },
+      {
+        id: "method",
+        header: "الطريقة",
+        cell: ({ row }) => REFUND_LABEL[row.original.refund_method],
+      },
+      {
+        accessorKey: "total_refund",
+        header: "المبلغ",
+        cell: ({ row }) => (
+          <span className="font-mono font-bold text-ink">
+            {formatMoney(row.original.total_refund, settings.currency_symbol)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "created_at",
+        header: "التاريخ",
+        cell: ({ row }) =>
+          new Date(row.original.created_at).toLocaleString("ar-LY"),
+      },
+    ],
+    [settings.currency_symbol]
+  );
 
   const selected = completed.find((o) => o.id === selectedId) ?? null;
 
@@ -165,48 +254,45 @@ export function ReturnsScreen({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <section className="panel overflow-hidden p-0">
-          <div className="flex items-center gap-2 border-b border-paper-line px-3 py-2.5">
-            <MagnifyingGlass size={16} className="text-ink-mute" />
-            <input
+          <div className="border-b border-paper-line px-3 py-2.5">
+            <SearchField
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={setQ}
               placeholder="بحث برقم الفاتورة أو العميل…"
-              className="w-full bg-transparent text-sm outline-none placeholder:text-ink-mute"
+              className="max-w-none"
             />
           </div>
-          <div className="max-h-[60dvh] overflow-y-auto">
-            {filtered.map((o) => {
-              const active = o.id === selectedId;
-              return (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => selectOrder(o.id)}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-2 border-b border-paper-line px-3 py-3 text-start transition",
-                    active ? "bg-highlight/10" : "hover:bg-paper"
-                  )}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-ink">
-                      {o.order_number}
-                    </p>
-                    <p className="truncate text-[11px] text-ink-mute">
-                      {o.customer_name || "نقدي"} ·{" "}
-                      {new Date(o.created_at).toLocaleString("ar-LY")}
-                    </p>
-                  </div>
-                  <span className="shrink-0 font-mono text-xs font-bold text-ink">
+          <MobileDataList
+            empty={!filtered.length}
+            emptyLabel="لا فواتير مطابقة"
+            className="max-h-[60dvh] overflow-y-auto p-2 md:hidden"
+          >
+            {filtered.map((o) => (
+              <MobileDataCard
+                key={o.id}
+                title={o.order_number}
+                subtitle={`${o.customer_name || "نقدي"} · ${new Date(o.created_at).toLocaleString("ar-LY")}`}
+                onClick={() => selectOrder(o.id)}
+                className={cn(o.id === selectedId && "ring-2 ring-highlight/40")}
+                badge={
+                  <span className="font-mono text-xs font-bold text-ink">
                     {formatMoney(o.total_amount, settings.currency_symbol)}
                   </span>
-                </button>
-              );
-            })}
-            {!filtered.length && (
-              <p className="px-4 py-10 text-center text-xs text-ink-mute">
-                لا فواتير مطابقة
-              </p>
-            )}
+                }
+              />
+            ))}
+          </MobileDataList>
+          <div className="hidden max-h-[60dvh] overflow-y-auto md:block">
+            <DataTable
+              data={filtered}
+              columns={orderColumns}
+              emptyMessage="لا فواتير مطابقة"
+              onRowClick={(o) => selectOrder(o.id)}
+              getRowClassName={(o) =>
+                o.id === selectedId ? "bg-highlight/10 hover:bg-highlight/15" : undefined
+              }
+              className="rounded-none border-0"
+            />
           </div>
         </section>
 
@@ -345,89 +431,31 @@ export function ReturnsScreen({
           <h3 className="text-sm font-bold text-ink">سجل المرتجعات</h3>
         </div>
         <div className="space-y-2 p-3 md:hidden">
-          {!returns.length ? (
+          {!sortedReturns.length ? (
             <p className="py-8 text-center text-xs text-ink-mute">لا مرتجعات بعد</p>
           ) : (
-            returns
-              .slice()
-              .sort(
-                (a, b) =>
-                  new Date(b.created_at).getTime() -
-                  new Date(a.created_at).getTime()
-              )
-              .map((r) => (
-                <div
-                  key={r.id}
-                  className="rounded-xl border border-paper-line bg-paper/40 px-3 py-2.5"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-ink">
-                        {r.return_number}
-                      </p>
-                      <p className="truncate text-[11px] text-ink-mute">
-                        {r.order_number} · {REFUND_LABEL[r.refund_method]}
-                      </p>
-                    </div>
-                    <span className="shrink-0 font-mono text-xs font-bold text-ink">
-                      {formatMoney(r.total_refund, settings.currency_symbol)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[10px] text-ink-mute">
-                    {new Date(r.created_at).toLocaleString("ar-LY")}
-                  </p>
-                </div>
-              ))
+            sortedReturns.map((r) => (
+              <MobileDataCard
+                key={r.id}
+                title={r.return_number}
+                subtitle={`${r.order_number} · ${REFUND_LABEL[r.refund_method]}`}
+                meta={new Date(r.created_at).toLocaleString("ar-LY")}
+                badge={
+                  <span className="font-mono text-xs font-bold text-ink">
+                    {formatMoney(r.total_refund, settings.currency_symbol)}
+                  </span>
+                }
+              />
+            ))
           )}
         </div>
-        <div className="hidden overflow-x-auto md:block">
-          <table className="w-full min-w-[640px] text-start text-xs">
-            <thead className="bg-paper text-ink-mute">
-              <tr>
-                <th className="px-3 py-2 font-semibold">الرقم</th>
-                <th className="px-3 py-2 font-semibold">الفاتورة</th>
-                <th className="px-3 py-2 font-semibold">الطريقة</th>
-                <th className="px-3 py-2 font-semibold">المبلغ</th>
-                <th className="px-3 py-2 font-semibold">التاريخ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {returns
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date(b.created_at).getTime() -
-                    new Date(a.created_at).getTime()
-                )
-                .map((r) => (
-                  <tr key={r.id} className="border-t border-paper-line">
-                    <td className="px-3 py-2 font-bold text-ink">
-                      {r.return_number}
-                    </td>
-                    <td className="px-3 py-2 text-ink-soft">{r.order_number}</td>
-                    <td className="px-3 py-2">
-                      {REFUND_LABEL[r.refund_method]}
-                    </td>
-                    <td className="px-3 py-2 font-mono font-bold">
-                      {formatMoney(r.total_refund, settings.currency_symbol)}
-                    </td>
-                    <td className="px-3 py-2 text-ink-mute">
-                      {new Date(r.created_at).toLocaleString("ar-LY")}
-                    </td>
-                  </tr>
-                ))}
-              {!returns.length && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-3 py-8 text-center text-ink-mute"
-                  >
-                    لا مرتجعات بعد
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="hidden md:block">
+          <DataTable
+            data={sortedReturns}
+            columns={returnColumns}
+            emptyMessage="لا مرتجعات بعد"
+            className="rounded-none border-0"
+          />
         </div>
       </section>
       </PageContent>

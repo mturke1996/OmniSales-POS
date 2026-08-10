@@ -13,6 +13,9 @@ import type {
 } from "../../lib/types";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
+import { DataTable } from "../ui/DataTable";
+import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import type { ColumnDef } from "@tanstack/react-table";
 
 export function OpsScreen({
   promotions,
@@ -42,6 +45,42 @@ export function OpsScreen({
         (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
       ),
     [auditLog]
+  );
+
+  const auditRows = useMemo(() => audits.slice(0, 100), [audits]);
+
+  const auditColumns: ColumnDef<AuditEntry, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "at",
+        header: "الوقت",
+        cell: ({ row }) => (
+          <span className="text-ink-mute">
+            {new Date(row.original.at).toLocaleString("ar-LY")}
+          </span>
+        ),
+      },
+      {
+        id: "actor",
+        header: "المستخدم",
+        cell: ({ row }) => row.original.actor_name || "—",
+      },
+      {
+        accessorKey: "action",
+        header: "الإجراء",
+        cell: ({ row }) => (
+          <span className="font-mono text-[11px]">{row.original.action}</span>
+        ),
+      },
+      {
+        accessorKey: "summary",
+        header: "الملخص",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.summary}</span>
+        ),
+      },
+    ],
+    []
   );
 
   const todaySales = useMemo(() => {
@@ -174,60 +213,23 @@ export function OpsScreen({
 
       {tab === "audit" && (
         <>
-          <div className="space-y-2 md:hidden">
-            {!audits.length ? (
-              <p className="panel py-8 text-center text-xs text-ink-mute">
-                لا توجد أحداث بعد
-              </p>
-            ) : (
-              audits.slice(0, 100).map((a) => (
-                <div
-                  key={a.id}
-                  className="rounded-2xl border border-paper-line bg-paper-raised p-3.5"
-                >
-                  <p className="text-xs font-bold text-ink">{a.summary}</p>
-                  <p className="mt-1 font-mono text-[10px] text-ink-mute">
-                    {a.action}
-                  </p>
-                  <p className="mt-1 text-[11px] text-ink-mute">
-                    {a.actor_name || "—"} ·{" "}
-                    {new Date(a.at).toLocaleString("ar-LY")}
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="panel hidden overflow-x-auto md:block">
-            <table className="w-full text-right text-xs">
-              <thead className="border-b border-paper-line bg-paper text-ink-mute">
-                <tr>
-                  <th className="p-3">الوقت</th>
-                  <th className="p-3">المستخدم</th>
-                  <th className="p-3">الإجراء</th>
-                  <th className="p-3">الملخص</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-paper-line">
-                {!audits.length ? (
-                  <tr>
-                    <td colSpan={4} className="p-8 text-center text-ink-mute">
-                      لا توجد أحداث بعد
-                    </td>
-                  </tr>
-                ) : (
-                  audits.slice(0, 100).map((a) => (
-                    <tr key={a.id}>
-                      <td className="p-3 text-ink-mute">
-                        {new Date(a.at).toLocaleString("ar-LY")}
-                      </td>
-                      <td className="p-3">{a.actor_name || "—"}</td>
-                      <td className="p-3 font-mono text-[11px]">{a.action}</td>
-                      <td className="p-3 font-bold">{a.summary}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <MobileDataList empty={!auditRows.length} emptyLabel="لا توجد أحداث بعد">
+            {auditRows.map((a) => (
+              <MobileDataCard
+                key={a.id}
+                title={a.summary}
+                subtitle={a.action}
+                meta={`${a.actor_name || "—"} · ${new Date(a.at).toLocaleString("ar-LY")}`}
+              />
+            ))}
+          </MobileDataList>
+          <div className="panel hidden overflow-hidden p-0 md:block">
+            <DataTable
+              data={auditRows}
+              columns={auditColumns}
+              emptyMessage="لا توجد أحداث بعد"
+              className="rounded-none border-0"
+            />
           </div>
         </>
       )}
