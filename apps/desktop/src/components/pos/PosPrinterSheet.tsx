@@ -24,7 +24,7 @@ export function PosPrinterSheet({
   connected: boolean;
   printerLabel?: string;
   supportMessage?: string;
-  transport?: "usb_serial" | "usb_otg" | "bluetooth" | null;
+  transport?: "usb_serial" | "usb_otg" | "network" | "bluetooth" | null;
   thermalWidthMm?: 58 | 80;
   onPrintBrowser?: () => void;
   printing?: boolean;
@@ -48,7 +48,9 @@ export function PosPrinterSheet({
                 ? `${printerLabel || "جاهزة ESC/POS"}${
                     transport === "bluetooth"
                       ? " · Bluetooth"
-                      : transport === "usb_otg"
+                      : transport === "network"
+                        ? " · LAN"
+                        : transport === "usb_otg"
                         ? " · USB OTG"
                         : transport === "usb_serial"
                           ? " · USB"
@@ -74,7 +76,7 @@ export function PosPrinterSheet({
               <>
                 <li>• Android PWA: «طباعة الإيصال» عبر Chrome</li>
                 <li>• Windows/Mac: اربط USB من الإعدادات → الطابعة</li>
-                <li>• تطبيق Android APK: Bluetooth ESC/POS من الأسفل</li>
+                <li>• Android APK: USB · LAN (IP) · Bluetooth من لوحة الطابعة</li>
               </>
             )}
           </ul>

@@ -4,6 +4,7 @@ import { printTestSlip } from "../../lib/print/printer-hub";
 import { usePrinter } from "../../hooks/use-printer";
 import { BluetoothPrinterPanel } from "./BluetoothPrinterPanel";
 import { UsbOtgPrinterPanel } from "./UsbOtgPrinterPanel";
+import { NetworkPrinterPanel } from "./NetworkPrinterPanel";
 import { useState } from "react";
 
 /** Native (Capacitor) printer setup: USB OTG + Bluetooth + test print. */
@@ -25,6 +26,9 @@ export function NativePrinterPanel({
   return (
     <div className="space-y-4 rounded-2xl border border-paper-line/70 bg-paper-raised/80 p-3">
       <UsbOtgPrinterPanel compact={compact} onMessage={onMessage} />
+      <div className="border-t border-paper-line/60 pt-3">
+        <NetworkPrinterPanel compact={compact} onMessage={onMessage} />
+      </div>
       <div className="border-t border-paper-line/60 pt-3">
         <BluetoothPrinterPanel
           compact={compact}

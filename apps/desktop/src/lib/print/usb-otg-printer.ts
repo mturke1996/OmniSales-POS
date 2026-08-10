@@ -121,7 +121,9 @@ export async function connectUsbOtgPrinter(id: string, name?: string): Promise<v
   }
   await ensureUsbPermission(id);
   const { disconnectBluetoothPrinter } = await import("./bluetooth-printer");
+  const { disconnectNetworkPrinter } = await import("./network-printer");
   await disconnectBluetoothPrinter();
+  await disconnectNetworkPrinter();
   await disconnectUsbOtgPrinter();
 
   const { UsbPrinter } = await import("@fedejm/capacitor-esc-pos-printer");

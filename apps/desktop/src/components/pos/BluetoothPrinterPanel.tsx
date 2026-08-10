@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Bluetooth, CircleNotch } from "@phosphor-icons/react";
+import { Capacitor } from "@capacitor/core";
 import { cn } from "../../lib/cn";
 import {
   connectBluetoothPrinter,
@@ -100,6 +101,15 @@ export function BluetoothPrinterPanel({
           لا توجد طابعات مقترنة. اقترن بالطابعة من إعدادات Bluetooth في الجهاز ثم حدّث
           القائمة.
         </p>
+      )}
+
+      {Capacitor.getPlatform() === "android" && (
+        <a
+          href="intent:#Intent;action=android.settings.BLUETOOTH_SETTINGS;end"
+          className="inline-block text-[11px] font-bold text-highlight underline-offset-2 hover:underline"
+        >
+          فتح إعدادات Bluetooth
+        </a>
       )}
 
       <ul className="max-h-40 space-y-1.5 overflow-y-auto">

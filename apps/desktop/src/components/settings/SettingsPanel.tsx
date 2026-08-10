@@ -780,7 +780,9 @@ export function SettingsPanel({
                     ? " (BT)"
                     : printer.transport === "usb_otg"
                       ? " (USB OTG)"
-                      : printer.transport === "usb_serial"
+                      : printer.transport === "network"
+                        ? " (LAN)"
+                        : printer.transport === "usb_serial"
                         ? " (USB)"
                         : ""
                 }`
@@ -801,7 +803,7 @@ export function SettingsPanel({
         <ol className="list-decimal space-y-1 pr-4 text-[11px] leading-relaxed text-ink-mute">
           {runtime === "capacitor" ? (
             <>
-              <li>Android: وصّل USB/OTG أو اقترن Bluetooth — اختر الطابعة من الأسفل</li>
+              <li>Android: USB أو LAN (IP:9100) أو Bluetooth — من لوحة الطابعة أدناه</li>
               <li>اطبع «اختبار حرارية» — إن ظهرت الورقة فأنت جاهز</li>
             </>
           ) : (

@@ -29,6 +29,9 @@ importers:
       '@capacitor/status-bar':
         specifier: ^7.0.2
         version: 7.0.6(@capacitor/core@7.6.8)
+      '@deedarb/capacitor-tcp-socket':
+        specifier: 7.2.1
+        version: 7.2.1(@capacitor/core@7.6.8)
       '@fedejm/capacitor-esc-pos-printer':
         specifier: 0.2.4
         version: 0.2.4(@capacitor/core@7.6.8)
@@ -707,6 +710,11 @@ packages:
 
   '@capacitor/status-bar@7.0.6':
     resolution: {integrity: sha512-7AVqj46b26QikImQzWfsJmzG8NUJZBGkrVSuoeTo+SX/YH3hXH0MqwwFgMqMGHfa/BICDgSvTjM9miVFlq0+RQ==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
+
+  '@deedarb/capacitor-tcp-socket@7.2.1':
+    resolution: {integrity: sha512-mkjKXPaO3LY2dQmK4Us8jBBEegj6lActq19SWMe2cuGI0Yr8YBAdzzEmP5sYN2TvVn197XkLz9r2n6h7PaB5pw==}
     peerDependencies:
       '@capacitor/core': '>=7.0.0'
 
@@ -4440,6 +4448,10 @@ snapshots:
       '@capacitor/core': 7.6.8
 
   '@capacitor/status-bar@7.0.6(@capacitor/core@7.6.8)':
+    dependencies:
+      '@capacitor/core': 7.6.8
+
+  '@deedarb/capacitor-tcp-socket@7.2.1(@capacitor/core@7.6.8)':
     dependencies:
       '@capacitor/core': 7.6.8
 

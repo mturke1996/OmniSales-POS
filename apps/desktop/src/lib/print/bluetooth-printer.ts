@@ -115,7 +115,9 @@ export async function connectBluetoothPrinter(
   );
   await EscPosPrinter.requestBluetoothEnable();
   const { disconnectUsbOtgPrinter } = await import("./usb-otg-printer");
+  const { disconnectNetworkPrinter } = await import("./network-printer");
   await disconnectUsbOtgPrinter();
+  await disconnectNetworkPrinter();
   await disconnectBluetoothPrinter();
 
   const printer = new BluetoothPrinter(address);

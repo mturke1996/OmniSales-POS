@@ -1,5 +1,5 @@
 /**
- * Unified printer I/O — Web Serial, USB OTG (Android), Bluetooth (native).
+ * Unified printer I/O — Web Serial, USB OTG, Network TCP, Bluetooth.
  */
 
 import {
@@ -24,6 +24,16 @@ import {
   writeToBluetooth,
 } from "./bluetooth-printer";
 import {
+  canUseNetworkPrinter,
+  disconnectNetworkPrinter,
+  getNetworkPrinterState,
+  isNetworkConnected,
+  networkSupportMessage,
+  subscribeNetworkPrinterState,
+  tryAutoReconnectNetworkPrinter,
+  writeToNetwork,
+} from "./network-printer";
+import {
   canUseUsbOtgPrinter,
   disconnectUsbOtgPrinter,
   getUsbOtgPrinterState,
@@ -34,13 +44,23 @@ import {
   writeToUsbOtg,
 } from "./usb-otg-printer";
 
-export type PrinterTransport = "usb_serial" | "usb_otg" | "bluetooth" | null;
+export type PrinterTransport =
+  | "usb_serial"
+  | "usb_otg"
+  | "network"
+  | "bluetooth"
+  | null;
 
 export type UnifiedPrinterState = PrinterConnectionState & {
   transport: PrinterTransport;
 };
 
 function mergeState(): UnifiedPrinterState {
+  const serial = getSerialState();
+  if (serial.connected) {
+    return { ...serial, transport: "usb_serial" };
+  }
+
   const usb = getUsbOtgPrinterState();
   if (usb.connected) {
     return {
@@ -51,6 +71,19 @@ function mergeState(): UnifiedPrinterState {
       label: usb.label,
       lastError: usb.lastError,
       transport: "usb_otg",
+    };
+  }
+
+  const net = getNetworkPrinterState();
+  if (net.connected) {
+    return {
+      connected: true,
+      supported: true,
+      supportMessage: net.supportMessage,
+      baud: getStoredBaudRate(),
+      label: net.label,
+      lastError: net.lastError,
+      transport: "network",
     };
   }
 
@@ -67,16 +100,15 @@ function mergeState(): UnifiedPrinterState {
     };
   }
 
-  const serial = getSerialState();
-  if (serial.connected) {
-    return { ...serial, transport: "usb_serial" };
-  }
-
   const supported =
-    canUseWebSerial() || canUseBluetoothPrinter() || canUseUsbOtgPrinter();
+    canUseWebSerial() ||
+    canUseUsbOtgPrinter() ||
+    canUseNetworkPrinter() ||
+    canUseBluetoothPrinter();
   const parts: string[] = [];
   if (canUseWebSerial()) parts.push(serial.supportMessage);
   if (canUseUsbOtgPrinter()) parts.push(usbOtgSupportMessage());
+  if (canUseNetworkPrinter()) parts.push(networkSupportMessage());
   if (canUseBluetoothPrinter()) parts.push(bluetoothSupportMessage());
 
   return {
@@ -85,7 +117,7 @@ function mergeState(): UnifiedPrinterState {
     supportMessage: parts.join(" · ") || serial.supportMessage,
     baud: serial.baud,
     label: null,
-    lastError: usb.lastError || bt.lastError || serial.lastError,
+    lastError: net.lastError || usb.lastError || bt.lastError || serial.lastError,
     transport: null,
   };
 }
@@ -99,13 +131,15 @@ export function subscribeUnifiedPrinterState(
 ): () => void {
   const notify = () => listener(mergeState());
   const unsubSerial = subscribeSerialState(notify);
-  const unsubBt = subscribeBluetoothPrinterState(notify);
   const unsubUsb = subscribeUsbOtgPrinterState(notify);
+  const unsubNet = subscribeNetworkPrinterState(notify);
+  const unsubBt = subscribeBluetoothPrinterState(notify);
   listener(mergeState());
   return () => {
     unsubSerial();
-    unsubBt();
     unsubUsb();
+    unsubNet();
+    unsubBt();
   };
 }
 
@@ -116,6 +150,10 @@ export async function writeToPrinter(bytes: Uint8Array): Promise<void> {
   }
   if (isUsbOtgConnected()) {
     await writeToUsbOtg(bytes);
+    return;
+  }
+  if (isNetworkConnected()) {
+    await writeToNetwork(bytes);
     return;
   }
   if (isBluetoothConnected()) {
@@ -131,22 +169,27 @@ export async function writeToPrinter(bytes: Uint8Array): Promise<void> {
     await writeToUsbOtg(bytes);
     return;
   }
+  if (await tryAutoReconnectNetworkPrinter()) {
+    await writeToNetwork(bytes);
+    return;
+  }
   if (await tryAutoReconnectBluetoothPrinter()) {
     await writeToBluetooth(bytes);
     return;
   }
 
-  if (canUseUsbOtgPrinter() || canUseBluetoothPrinter()) {
-    throw new Error("اربط طابعة USB أو Bluetooth من الإعدادات أو نقطة البيع");
+  if (canUseNetworkPrinter() || canUseUsbOtgPrinter() || canUseBluetoothPrinter()) {
+    throw new Error("اربط طابعة من الإعدادات أو نقطة البيع (USB / LAN / Bluetooth)");
   }
 
   await writeToSerial(bytes);
 }
 
 function activeTransportLabel(): string {
-  if (isUsbOtgConnected()) return "USB OTG";
-  if (isBluetoothConnected()) return "Bluetooth";
   if (isSerialConnected()) return "USB Serial";
+  if (isUsbOtgConnected()) return "USB OTG";
+  if (isNetworkConnected()) return "LAN";
+  if (isBluetoothConnected()) return "Bluetooth";
   return "auto";
 }
 
@@ -166,14 +209,19 @@ export async function printTestSlip(widthMm: 58 | 80 = 80): Promise<void> {
   await writeToPrinter(bytes);
 }
 
-export { disconnectBluetoothPrinter, disconnectUsbOtgPrinter };
+export {
+  disconnectBluetoothPrinter,
+  disconnectUsbOtgPrinter,
+  disconnectNetworkPrinter,
+};
 
 export async function disconnectAllPrinters(): Promise<void> {
   const { disconnectSerialPrinter } = await import("./escpos");
   await Promise.all([
     disconnectSerialPrinter(),
-    disconnectBluetoothPrinter(),
     disconnectUsbOtgPrinter(),
+    disconnectBluetoothPrinter(),
+    disconnectNetworkPrinter(),
   ]);
 }
 
@@ -181,6 +229,7 @@ export async function bootReconnectPrinters(): Promise<void> {
   await Promise.all([
     tryAutoReconnectSerialPrinter(),
     tryAutoReconnectUsbOtgPrinter(),
+    tryAutoReconnectNetworkPrinter(),
     tryAutoReconnectBluetoothPrinter(),
   ]);
 }
