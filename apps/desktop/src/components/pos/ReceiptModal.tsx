@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { FilePdf, Printer, CheckCircle } from "@phosphor-icons/react";
+import { FilePdf, Printer, CheckCircle, ShareNetwork, X } from "@phosphor-icons/react";
 import type { BranchSettings, Order } from "../../lib/types";
 import {
   downloadInvoicePdf,
-  printThermalReceipt,
   printThermalReceiptBrowser,
 } from "../../lib/invoice";
 import { printThermalReceiptSmart, resolveOrderChangeDue } from "../../lib/print/thermal";
@@ -13,6 +12,7 @@ import { WhatsAppButton } from "../ui/WhatsAppButton";
 import { BottomSheet } from "../ui/BottomSheet";
 import { cn } from "../../lib/cn";
 import { formatMoney } from "../../lib/format";
+import { canShareReceipt, isIosBrowser, shareTextReceipt } from "../../lib/share-receipt";
 
 interface ReceiptModalProps {
   order: Order;
@@ -41,10 +41,14 @@ export function ReceiptModal({
   useEffect(() => {
     if (!autoPrint || autoTried) return;
     setAutoTried(true);
-    if (!printer.connected) return;
     setBusy("thermal");
-    void printThermalReceipt(order, settings, resolvedChange)
-      .then((mode) => setPrintMode(mode))
+    void printThermalReceiptSmart(order, settings, resolvedChange, "auto")
+      .then((mode) => {
+        setPrintMode(mode);
+        if (mode === "html" && !printer.connected && isIosBrowser()) {
+          setError("فُتحت طباعة المتصفح — Share → Print (AirPrint) على iPhone");
+        }
+      })
       .catch((e) =>
         setError(e instanceof Error ? e.message : "فشلت الطباعة التلقائية")
       )
@@ -117,6 +121,22 @@ export function ReceiptModal({
           <span className="pos-key-badge ms-1.5 hidden sm:inline">F10</span>
         )}
       </button>
+      {canShareReceipt() && (
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() =>
+            void shareTextReceipt({
+              title: order.order_number,
+              text: whatsAppMessage,
+            }).catch((e) => setError(e instanceof Error ? e.message : "فشل المشاركة"))
+          }
+          className="btn-ghost inline-flex min-h-11 items-center justify-center gap-2 text-xs font-bold"
+        >
+          <ShareNetwork size={16} />
+          مشاركة / AirPrint
+        </button>
+      )}
       <button
         type="button"
         disabled={busy !== null}
@@ -222,8 +242,20 @@ export function ReceiptModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-paper-line pb-3">
-          <h3 className="font-bold text-ink">فاتورة البيع</h3>
-          <p className="text-[11px] text-ink-mute">{order.order_number}</p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="font-bold text-ink">فاتورة البيع</h3>
+              <p className="text-[11px] text-ink-mute">{order.order_number}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-9 w-9 place-items-center rounded-xl bg-paper text-ink-mute hover:text-ink"
+              aria-label="إغلاق"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
       </div>

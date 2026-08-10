@@ -52,7 +52,9 @@ export function ShiftsScreen({
   const [openingFloat, setOpeningFloat] = useState(100);
   const [closingCount, setClosingCount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [zPrinting, setZPrinting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageKind, setMessageKind] = useState<"success" | "error" | "info">("info");
   const [moveType, setMoveType] = useState<"in" | "out">("out");
   const [moveAmount, setMoveAmount] = useState("");
   const [moveReason, setMoveReason] = useState("");
@@ -78,9 +80,44 @@ export function ShiftsScreen({
       returns,
       cashMovements,
       cashierName: s.cashier_id,
-    }).catch((e) => {
+    })
+      .then((mode) => {
+        setMessageKind("success");
+        setMessage(
+          mode === "escpos" ? "تمت طباعة Z حرارياً" : "فُتح تقرير Z للطباعة"
+        );
+      })
+      .catch((e) => {
+        setMessageKind("error");
+        setMessage(e instanceof Error ? e.message : "تعذر الطباعة");
+      });
+  }
+
+  async function printInterimZ() {
+    if (!openShiftState) return;
+    setZPrinting(true);
+    setMessage(null);
+    try {
+      const mode = await printZReportSmart({
+        settings,
+        shift: openShiftState,
+        orders,
+        returns,
+        cashMovements,
+        cashierName: cashierId,
+      });
+      setMessageKind("success");
+      setMessage(
+        mode === "escpos"
+          ? "تمت طباعة تقرير Z المبدئي حرارياً"
+          : "فُتح تقرير Z للطباعة"
+      );
+    } catch (e) {
+      setMessageKind("error");
       setMessage(e instanceof Error ? e.message : "تعذر الطباعة");
-    });
+    } finally {
+      setZPrinting(false);
+    }
   }
 
   const historyColumns: ColumnDef<Shift, unknown>[] = [
@@ -134,8 +171,10 @@ export function ShiftsScreen({
     try {
       const shift = await openShift(cashierId, Number(openingFloat));
       onShiftChange(shift);
+      setMessageKind("success");
       setMessage("تم فتح الوردية بنجاح");
     } catch (e) {
+      setMessageKind("error");
       setMessage(e instanceof Error ? e.message : "فشل فتح الوردية");
     } finally {
       setBusy(false);
@@ -151,8 +190,9 @@ export function ShiftsScreen({
         ? Number(closingCount)
         : openShiftState.expected_cash;
       const closed = await closeShift(counted);
+      let printNote = "";
       try {
-        await printZReportSmart({
+        const mode = await printZReportSmart({
           settings,
           shift: closed,
           orders,
@@ -160,14 +200,18 @@ export function ShiftsScreen({
           cashMovements,
           cashierName: cashierId,
         });
+        printNote =
+          mode === "escpos" ? " · طُبع Z حرارياً" : " · فُتح Z للطباعة";
       } catch {
-        /* print blocked — still closed */
+        printNote = " · تعذر الطباعة (تم الإغلاق)";
       }
       onShiftChange(null);
       setClosingCount("");
       onRefreshData?.();
-      setMessage("تم إغلاق الوردية وطباعة تقرير Z بنجاح");
+      setMessageKind("success");
+      setMessage(`تم إغلاق الوردية${printNote}`);
     } catch (e) {
+      setMessageKind("error");
       setMessage(e instanceof Error ? e.message : "فشل إغلاق الوردية");
     } finally {
       setBusy(false);
@@ -183,9 +227,17 @@ export function ShiftsScreen({
       returns,
       cashMovements,
       cashierName: cashierId,
-    }).catch((e) => {
-      setMessage(e instanceof Error ? e.message : "تعذر الطباعة");
-    });
+    })
+      .then((mode) => {
+        setMessageKind("success");
+        setMessage(
+          mode === "escpos" ? "تمت طباعة Z حرارياً" : "فُتح تقرير Z للطباعة"
+        );
+      })
+      .catch((e) => {
+        setMessageKind("error");
+        setMessage(e instanceof Error ? e.message : "تعذر الطباعة");
+      });
   }
 
   return (
@@ -211,7 +263,15 @@ export function ShiftsScreen({
       <PageContent size="narrow" className="space-y-6">
 
       {message && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
+        <div
+          className={`rounded-xl border p-3 text-xs font-bold ${
+            messageKind === "success"
+              ? "border-success/30 bg-success/10 text-success"
+              : messageKind === "error"
+                ? "border-danger/30 bg-danger/10 text-danger"
+                : "border-highlight/30 bg-highlight/10 text-highlight"
+          }`}
+        >
           {message}
         </div>
       )}
@@ -262,11 +322,12 @@ export function ShiftsScreen({
               </div>
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="btn-ghost text-xs inline-flex items-center gap-1.5"
+                disabled={zPrinting}
+                onClick={() => void printInterimZ()}
+                className="btn-ghost text-xs inline-flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Printer size={16} />
-                طباعة تقرير مبدئي
+                {zPrinting ? "جاري الطباعة…" : "طباعة تقرير مبدئي"}
               </button>
             </div>
 

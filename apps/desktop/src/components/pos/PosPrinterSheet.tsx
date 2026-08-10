@@ -75,13 +75,14 @@ export function PosPrinterSheet({
             {ios ? (
               <>
                 <li>• iPhone/iPad: بعد البيع «طباعة الإيصال» → Share → Print (AirPrint)</li>
+                <li>• أو «مشاركة / AirPrint» من نافذة الإيصال</li>
                 <li>• أو احفظ PDF وأرسله للعميل عبر واتساب</li>
               </>
             ) : (
               <>
-                <li>• Android PWA: «طباعة الإيصال» عبر Chrome</li>
-                <li>• Windows/Mac: اربط USB من الإعدادات → الطابعة</li>
-                <li>• Android APK: USB · LAN (IP) · Bluetooth من لوحة الطابعة</li>
+                <li>• Android PWA: «طباعة الإيصال» عبر Chrome — تُفتح نافذة طباعة</li>
+                <li>• Windows/Mac: اربط USB من لوحة Web Serial أدناه</li>
+                <li>• Android APK: USB · LAN · Bluetooth من لوحة الطابعة</li>
               </>
             )}
           </ul>

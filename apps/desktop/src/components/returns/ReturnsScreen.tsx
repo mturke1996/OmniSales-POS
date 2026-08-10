@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   ArrowUUpLeft,
   CheckCircle,
   Package,
+  Printer,
+  ArrowsClockwise,
 } from "@phosphor-icons/react";
 import type {
   BranchSettings,
@@ -21,6 +23,8 @@ import { SearchField } from "../ui/SearchField";
 import { DataTable } from "../ui/DataTable";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
 import type { ColumnDef } from "@tanstack/react-table";
+import { ReturnReceiptModal } from "./ReturnReceiptModal";
+import { usePhoneLayout } from "../../hooks/use-media-query";
 
 const REFUND_LABEL: Record<RefundMethod, string> = {
   cash: "نقداً",
@@ -50,11 +54,20 @@ export function ReturnsScreen({
     initialOrderId ?? null
   );
   const [qtys, setQtys] = useState<Record<number, number>>({});
+  const [restock, setRestock] = useState<Record<number, boolean>>({});
   const [method, setMethod] = useState<RefundMethod>("cash");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgKind, setMsgKind] = useState<"success" | "error" | "info">("info");
   const [lastReturn, setLastReturn] = useState<ReturnRecord | null>(null);
+  const [receiptReturn, setReceiptReturn] = useState<ReturnRecord | null>(null);
+  const isPhone = usePhoneLayout();
+
+  useEffect(() => {
+    if (!initialOrderId) return;
+    setSelectedId(initialOrderId);
+  }, [initialOrderId]);
 
   const completed = useMemo(
     () =>
@@ -160,16 +173,40 @@ export function ReturnsScreen({
         cell: ({ row }) =>
           new Date(row.original.created_at).toLocaleString("ar-LY"),
       },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-full border border-paper-line px-2.5 py-1 text-[11px] font-bold"
+            onClick={(e) => {
+              e.stopPropagation();
+              setReceiptReturn(row.original);
+            }}
+          >
+            <Printer size={14} /> طباعة
+          </button>
+        ),
+      },
     ],
     [settings.currency_symbol]
   );
+
+  const receiptOrder = useMemo(() => {
+    if (!receiptReturn) return null;
+    return orders.find((o) => o.id === receiptReturn.order_id) ?? null;
+  }, [receiptReturn, orders]);
 
   const selected = completed.find((o) => o.id === selectedId) ?? null;
 
   const selectOrder = (id: string) => {
     setSelectedId(id);
     setQtys({});
+    setRestock({});
     setMsg(null);
+    setMsgKind("info");
     setLastReturn(null);
     const order = completed.find((o) => o.id === id);
     if (order?.payment_method === "debt" && order.customer_id) {
@@ -195,10 +232,11 @@ export function ReturnsScreen({
       .map(([idx, quantity]) => ({
         line_index: Number(idx),
         quantity,
-        restock: true,
+        restock: restock[Number(idx)] !== false,
       }))
       .filter((i) => i.quantity > 0);
     if (!items.length) {
+      setMsgKind("error");
       setMsg("حدد كمية مرتجعة لبند واحد على الأقل");
       return;
     }
@@ -215,10 +253,14 @@ export function ReturnsScreen({
         open_shift: openShift,
       });
       setLastReturn(record);
+      setReceiptReturn(record);
       setQtys({});
+      setRestock({});
+      setMsgKind("success");
       setMsg(`تم تسجيل المرتجع ${record.return_number}`);
       onDone();
     } catch (e) {
+      setMsgKind("error");
       setMsg(e instanceof Error ? e.message : "فشل تسجيل المرتجع");
     } finally {
       setBusy(false);
@@ -243,12 +285,23 @@ export function ReturnsScreen({
         <div
           className={cn(
             "rounded-xl px-3 py-2 text-xs font-medium",
-            lastReturn
+            msgKind === "success"
               ? "bg-success/10 text-success"
-              : "bg-warning/10 text-warning"
+              : msgKind === "error"
+                ? "bg-danger/10 text-danger"
+                : "bg-warning/10 text-warning"
           )}
         >
           {msg}
+          {lastReturn && (
+            <button
+              type="button"
+              className="ms-2 font-bold underline"
+              onClick={() => setReceiptReturn(lastReturn)}
+            >
+              طباعة الإيصال
+            </button>
+          )}
         </div>
       )}
 
@@ -354,6 +407,25 @@ export function ReturnsScreen({
                         }}
                         className="w-20 rounded-lg border border-paper-line bg-paper-raised px-2 py-1.5 text-center text-sm font-bold outline-none focus:border-highlight"
                       />
+                      <label
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[10px] font-semibold text-ink-mute",
+                          rem <= 0 && "opacity-40"
+                        )}
+                        title="إعادة الكمية للمخزون"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={restock[idx] !== false}
+                          disabled={rem <= 0}
+                          onChange={(e) =>
+                            setRestock((prev) => ({ ...prev, [idx]: e.target.checked }))
+                          }
+                          className="rounded"
+                        />
+                        <ArrowsClockwise size={12} />
+                        مخزون
+                      </label>
                     </div>
                   );
                 })}
@@ -445,6 +517,15 @@ export function ReturnsScreen({
                     {formatMoney(r.total_refund, settings.currency_symbol)}
                   </span>
                 }
+                actions={
+                  <button
+                    type="button"
+                    className="touch-chip inline-flex items-center gap-1 bg-paper text-[11px] font-bold text-ink"
+                    onClick={() => setReceiptReturn(r)}
+                  >
+                    <Printer size={14} /> طباعة
+                  </button>
+                }
               />
             ))
           )}
@@ -459,6 +540,17 @@ export function ReturnsScreen({
         </div>
       </section>
       </PageContent>
+
+      {receiptReturn && receiptOrder && (
+        <ReturnReceiptModal
+          record={receiptReturn}
+          order={receiptOrder}
+          settings={settings}
+          onClose={() => setReceiptReturn(null)}
+          autoPrint={settings.auto_print_thermal !== false}
+          mobile={isPhone}
+        />
+      )}
     </>
   );
 }

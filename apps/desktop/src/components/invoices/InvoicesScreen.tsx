@@ -11,7 +11,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import type { BranchSettings, Customer, Order } from "../../lib/types";
-import { downloadInvoicePdf, openInvoicePdf, printThermalReceipt } from "../../lib/invoice";
+import { downloadInvoicePdf, openInvoicePdf } from "../../lib/invoice";
 import { resolveOrderChangeDue } from "../../lib/print/thermal";
 import { PAYMENT_AR, STATUS_AR } from "../../lib/pdf/pdfBrand";
 import { formatMoney } from "../../lib/format";
@@ -25,6 +25,7 @@ import { DataTable } from "../ui/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import { cn } from "../../lib/cn";
 import { usePhoneLayout } from "../../hooks/use-media-query";
+import { ReceiptModal } from "../pos/ReceiptModal";
 
 export function InvoicesScreen({
   orders,
@@ -45,6 +46,7 @@ export function InvoicesScreen({
   const [selected, setSelected] = useState<Order | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<"pdf" | "open" | "thermal" | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
   const isPhone = usePhoneLayout();
 
   useEffect(() => {
@@ -98,6 +100,7 @@ export function InvoicesScreen({
     onStartReturn,
     onOpenCustomer,
     run,
+    onOpenReceipt: () => setShowReceipt(true),
   };
 
   const columns: ColumnDef<Order, unknown>[] = [
@@ -293,6 +296,17 @@ export function InvoicesScreen({
         </div>
       )}
       </PageContent>
+
+      {showReceipt && selected && (
+        <ReceiptModal
+          order={selected}
+          settings={settings}
+          changeDue={resolveOrderChangeDue(selected)}
+          onClose={() => setShowReceipt(false)}
+          autoPrint={false}
+          mobile={isPhone}
+        />
+      )}
     </>
   );
 }
@@ -305,6 +319,7 @@ function InvoiceDetailBody({
   onStartReturn,
   onOpenCustomer,
   run,
+  onOpenReceipt,
 }: {
   selected: Order | null;
   settings: BranchSettings;
@@ -317,6 +332,7 @@ function InvoiceDetailBody({
     fn: () => void | Promise<void>,
     ok: string
   ) => Promise<void>;
+  onOpenReceipt: () => void;
 }) {
   if (!selected) {
     return (
@@ -455,23 +471,11 @@ function InvoiceDetailBody({
         <button
           type="button"
           disabled={busy !== null}
-          className="btn-ghost inline-flex items-center justify-center gap-2 rounded-xl disabled:opacity-60"
-          onClick={() =>
-            void run(
-              "thermal",
-              async () => {
-                await printThermalReceipt(
-                  selected,
-                  settings,
-                  resolveOrderChangeDue(selected)
-                );
-              },
-              "تم إرسال الفاتورة الحرارية للطباعة"
-            )
-          }
+          className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl disabled:opacity-60"
+          onClick={onOpenReceipt}
         >
           <Printer size={18} weight="duotone" />
-          طباعة حرارية ({settings.thermal_width_mm}مم)
+          إيصال / طباعة حرارية
         </button>
         {onStartReturn && selected.status !== "cancelled" && (
           <button

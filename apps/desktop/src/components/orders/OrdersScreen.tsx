@@ -13,6 +13,7 @@ import {
   Clock,
   CaretLeft,
   WhatsappLogo,
+  Printer,
 } from "@phosphor-icons/react";
 import { updateOrderStatus } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
@@ -26,6 +27,8 @@ import { cn } from "../../lib/cn";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
+import { ReceiptModal } from "../pos/ReceiptModal";
+import { usePhoneLayout } from "../../hooks/use-media-query";
 import type { ColumnDef } from "@tanstack/react-table";
 
 const NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
@@ -63,6 +66,9 @@ export function OrdersScreen({
   const [view, setView] = useState<"list" | "calendar">("list");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [driverDraft, setDriverDraft] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
+  const isPhone = usePhoneLayout();
 
   const filtered = useMemo(() => {
     return orders
@@ -120,13 +126,14 @@ export function OrdersScreen({
     const next = NEXT[order.status];
     if (!next) return;
     setBusyId(order.id);
+    setError(null);
     try {
       await updateOrderStatus(order.id, next, {
         driver: driverDraft[order.id] || order.delivery_driver,
       });
       onRefreshData();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "فشل تحديث الحالة");
+      setError(e instanceof Error ? e.message : "فشل تحديث الحالة");
     } finally {
       setBusyId(null);
     }
@@ -135,11 +142,12 @@ export function OrdersScreen({
   async function cancel(order: Order) {
     if (!confirm(`إلغاء الطلب ${order.order_number}؟ سيتم إرجاع المخزون.`)) return;
     setBusyId(order.id);
+    setError(null);
     try {
       await updateOrderStatus(order.id, "cancelled");
       onRefreshData();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "فشل الإلغاء");
+      setError(e instanceof Error ? e.message : "فشل الإلغاء");
     } finally {
       setBusyId(null);
     }
@@ -337,6 +345,12 @@ export function OrdersScreen({
       />
       <PageContent className="space-y-6">
 
+      {error && (
+        <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-xs font-semibold text-danger">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <PipeCard icon={<ShoppingBag size={18} />} label="طلبات توصيل" count={pipeline.total} />
         <PipeCard icon={<Clock size={18} />} label="جديدة" count={pipeline.new} tone="blue" />
@@ -378,6 +392,7 @@ export function OrdersScreen({
                   highlighted={order.id === initialOrderId}
                   onAdvance={() => void advance(order)}
                   onCancel={() => void cancel(order)}
+                  onPrintReceipt={() => setReceiptOrder(order)}
                 />
               ))}
             </div>
@@ -397,6 +412,7 @@ export function OrdersScreen({
                   highlighted={order.id === initialOrderId}
                   onAdvance={() => void advance(order)}
                   onCancel={() => void cancel(order)}
+                  onPrintReceipt={() => setReceiptOrder(order)}
                 />
               ))}
             </div>
@@ -414,6 +430,17 @@ export function OrdersScreen({
         )}
       </div>
       </PageContent>
+
+      {receiptOrder && (
+        <ReceiptModal
+          order={receiptOrder}
+          settings={settings}
+          changeDue={receiptOrder.change_due ?? 0}
+          onClose={() => setReceiptOrder(null)}
+          autoPrint={false}
+          mobile={isPhone}
+        />
+      )}
     </>
   );
 }
@@ -428,6 +455,7 @@ function OrderCard({
   highlighted,
   onAdvance,
   onCancel,
+  onPrintReceipt,
 }: {
   order: Order;
   settings: BranchSettings;
@@ -438,6 +466,7 @@ function OrderCard({
   highlighted?: boolean;
   onAdvance: () => void;
   onCancel: () => void;
+  onPrintReceipt: () => void;
 }) {
   const next = NEXT[order.status];
   const nextLabel = NEXT_LABEL[order.status];
@@ -536,6 +565,16 @@ function OrderCard({
               >
                 <WhatsappLogo size={14} weight="fill" />
                 واتساب
+              </button>
+            )}
+            {order.status === "completed" && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-full border border-paper-line px-3 py-1.5 text-[11px] font-bold"
+                onClick={onPrintReceipt}
+              >
+                <Printer size={14} />
+                إيصال
               </button>
             )}
             {canCancel &&

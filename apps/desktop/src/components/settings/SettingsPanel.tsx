@@ -33,14 +33,11 @@ import { cn } from "../../lib/cn";
 import type { BranchSettings, PosLayout, WorkMode } from "../../lib/types";
 import { UsersPanel } from "./UsersPanel";
 import {
-  canUseWebSerial,
-  connectSerialPrinter,
-  disconnectSerialPrinter,
   getStoredBaudRate,
   setStoredBaudRate,
 } from "../../lib/print/escpos";
-import { printTestSlip } from "../../lib/print/printer-hub";
 import { NativePrinterPanel } from "../pos/NativePrinterPanel";
+import { WebSerialPrinterPanel } from "../pos/WebSerialPrinterPanel";
 import { usePrinter } from "../../hooks/use-printer";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
@@ -77,7 +74,6 @@ export function SettingsPanel({
   const [cloudUser, setCloudUser] = useState<string | null>(null);
   const [printerBaud, setPrinterBaud] = useState(getStoredBaudRate);
   const [printerMsg, setPrinterMsg] = useState<string | null>(null);
-  const [printerBusy, setPrinterBusy] = useState(false);
   const printer = usePrinter();
   const fileRef = useRef<HTMLInputElement>(null);
   const pwa = usePwaInstall();
@@ -712,61 +708,16 @@ export function SettingsPanel({
             <span className="text-xs leading-relaxed">
               <span className="font-bold text-ink">طباعة تلقائية بعد إتمام البيع</span>
               <span className="mt-0.5 block text-[11px] text-ink-mute">
-                عند اتصال الطابعة تُطبع الفاتورة فوراً بدون ضغطة إضافية
+                تُطبع الفاتورة فوراً (حرارياً أو عبر المتصفح/AirPrint على الموبايل)
               </span>
             </span>
           </label>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className="btn-primary text-xs font-bold"
-            disabled={!canUseWebSerial() || printerBusy}
-            onClick={() => {
-              setPrinterBusy(true);
-              void connectSerialPrinter(printerBaud, { forcePicker: true })
-                .then(() => setPrinterMsg("تم ربط الطابعة وحفظ الجهاز"))
-                .catch((err) =>
-                  setPrinterMsg(
-                    err instanceof Error ? err.message : "فشل ربط الطابعة"
-                  )
-                )
-                .finally(() => setPrinterBusy(false));
-            }}
-          >
-            اختيار / ربط طابعة USB
-          </button>
-          <button
-            type="button"
-            className="btn-ghost text-xs font-bold"
-            disabled={!canUseWebSerial() || printerBusy}
-            onClick={() => {
-              setPrinterBusy(true);
-              void printTestSlip(
-                settings.thermal_width_mm === 58 ? 58 : 80
-              )
-                .then(() => setPrinterMsg("نجحت طباعة الاختبار ✓"))
-                .catch((err) =>
-                  setPrinterMsg(
-                    err instanceof Error ? err.message : "فشلت طباعة الاختبار"
-                  )
-                )
-                .finally(() => setPrinterBusy(false));
-            }}
-          >
-            طباعة اختبار
-          </button>
-          <button
-            type="button"
-            className="btn-ghost text-xs font-bold"
-            onClick={() =>
-              void disconnectSerialPrinter().then(() =>
-                setPrinterMsg("تم فصل الطابعة")
-              )
-            }
-          >
-            فصل
-          </button>
+        <div className="space-y-3">
+          <WebSerialPrinterPanel
+            thermalWidthMm={settings.thermal_width_mm === 58 ? 58 : 80}
+            onMessage={setPrinterMsg}
+          />
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
               printer.connected

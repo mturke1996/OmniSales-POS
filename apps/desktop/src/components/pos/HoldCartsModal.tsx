@@ -4,6 +4,7 @@ import { BottomSheet } from "../ui/BottomSheet";
 
 interface HoldCartsModalProps {
   carts: HeldCart[];
+  currencySymbol: string;
   onClose: () => void;
   onRecall: (cart: HeldCart) => void;
   onDelete: (id: string) => void;
@@ -12,6 +13,7 @@ interface HoldCartsModalProps {
 
 export function HoldCartsModal({
   carts,
+  currencySymbol,
   onClose,
   onRecall,
   onDelete,
@@ -40,7 +42,9 @@ export function HoldCartsModal({
                     })}
                   </span>
                 </div>
-                <div className="text-sm font-bold text-ink">{totalPrice.toFixed(2)} د.ل</div>
+                <div className="text-sm font-bold text-ink">
+                  {totalPrice.toFixed(2)} {currencySymbol}
+                </div>
               </div>
 
               {cart.note && (

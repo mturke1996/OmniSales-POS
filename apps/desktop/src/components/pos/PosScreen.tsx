@@ -852,6 +852,14 @@ export function PosScreen({
         </div>
       </header>
 
+      <PosLiveStats
+        orders={orders}
+        returns={returns}
+        openShift={openShiftState}
+        currencySymbol={settings.currency_symbol}
+        compact
+      />
+
       <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-cols-[minmax(0,1fr)_30rem]">
         <section className="flex min-h-0 flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
@@ -986,6 +994,7 @@ export function PosScreen({
       {showHoldModal && (
         <HoldCartsModal
           carts={heldCarts}
+          currencySymbol={settings.currency_symbol}
           onClose={() => setShowHoldModal(false)}
           onRecall={handleRecallCart}
           onDelete={async (id) => {
@@ -1036,7 +1045,7 @@ export function PosScreen({
           settings={settings}
           changeDue={completedOrder.change_due ?? lastChangeDue}
           onClose={() => setCompletedOrder(null)}
-          autoPrint={settings.auto_print_thermal !== false && printer.connected}
+          autoPrint={settings.auto_print_thermal !== false}
           mobile={isPhone}
         />
       )}
