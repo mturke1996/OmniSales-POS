@@ -1,6 +1,5 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
-  ArrowRight,
   PencilSimple,
   PlusCircle,
   Receipt,
@@ -23,6 +22,8 @@ import { WhatsAppButton } from "../ui/WhatsAppButton";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
 import { PAYMENT_AR, STATUS_AR } from "../../lib/pdf/pdfBrand";
 import { cn } from "../../lib/cn";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 import type {
   BranchSettings,
   Customer,
@@ -110,70 +111,64 @@ export function CustomerProfileScreen({
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-line pb-4">
-        <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="btn-ghost mt-0.5 inline-flex items-center gap-1.5 text-xs font-bold"
-          >
-            <ArrowRight size={16} />
-            العملاء
-          </button>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-extrabold text-ink">{customer.name}</h2>
-              {customer.balance > 0 ? (
-                <span className="rounded-full bg-danger/12 px-2.5 py-0.5 text-[11px] font-bold text-danger">
-                  عليه دين
-                </span>
-              ) : (
-                <span className="rounded-full bg-success/12 px-2.5 py-0.5 text-[11px] font-bold text-success">
-                  حساب سليم
-                </span>
-              )}
-            </div>
-            <p className="mt-0.5 font-mono text-xs text-ink-mute">{customer.phone}</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <WhatsAppButton
-            phone={customer.phone}
-            message={
-              customer.balance > 0
-                ? debtReminderMessage(
-                    customer.name,
-                    customer.balance,
-                    settings.currency_symbol,
-                    settings.name
-                  )
-                : `السلام عليكم ${customer.name}، تحية من ${settings.name}`
-            }
-            label={customer.balance > 0 ? "تذكير واتساب" : "واتساب"}
-            size="md"
-          />
-          {customer.balance > 0 && (
+    <>
+      <PageHeader
+        title={customer.name}
+        description={customer.phone}
+        onBack={onBack}
+        breadcrumbs={[
+          { label: "OmniSales" },
+          { label: "العملاء", onClick: onBack },
+          { label: customer.name },
+        ]}
+        actions={
+          <>
+            <WhatsAppButton
+              phone={customer.phone}
+              message={
+                customer.balance > 0
+                  ? debtReminderMessage(
+                      customer.name,
+                      customer.balance,
+                      settings.currency_symbol,
+                      settings.name
+                    )
+                  : `السلام عليكم ${customer.name}، تحية من ${settings.name}`
+              }
+              label={customer.balance > 0 ? "تذكير واتساب" : "واتساب"}
+              size="md"
+            />
+            {customer.balance > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowPay(true)}
+                className="btn-primary inline-flex items-center gap-1.5 text-xs font-bold"
+              >
+                <PlusCircle size={16} />
+                تسديد
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setShowPay(true)}
-              className="btn-primary inline-flex items-center gap-1.5 text-xs font-bold"
+              onClick={() => setShowEdit(true)}
+              className="btn-ghost inline-flex items-center gap-1.5 text-xs font-bold"
             >
-              <PlusCircle size={16} />
-              تسديد دفعة
+              <PencilSimple size={16} />
+              تعديل
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setShowEdit(true)}
-            className="btn-ghost inline-flex items-center gap-1.5 text-xs font-bold"
-          >
-            <PencilSimple size={16} />
-            تعديل
-          </button>
-        </div>
-      </div>
+            {customer.balance > 0 ? (
+              <span className="rounded-full bg-danger/12 px-2.5 py-1 text-[11px] font-bold text-danger">
+                عليه دين
+              </span>
+            ) : (
+              <span className="rounded-full bg-success/12 px-2.5 py-1 text-[11px] font-bold text-success">
+                حساب سليم
+              </span>
+            )}
+          </>
+        }
+      />
+      <PageContent className="space-y-5">
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
@@ -627,7 +622,8 @@ export function CustomerProfileScreen({
           }}
         />
       )}
-    </div>
+      </PageContent>
+    </>
   );
 }
 

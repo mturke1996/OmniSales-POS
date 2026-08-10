@@ -41,6 +41,8 @@ import {
   setStoredBaudRate,
 } from "../../lib/print/escpos";
 import { usePrinter } from "../../hooks/use-printer";
+import { PageHeader } from "../layout/PageHeader";
+import { PageContent } from "../layout/PageContent";
 
 const LAYOUTS: { id: PosLayout; label: string; hint: string }[] = [
   { id: "grid_cart", label: "شبكة + سلة", hint: "الأكثر شيوعاً لنقاط البيع" },
@@ -188,13 +190,23 @@ export function SettingsPanel({
   };
 
   return (
-    <section className="mx-auto max-w-[950px] space-y-8 px-4 py-6 pb-[max(3rem,env(safe-area-inset-bottom))]">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink">إعدادات المنظومة الشاملة</h1>
-        <p className="mt-1 max-w-[60ch] text-xs text-ink-mute">
-          تخصيص الثيم، مظهر الألوان، نوع النشاط التجاري، الخزينة، والمزامنة السحابية مع Supabase.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title="إعدادات المنظومة"
+        description="الثيم، النشاط التجاري، الخزينة، الطابعة، والمزامنة السحابية"
+        breadcrumbs={[{ label: "OmniSales" }, { label: "الإدارة" }, { label: "الإعدادات" }]}
+        actions={
+          <button
+            type="button"
+            className="btn-primary text-xs font-bold"
+            disabled={saving}
+            onClick={onSave}
+          >
+            {saving ? "جاري الحفظ…" : "حفظ التغييرات"}
+          </button>
+        }
+      />
+      <PageContent size="narrow" className="space-y-8 pb-[max(3rem,env(safe-area-inset-bottom))]">
 
       {runtime === "pwa" && (
         <div className="panel space-y-3 p-4">
@@ -802,6 +814,7 @@ export function SettingsPanel({
           {saving ? "جاري الحفظ..." : "حفظ التغييرات الآن"}
         </button>
       </div>
-    </section>
+      </PageContent>
+    </>
   );
 }
