@@ -125,7 +125,7 @@ export function SetupWizard({
   };
 
   return (
-    <div className="relative grid min-h-[100dvh] place-items-center overflow-hidden bg-paper px-4 py-8">
+    <div className="screen-fill px-4 py-8">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"

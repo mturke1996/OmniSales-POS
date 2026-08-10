@@ -162,7 +162,7 @@ export default function App() {
 
   if (error) {
     return (
-      <div className="grid h-app place-items-center bg-paper px-4 safe-top safe-bottom">
+      <div className="screen-fill px-4">
         <div className="panel max-w-md p-6 text-center">
           <h1 className="text-lg font-bold text-ink">تعذر التشغيل</h1>
           <p className="mt-2 text-xs text-ink-mute">{error}</p>
@@ -180,7 +180,7 @@ export default function App() {
 
   if (!data || !draft) {
     return (
-      <div className="grid h-app place-items-center bg-paper px-4 safe-top safe-bottom" aria-busy="true">
+      <div className="screen-fill px-4" aria-busy="true">
         <div className="w-full max-w-sm space-y-3">
           <div className="h-10 animate-pulse rounded-2xl bg-paper-line" />
           <div className="h-40 animate-pulse rounded-2xl bg-paper-line" />
@@ -262,11 +262,11 @@ export default function App() {
           </>
         ) : undefined
       }
-      contentClassName={!isPos ? "lg:pb-[max(1rem,env(safe-area-inset-bottom))]" : undefined}
+      contentClassName={undefined}
     >
       <Suspense fallback={<ScreenLoader />}>
       {isPos ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden safe-top">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <PosScreen
             settings={draft}
             products={data.products}

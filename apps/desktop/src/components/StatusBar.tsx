@@ -33,8 +33,8 @@ export function StatusBar({
   const isOnline = useOnline();
 
   return (
-    <header className="sticky top-0 z-30 shrink-0 border-b border-paper-line/80 bg-paper-raised/95 safe-top backdrop-blur-md">
-      <div className="flex h-[var(--topbar-height)] items-center px-3 sm:px-4">
+    <header className="sticky top-0 z-30 shrink-0 border-b border-paper-line/80 bg-paper-raised/95 backdrop-blur-md">
+      <div className="flex h-[var(--topbar-inner)] items-center px-3 sm:px-4">
         <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-2 sm:gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             {onMenuOpen && (

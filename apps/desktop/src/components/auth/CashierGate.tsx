@@ -42,7 +42,7 @@ export function CashierGate({
 
   if (checking) {
     return (
-      <div className="grid h-app place-items-center bg-paper px-4 safe-top safe-bottom">
+      <div className="screen-fill px-4">
         <p className="text-sm text-ink-mute">جاري التحقق من جلسة الكاشير…</p>
       </div>
     );
@@ -98,7 +98,7 @@ export function CashierGate({
 
   if (pendingChange) {
     return (
-      <div className="relative grid min-h-[100dvh] place-items-center overflow-hidden bg-paper px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="screen-fill px-4">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
@@ -175,7 +175,7 @@ export function CashierGate({
   }
 
   return (
-    <div className="relative grid min-h-[100dvh] place-items-center overflow-hidden bg-paper px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="screen-fill px-4">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-90"
