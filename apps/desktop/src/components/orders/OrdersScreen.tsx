@@ -24,6 +24,8 @@ import type {
 import { cn } from "../../lib/cn";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
+import { DataTable } from "../ui/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 
 const NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
   new: "in_prep",
@@ -130,6 +132,133 @@ export function OrdersScreen({
       setBusyId(null);
     }
   }
+
+  const orderColumns: ColumnDef<Order, unknown>[] = [
+      {
+        accessorKey: "order_number",
+        header: "الطلب",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.order_number}</span>
+        ),
+      },
+      {
+        id: "customer",
+        header: "العميل",
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium">{row.original.customer_name || "—"}</p>
+            <p className="truncate text-xs text-ink-mute">{row.original.customer_phone || "—"}</p>
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: "الحالة",
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+      {
+        id: "type",
+        header: "النوع",
+        cell: ({ row }) =>
+          row.original.type === "delivery"
+            ? "توصيل"
+            : row.original.type === "special_event"
+              ? "مناسبة"
+              : "مباشر",
+      },
+      {
+        id: "delivery",
+        header: "التوصيل",
+        cell: ({ row }) => {
+          const o = row.original;
+          if (o.type !== "delivery" && o.type !== "special_event") return "—";
+          if (o.status === "completed" || o.status === "cancelled") {
+            return o.delivery_driver || "—";
+          }
+          return (
+            <input
+              type="text"
+              placeholder="السائق"
+              value={driverDraft[o.id] ?? o.delivery_driver ?? ""}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) =>
+                setDriverDraft((d) => ({ ...d, [o.id]: e.target.value }))
+              }
+              className="w-full min-w-[7rem] rounded-lg border border-paper-line bg-paper px-2 py-1 text-xs"
+            />
+          );
+        },
+      },
+      {
+        accessorKey: "total_amount",
+        header: "الإجمالي",
+        cell: ({ row }) => (
+          <span className="font-mono font-bold text-highlight">
+            {formatMoney(row.original.total_amount, settings.currency_symbol)}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "إجراء",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const order = row.original;
+          const next = NEXT[order.status];
+          const nextLabel = NEXT_LABEL[order.status];
+          return (
+            <div className="flex flex-wrap gap-1">
+              {next && nextLabel && (
+                <button
+                  type="button"
+                  disabled={busyId === order.id}
+                  onClick={() => void advance(order)}
+                  className="btn-primary inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold"
+                >
+                  {nextLabel}
+                  <CaretLeft size={10} />
+                </button>
+              )}
+              {order.customer_phone && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-full bg-[#25D366] px-2 py-1 text-[10px] font-bold text-white"
+                  onClick={() =>
+                    openWhatsApp(
+                      order.customer_phone!,
+                      saleShareMessage(
+                        order.order_number,
+                        order.total_amount,
+                        settings.currency_symbol,
+                        settings.name,
+                        order.customer_name
+                      ) +
+                        (order.delivery_address
+                          ? `\nالعنوان: ${order.delivery_address}`
+                          : "")
+                    )
+                  }
+                >
+                  <WhatsappLogo size={12} weight="fill" />
+                </button>
+              )}
+              {canCancel &&
+                order.status !== "cancelled" &&
+                order.status !== "completed" && (
+                  <button
+                    type="button"
+                    disabled={busyId === order.id}
+                    onClick={() => void cancel(order)}
+                    className="rounded-full border border-danger/30 px-2 py-1 text-[10px] font-bold text-danger"
+                  >
+                    إلغاء
+                  </button>
+                )}
+            </div>
+          );
+        },
+      },
+  ];
 
   return (
     <>
@@ -241,19 +370,30 @@ export function OrdersScreen({
             </div>
           ))
         ) : (
-          filtered.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              settings={settings}
-              busyId={busyId}
-              canCancel={canCancel}
-              driverDraft={driverDraft}
-              setDriverDraft={setDriverDraft}
-              onAdvance={() => void advance(order)}
-              onCancel={() => void cancel(order)}
-            />
-          ))
+          <>
+            <div className="space-y-3 md:hidden">
+              {filtered.map((order) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  settings={settings}
+                  busyId={busyId}
+                  canCancel={canCancel}
+                  driverDraft={driverDraft}
+                  setDriverDraft={setDriverDraft}
+                  onAdvance={() => void advance(order)}
+                  onCancel={() => void cancel(order)}
+                />
+              ))}
+            </div>
+            <div className="hidden md:block">
+              <DataTable
+                data={filtered}
+                columns={orderColumns}
+                emptyMessage="لا توجد طلبات — أنشئ طلب توصيل من نقطة البيع"
+              />
+            </div>
+          </>
         )}
       </div>
       </PageContent>

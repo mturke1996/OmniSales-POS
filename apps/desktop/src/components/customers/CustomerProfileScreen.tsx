@@ -24,6 +24,8 @@ import { PAYMENT_AR, STATUS_AR } from "../../lib/pdf/pdfBrand";
 import { cn } from "../../lib/cn";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
+import { DataTable } from "../ui/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 import type {
   BranchSettings,
   Customer,
@@ -109,6 +111,173 @@ export function CustomerProfileScreen({
     { id: "ledger", label: "كشف الحساب", count: entries.length },
     { id: "returns", label: "المرتجعات", count: custReturns.length },
   ];
+
+  const salesColumns: ColumnDef<Order, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "order_number",
+        header: "الفاتورة",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.order_number}</span>
+        ),
+      },
+      {
+        accessorKey: "created_at",
+        header: "التاريخ",
+        cell: ({ row }) =>
+          new Date(row.original.created_at).toLocaleString("ar-LY"),
+      },
+      {
+        id: "payment",
+        header: "الدفع",
+        cell: ({ row }) =>
+          PAYMENT_AR[row.original.payment_method] || row.original.payment_method,
+      },
+      {
+        id: "status",
+        header: "الحالة",
+        cell: ({ row }) => STATUS_AR[row.original.status] || row.original.status,
+      },
+      {
+        accessorKey: "total_amount",
+        header: "الإجمالي",
+        cell: ({ row }) => (
+          <span className="font-mono font-bold">
+            {formatMoney(row.original.total_amount, settings.currency_symbol)}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "إجراء",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const o = row.original;
+          return (
+            <div className="inline-flex flex-wrap gap-1.5">
+              <WhatsAppButton
+                phone={customer.phone}
+                message={saleShareMessage(
+                  o.order_number,
+                  o.total_amount,
+                  settings.currency_symbol,
+                  settings.name,
+                  customer.name
+                )}
+                label="واتساب"
+                variant="ghost"
+              />
+              {onOpenInvoice && (
+                <button
+                  type="button"
+                  className="text-[11px] font-bold text-highlight"
+                  onClick={() => onOpenInvoice(o.id)}
+                >
+                  الفاتورة
+                </button>
+              )}
+              {onStartReturn && o.status === "completed" && (
+                <button
+                  type="button"
+                  className="text-[11px] font-bold text-ink-mute"
+                  onClick={() => onStartReturn(o.id)}
+                >
+                  مرتجع
+                </button>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [customer, settings, onOpenInvoice, onStartReturn]
+  );
+
+  const ledgerColumns: ColumnDef<CustomerLedgerEntry, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "created_at",
+        header: "التاريخ",
+        cell: ({ row }) =>
+          new Date(row.original.created_at).toLocaleString("ar-LY"),
+      },
+      {
+        id: "type",
+        header: "النوع",
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[11px] font-bold",
+              row.original.type === "debit"
+                ? "bg-danger/12 text-danger"
+                : "bg-success/12 text-success"
+            )}
+          >
+            {row.original.type === "debit" ? "مدين (بيع)" : "دائن (سداد)"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "reference",
+        header: "المرجع",
+        cell: ({ row }) => (
+          <span className="font-mono">{row.original.reference}</span>
+        ),
+      },
+      {
+        accessorKey: "description",
+        header: "الوصف",
+      },
+      {
+        accessorKey: "amount",
+        header: "المبلغ",
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              "font-mono font-bold",
+              row.original.type === "debit" ? "text-danger" : "text-success"
+            )}
+          >
+            {row.original.type === "debit" ? "+" : "−"}
+            {formatMoney(row.original.amount, settings.currency_symbol)}
+          </span>
+        ),
+      },
+    ],
+    [settings.currency_symbol]
+  );
+
+  const returnsColumns: ColumnDef<ReturnRecord, unknown>[] = useMemo(
+    () => [
+      {
+        accessorKey: "return_number",
+        header: "رقم المرتجع",
+        cell: ({ row }) => (
+          <span className="font-bold text-ink">{row.original.return_number}</span>
+        ),
+      },
+      {
+        accessorKey: "order_number",
+        header: "الفاتورة",
+      },
+      {
+        accessorKey: "created_at",
+        header: "التاريخ",
+        cell: ({ row }) =>
+          new Date(row.original.created_at).toLocaleString("ar-LY"),
+      },
+      {
+        accessorKey: "total_refund",
+        header: "المبلغ",
+        cell: ({ row }) => (
+          <span className="font-mono font-bold text-danger">
+            {formatMoney(row.original.total_refund, settings.currency_symbol)}
+          </span>
+        ),
+      },
+    ],
+    [settings.currency_symbol]
+  );
 
   return (
     <>
@@ -375,80 +544,12 @@ export function CustomerProfileScreen({
               />
             ))}
           </MobileDataList>
-          <div className="panel hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[640px] text-right text-xs">
-              <thead className="border-b border-paper-line bg-paper text-ink-mute">
-                <tr>
-                  <th className="p-3 font-bold">الفاتورة</th>
-                  <th className="p-3 font-bold">التاريخ</th>
-                  <th className="p-3 font-bold">الدفع</th>
-                  <th className="p-3 font-bold">الحالة</th>
-                  <th className="p-3 font-bold">الإجمالي</th>
-                  <th className="p-3 text-left font-bold">إجراء</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-paper-line">
-                {!sales.length ? (
-                  <tr>
-                    <td colSpan={6} className="p-10 text-center text-ink-mute">
-                      لا توجد مبيعات لهذا العميل
-                    </td>
-                  </tr>
-                ) : (
-                  sales.map((o) => (
-                    <tr key={o.id} className="hover:bg-paper/50">
-                      <td className="p-3 font-bold text-ink">{o.order_number}</td>
-                      <td className="p-3 text-ink-mute">
-                        {new Date(o.created_at).toLocaleString("ar-LY")}
-                      </td>
-                      <td className="p-3">
-                        {PAYMENT_AR[o.payment_method] || o.payment_method}
-                      </td>
-                      <td className="p-3">
-                        {STATUS_AR[o.status] || o.status}
-                      </td>
-                      <td className="p-3 font-mono font-bold">
-                        {formatMoney(o.total_amount, settings.currency_symbol)}
-                      </td>
-                      <td className="p-3 text-left">
-                        <div className="inline-flex flex-wrap gap-1.5">
-                          <WhatsAppButton
-                            phone={customer.phone}
-                            message={saleShareMessage(
-                              o.order_number,
-                              o.total_amount,
-                              settings.currency_symbol,
-                              settings.name,
-                              customer.name
-                            )}
-                            label="واتساب"
-                            variant="ghost"
-                          />
-                          {onOpenInvoice && (
-                            <button
-                              type="button"
-                              className="text-[11px] font-bold text-highlight"
-                              onClick={() => onOpenInvoice(o.id)}
-                            >
-                              الفاتورة
-                            </button>
-                          )}
-                          {onStartReturn && o.status === "completed" && (
-                            <button
-                              type="button"
-                              className="text-[11px] font-bold text-ink-mute"
-                              onClick={() => onStartReturn(o.id)}
-                            >
-                              مرتجع
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="hidden md:block">
+            <DataTable
+              data={sales}
+              columns={salesColumns}
+              emptyMessage="لا توجد مبيعات لهذا العميل"
+            />
           </div>
         </>
       )}
@@ -488,58 +589,12 @@ export function CustomerProfileScreen({
               />
             ))}
           </MobileDataList>
-          <div className="panel hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[560px] text-right text-xs">
-              <thead className="border-b border-paper-line bg-paper text-ink-mute">
-                <tr>
-                  <th className="p-3 font-bold">التاريخ</th>
-                  <th className="p-3 font-bold">النوع</th>
-                  <th className="p-3 font-bold">المرجع</th>
-                  <th className="p-3 font-bold">الوصف</th>
-                  <th className="p-3 font-bold">المبلغ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-paper-line">
-                {!entries.length ? (
-                  <tr>
-                    <td colSpan={5} className="p-10 text-center text-ink-mute">
-                      كشف الحساب فارغ
-                    </td>
-                  </tr>
-                ) : (
-                  entries.map((e) => (
-                    <tr key={e.id}>
-                      <td className="p-3 text-ink-mute">
-                        {new Date(e.created_at).toLocaleString("ar-LY")}
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-0.5 text-[11px] font-bold",
-                            e.type === "debit"
-                              ? "bg-danger/12 text-danger"
-                              : "bg-success/12 text-success"
-                          )}
-                        >
-                          {e.type === "debit" ? "مدين (بيع)" : "دائن (سداد)"}
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono">{e.reference}</td>
-                      <td className="p-3">{e.description}</td>
-                      <td
-                        className={cn(
-                          "p-3 font-mono font-bold",
-                          e.type === "debit" ? "text-danger" : "text-success"
-                        )}
-                      >
-                        {e.type === "debit" ? "+" : "−"}
-                        {formatMoney(e.amount, settings.currency_symbol)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="hidden md:block">
+            <DataTable
+              data={entries}
+              columns={ledgerColumns}
+              emptyMessage="كشف الحساب فارغ"
+            />
           </div>
         </>
       )}
@@ -563,39 +618,12 @@ export function CustomerProfileScreen({
               />
             ))}
           </MobileDataList>
-          <div className="panel hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[520px] text-right text-xs">
-              <thead className="border-b border-paper-line bg-paper text-ink-mute">
-                <tr>
-                  <th className="p-3 font-bold">رقم المرتجع</th>
-                  <th className="p-3 font-bold">الفاتورة</th>
-                  <th className="p-3 font-bold">التاريخ</th>
-                  <th className="p-3 font-bold">المبلغ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-paper-line">
-                {!custReturns.length ? (
-                  <tr>
-                    <td colSpan={4} className="p-10 text-center text-ink-mute">
-                      لا توجد مرتجعات
-                    </td>
-                  </tr>
-                ) : (
-                  custReturns.map((r) => (
-                    <tr key={r.id}>
-                      <td className="p-3 font-bold">{r.return_number}</td>
-                      <td className="p-3">{r.order_number}</td>
-                      <td className="p-3 text-ink-mute">
-                        {new Date(r.created_at).toLocaleString("ar-LY")}
-                      </td>
-                      <td className="p-3 font-mono font-bold text-danger">
-                        {formatMoney(r.total_refund, settings.currency_symbol)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="hidden md:block">
+            <DataTable
+              data={custReturns}
+              columns={returnsColumns}
+              emptyMessage="لا توجد مرتجعات"
+            />
           </div>
         </>
       )}
