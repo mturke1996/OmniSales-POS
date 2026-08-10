@@ -918,6 +918,39 @@ export function PosScreen({
             </div>
           )}
 
+          {!query.trim() && (
+            <>
+              <PosProductStrip
+                title="مفضّلة سريعة"
+                icon="pinned"
+                products={pinnedProducts}
+                pinnedIds={manualPinnedSet}
+                autoPinnedIds={autoPinnedIdSet}
+                currencySymbol={settings.currency_symbol}
+                onAdd={addProductToCart}
+                onTogglePin={handleTogglePin}
+                disabled={needsShift}
+              />
+              <PosProductStrip
+                title="أُضيف مؤخراً"
+                icon="recent"
+                products={recentProducts}
+                currencySymbol={settings.currency_symbol}
+                onAdd={addProductToCart}
+                disabled={needsShift}
+              />
+              <PosProductStrip
+                title="الأكثر مبيعاً"
+                icon="bestseller"
+                products={topSellerProducts}
+                currencySymbol={settings.currency_symbol}
+                onAdd={addProductToCart}
+                onTogglePin={handleTogglePin}
+                disabled={needsShift}
+              />
+            </>
+          )}
+
           <ProductGrid
             products={filtered}
             categories={categories}

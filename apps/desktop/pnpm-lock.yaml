@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@byrds/capacitor-mdns':
+        specifier: 7.0.0
+        version: 7.0.0(@capacitor/core@7.6.8)
       '@capacitor/android':
         specifier: ^7.4.2
         version: 7.6.8(@capacitor/core@7.6.8)
@@ -674,6 +677,11 @@ packages:
   '@bcoe/v8-coverage@1.0.2':
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
+
+  '@byrds/capacitor-mdns@7.0.0':
+    resolution: {integrity: sha512-KeFIumA7zFz1Mw+QqF27Ip77XsgrnLTgkvmn26XT9mZ/Y3RAvZr4SUoc1YY7Dc5kFOOUEnhEn4amvdFVhJR8MQ==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
 
   '@capacitor/android@7.6.8':
     resolution: {integrity: sha512-N5LXe1ls+TA0mq+RhtyDdP1JISzAAI+OuLGL3G7OWQxfQQOZYkiEjEJMYqMV6JR421IqpRsYj08JOfC0PFC3NA==}
@@ -4400,6 +4408,10 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@bcoe/v8-coverage@1.0.2': {}
+
+  '@byrds/capacitor-mdns@7.0.0(@capacitor/core@7.6.8)':
+    dependencies:
+      '@capacitor/core': 7.6.8
 
   '@capacitor/android@7.6.8(@capacitor/core@7.6.8)':
     dependencies:

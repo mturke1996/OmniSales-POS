@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Globe, CircleNotch } from "@phosphor-icons/react";
+import { useCallback, useState } from "react";
+import { Globe, CircleNotch, MagnifyingGlass } from "@phosphor-icons/react";
 import { cn } from "../../lib/cn";
 import {
   connectNetworkPrinter,
@@ -7,6 +7,11 @@ import {
   canUseNetworkPrinter,
   getStoredNetworkPref,
 } from "../../lib/print/network-printer";
+import {
+  canDiscoverNetworkPrinters,
+  discoverNetworkPrinters,
+  type DiscoveredNetworkPrinter,
+} from "../../lib/print/network-discovery";
 import { usePrinter } from "../../hooks/use-printer";
 
 export function NetworkPrinterPanel({
@@ -21,6 +26,26 @@ export function NetworkPrinterPanel({
   const [host, setHost] = useState(stored?.host ?? "");
   const [port, setPort] = useState(String(stored?.port ?? 9100));
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [discovered, setDiscovered] = useState<DiscoveredNetworkPrinter[]>([]);
+
+  const runScan = useCallback(async () => {
+    if (!canDiscoverNetworkPrinters()) return;
+    setScanning(true);
+    try {
+      const found = await discoverNetworkPrinters();
+      setDiscovered(found);
+      if (!found.length) {
+        onMessage?.("لم تُعثر على طابعات — تأكد من Wi‑Fi أو أدخل IP يدوياً");
+      } else {
+        onMessage?.(`وُجد ${found.length} جهاز على الشبكة`);
+      }
+    } catch (e) {
+      onMessage?.(e instanceof Error ? e.message : "فشل البحث على الشبكة");
+    } finally {
+      setScanning(false);
+    }
+  }, [onMessage]);
 
   if (!canUseNetworkPrinter()) return null;
 
@@ -46,8 +71,59 @@ export function NetworkPrinterPanel({
       </div>
 
       <p className="text-[11px] leading-relaxed text-ink-mute">
-        أدخل IP الطابعة على نفس شبكة Wi‑Fi (منفذ ESC/POS الافتراضي 9100).
+        ابحث تلقائياً (mDNS) أو أدخل IP يدوياً — منفذ ESC/POS الافتراضي 9100.
       </p>
+
+      {canDiscoverNetworkPrinters() && (
+        <button
+          type="button"
+          disabled={scanning || busy}
+          onClick={() => void runScan()}
+          className="btn-ghost inline-flex w-full items-center justify-center gap-1.5 text-[11px] font-bold"
+        >
+          {scanning ? (
+            <>
+              <CircleNotch size={14} className="animate-spin" />
+              جاري البحث…
+            </>
+          ) : (
+            <>
+              <MagnifyingGlass size={14} />
+              بحث تلقائي على الشبكة
+            </>
+          )}
+        </button>
+      )}
+
+      {discovered.length > 0 && (
+        <ul className="max-h-36 space-y-1.5 overflow-y-auto">
+          {discovered.map((d) => (
+            <li key={`${d.host}:${d.port}:${d.name}`}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setHost(d.host);
+                  setPort(String(d.port));
+                  setBusy(true);
+                  void connectNetworkPrinter(d.host, d.port, d.name)
+                    .then(() => onMessage?.(`تم الربط: ${d.name}`))
+                    .catch((e) =>
+                      onMessage?.(e instanceof Error ? e.message : "فشل الربط")
+                    )
+                    .finally(() => setBusy(false));
+                }}
+                className="flex w-full flex-col gap-0.5 rounded-xl border border-paper-line/70 bg-paper px-3 py-2 text-start text-xs transition active:scale-[0.99] hover:border-highlight/35"
+              >
+                <span className="font-semibold text-ink">{d.name}</span>
+                <span className="font-mono text-[10px] text-ink-mute">
+                  {d.host}:{d.port}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="grid grid-cols-[1fr_5rem] gap-2">
         <input
@@ -99,13 +175,6 @@ export function NetworkPrinterPanel({
           </button>
         )}
       </div>
-
-      {busy && (
-        <p className="inline-flex items-center gap-1.5 text-[11px] text-ink-mute">
-          <CircleNotch size={12} className="animate-spin" />
-          جاري الاتصال…
-        </p>
-      )}
     </div>
   );
 }
