@@ -6,6 +6,7 @@ import {
   isSerialConnected,
 } from "./escpos";
 import { isBluetoothConnected } from "./bluetooth-printer";
+import { isUsbOtgConnected } from "./usb-otg-printer";
 import { writeToPrinter } from "./printer-hub";
 import { printThermalReceiptHtml } from "../invoice-html";
 
@@ -89,7 +90,10 @@ export async function printThermalReceiptSmart(
   const tryEscpos =
     forceEscpos ||
     (mode === "auto" &&
-      (isSerialConnected() || isBluetoothConnected() || canUseWebSerial()));
+      (isSerialConnected() ||
+        isUsbOtgConnected() ||
+        isBluetoothConnected() ||
+        canUseWebSerial()));
 
   if (tryEscpos) {
     try {

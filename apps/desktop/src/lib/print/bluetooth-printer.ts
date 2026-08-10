@@ -114,6 +114,8 @@ export async function connectBluetoothPrinter(
     "@fedejm/capacitor-esc-pos-printer"
   );
   await EscPosPrinter.requestBluetoothEnable();
+  const { disconnectUsbOtgPrinter } = await import("./usb-otg-printer");
+  await disconnectUsbOtgPrinter();
   await disconnectBluetoothPrinter();
 
   const printer = new BluetoothPrinter(address);

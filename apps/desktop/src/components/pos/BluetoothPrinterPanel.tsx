@@ -15,10 +15,12 @@ export function BluetoothPrinterPanel({
   thermalWidthMm = 80,
   compact = false,
   onMessage,
+  showTestButton = true,
 }: {
   thermalWidthMm?: 58 | 80;
   compact?: boolean;
   onMessage?: (msg: string) => void;
+  showTestButton?: boolean;
 }) {
   const printer = usePrinter();
   const [devices, setDevices] = useState<ListedBluetoothPrinter[]>([]);
@@ -124,6 +126,7 @@ export function BluetoothPrinterPanel({
         ))}
       </ul>
 
+      {showTestButton && (
       <button
         type="button"
         disabled={busy || !printer.connected}
@@ -145,6 +148,7 @@ export function BluetoothPrinterPanel({
           "طباعة اختبار Bluetooth"
         )}
       </button>
+      )}
     </div>
   );
 }

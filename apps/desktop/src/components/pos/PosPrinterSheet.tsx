@@ -1,6 +1,6 @@
 import { Printer } from "@phosphor-icons/react";
 import { BottomSheet } from "../ui/BottomSheet";
-import { BluetoothPrinterPanel } from "./BluetoothPrinterPanel";
+import { NativePrinterPanel } from "./NativePrinterPanel";
 import { detectRuntime } from "../../lib/native";
 
 function isIos() {
@@ -24,7 +24,7 @@ export function PosPrinterSheet({
   connected: boolean;
   printerLabel?: string;
   supportMessage?: string;
-  transport?: "usb_serial" | "bluetooth" | null;
+  transport?: "usb_serial" | "usb_otg" | "bluetooth" | null;
   thermalWidthMm?: 58 | 80;
   onPrintBrowser?: () => void;
   printing?: boolean;
@@ -45,14 +45,22 @@ export function PosPrinterSheet({
             </p>
             <p className="text-xs text-ink-mute">
               {connected
-                ? `${printerLabel || "جاهزة ESC/POS"}${transport === "bluetooth" ? " · Bluetooth" : transport === "usb_serial" ? " · USB" : ""}`
+                ? `${printerLabel || "جاهزة ESC/POS"}${
+                    transport === "bluetooth"
+                      ? " · Bluetooth"
+                      : transport === "usb_otg"
+                        ? " · USB OTG"
+                        : transport === "usb_serial"
+                          ? " · USB"
+                          : ""
+                  }`
                 : supportMessage || "يمكنك الطباعة عبر المتصفح بعد كل بيع"}
             </p>
           </div>
         </div>
 
         {isNative && (
-          <BluetoothPrinterPanel thermalWidthMm={thermalWidthMm} compact />
+          <NativePrinterPanel thermalWidthMm={thermalWidthMm} compact />
         )}
 
         {!connected && !isNative && (

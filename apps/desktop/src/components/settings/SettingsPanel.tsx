@@ -40,7 +40,7 @@ import {
   setStoredBaudRate,
 } from "../../lib/print/escpos";
 import { printTestSlip } from "../../lib/print/printer-hub";
-import { BluetoothPrinterPanel } from "../pos/BluetoothPrinterPanel";
+import { NativePrinterPanel } from "../pos/NativePrinterPanel";
 import { usePrinter } from "../../hooks/use-printer";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
@@ -778,9 +778,11 @@ export function SettingsPanel({
               ? `متصلة${printer.label ? ` · ${printer.label}` : ""}${
                   printer.transport === "bluetooth"
                     ? " (BT)"
-                    : printer.transport === "usb_serial"
-                      ? " (USB)"
-                      : ""
+                    : printer.transport === "usb_otg"
+                      ? " (USB OTG)"
+                      : printer.transport === "usb_serial"
+                        ? " (USB)"
+                        : ""
                 }`
               : printer.supported
                 ? "غير متصلة"
@@ -788,7 +790,7 @@ export function SettingsPanel({
           </span>
         </div>
         {runtime === "capacitor" && (
-          <BluetoothPrinterPanel
+          <NativePrinterPanel
             thermalWidthMm={settings.thermal_width_mm === 58 ? 58 : 80}
             onMessage={setPrinterMsg}
           />
@@ -797,9 +799,18 @@ export function SettingsPanel({
           <p className="text-xs font-semibold text-ink">{printerMsg}</p>
         )}
         <ol className="list-decimal space-y-1 pr-4 text-[11px] leading-relaxed text-ink-mute">
-          <li>وصّل الطابعة USB وشغّل الطاقة</li>
-          <li>اضغط «اختيار / ربط طابعة USB» واختر الجهاز من نافذة المتصفح</li>
-          <li>اطبع ورقة اختبار — إن ظهرت فالاتصال جاهز للبيع</li>
+          {runtime === "capacitor" ? (
+            <>
+              <li>Android: وصّل USB/OTG أو اقترن Bluetooth — اختر الطابعة من الأسفل</li>
+              <li>اطبع «اختبار حرارية» — إن ظهرت الورقة فأنت جاهز</li>
+            </>
+          ) : (
+            <>
+              <li>وصّل الطابعة USB وشغّل الطاقة</li>
+              <li>اضغط «اختيار / ربط طابعة USB» واختر الجهاز من نافذة المتصفح</li>
+              <li>اطبع ورقة اختبار — إن ظهرت فالاتصال جاهز للبيع</li>
+            </>
+          )}
         </ol>
       </div>
 
