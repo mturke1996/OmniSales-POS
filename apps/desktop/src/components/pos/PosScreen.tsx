@@ -58,6 +58,7 @@ export function PosScreen({
   customers,
   heldCarts,
   cashierId = "cashier-1",
+  initialSearch,
   onShiftChange: _onShiftChange,
   onRefreshData,
   onExit,
@@ -72,6 +73,7 @@ export function PosScreen({
   customers: Customer[];
   heldCarts: HeldCart[];
   cashierId?: string;
+  initialSearch?: string;
   onShiftChange?: (shift: Shift | null) => void;
   onRefreshData: () => void;
   onExit?: () => void;
@@ -183,6 +185,13 @@ export function PosScreen({
   useEffect(() => {
     setDeliveryFee(String(settings.default_delivery_fee ?? 5));
   }, [settings.default_delivery_fee]);
+
+  useEffect(() => {
+    if (initialSearch) {
+      setQuery(initialSearch);
+      searchInputRef.current?.focus();
+    }
+  }, [initialSearch]);
 
   const filtered = useMemo(
     () => filterCatalog(products, query),

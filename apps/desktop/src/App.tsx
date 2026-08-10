@@ -101,6 +101,8 @@ export default function App() {
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
   const [profileCustomerId, setProfileCustomerId] = useState<string | null>(null);
   const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(null);
+  const [posSearchQuery, setPosSearchQuery] = useState<string | null>(null);
+  const [inventorySearchQuery, setInventorySearchQuery] = useState<string | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
 
   const navigate = useCallback((next: SidebarTab) => {
@@ -109,6 +111,8 @@ export default function App() {
     if (next !== "returns") setReturnOrderId(null);
     if (next !== "customers") setProfileCustomerId(null);
     if (next !== "invoices") setFocusInvoiceId(null);
+    if (next !== "pos") setPosSearchQuery(null);
+    if (next !== "inventory") setInventorySearchQuery(null);
   }, []);
 
   const refreshPending = useCallback(() => {
@@ -266,6 +270,7 @@ export default function App() {
             customers={data.customers}
             heldCarts={data.held_carts}
             cashierId={session.cashier_id}
+            initialSearch={posSearchQuery ?? undefined}
             onShiftChange={setShift}
             onRefreshData={loadData}
             onExit={() => navigate("dashboard")}
@@ -348,6 +353,7 @@ export default function App() {
                 categories={data.categories}
                 stockMovements={data.stock_movements}
                 settings={draft}
+                initialSearch={inventorySearchQuery ?? undefined}
                 onRefreshData={loadData}
                 canManage={can(session, "products.edit")}
                 actorId={session.cashier_id}
@@ -525,6 +531,21 @@ export default function App() {
         open={commandOpen}
         onOpenChange={setCommandOpen}
         onNavigate={navigate}
+        orders={data.orders}
+        customers={data.customers}
+        products={data.products}
+        onOpenInvoice={(orderId) => {
+          setFocusInvoiceId(orderId);
+          navigate("invoices");
+        }}
+        onOpenCustomer={(customerId) => {
+          setProfileCustomerId(customerId);
+          navigate("customers");
+        }}
+        onOpenProduct={(searchText) => {
+          setPosSearchQuery(searchText);
+          navigate("pos");
+        }}
       />
     </AppShell>
   );

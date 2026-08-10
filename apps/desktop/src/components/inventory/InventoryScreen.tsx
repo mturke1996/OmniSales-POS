@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from "react";
+import { useMemo, useState, useEffect, type ReactElement } from "react";
 import {
   Plus,
   MagnifyingGlass,
@@ -41,6 +41,7 @@ interface InventoryScreenProps {
   stockMovements: StockMovement[];
   settings: BranchSettings;
   onRefreshData: () => void;
+  initialSearch?: string;
   canManage?: boolean;
   actorId?: string;
 }
@@ -51,6 +52,7 @@ export function InventoryScreen({
   stockMovements,
   settings,
   onRefreshData,
+  initialSearch,
   canManage = true,
   actorId,
 }: InventoryScreenProps) {
@@ -62,6 +64,13 @@ export function InventoryScreen({
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [movementFilter, setMovementFilter] = useState<string>("");
   const [showScanner, setShowScanner] = useState(false);
+
+  useEffect(() => {
+    if (initialSearch) {
+      setQuery(initialSearch);
+      setTab("catalog");
+    }
+  }, [initialSearch]);
 
   const categoryName = useMemo(() => {
     const map = new Map(categories.map((c) => [c.id, c.name]));
