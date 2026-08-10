@@ -34,13 +34,11 @@ export function MobileBottomNav({
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-paper-line/80 bg-paper-raised/95 backdrop-blur-md lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 shrink-0 border-t border-paper-line/80 bg-paper-raised/98 backdrop-blur-lg lg:hidden"
+      style={{ height: "var(--mobile-nav-offset)" }}
       aria-label="التنقل السريع"
     >
-      <div
-        className="mx-auto flex max-w-lg items-stretch justify-around gap-0.5 px-1 pt-1"
-        style={{ paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))" }}
-      >
+      <div className="mx-auto flex h-[var(--mobile-nav-height)] max-w-lg items-stretch justify-around gap-0.5 px-1 pt-1">
         {PRIMARY.map(({ id, label, Icon }) => {
           const active = currentTab === id;
           return (
@@ -49,14 +47,14 @@ export function MobileBottomNav({
               type="button"
               onClick={() => onNavigate(id)}
               className={cn(
-                "flex min-h-[3rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-bold transition active:scale-[0.97]",
+                "flex min-h-[2.75rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[10px] font-bold transition active:scale-[0.97]",
                 active
                   ? "bg-highlight/12 text-highlight"
                   : "text-ink-mute hover:bg-paper hover:text-ink"
               )}
             >
-              <Icon size={22} weight={active ? "fill" : "duotone"} />
-              <span className="truncate">{label}</span>
+              <Icon size={21} weight={active ? "fill" : "duotone"} />
+              <span className="truncate leading-none">{label}</span>
             </button>
           );
         })}
@@ -64,15 +62,15 @@ export function MobileBottomNav({
           type="button"
           onClick={onOpenMenu}
           className={cn(
-            "flex min-h-[3rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-bold transition active:scale-[0.97]",
+            "flex min-h-[2.75rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[10px] font-bold transition active:scale-[0.97]",
             moreActive
               ? "bg-highlight/12 text-highlight"
               : "text-ink-mute hover:bg-paper hover:text-ink"
           )}
           aria-label="المزيد من الأقسام"
         >
-          <SquaresFour size={22} weight={moreActive ? "fill" : "duotone"} />
-          <span>المزيد</span>
+          <SquaresFour size={21} weight={moreActive ? "fill" : "duotone"} />
+          <span className="leading-none">المزيد</span>
         </button>
       </div>
     </nav>

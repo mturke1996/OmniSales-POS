@@ -29,6 +29,9 @@ import { cn } from "../../lib/cn";
 import { computeAnalytics } from "../../lib/analytics";
 import { formatMoney } from "../../lib/format";
 import { SalesTrendChart } from "../charts/SalesTrendChart";
+import { PageHeader } from "../layout/PageHeader";
+import { DataTable } from "../ui/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 
 interface DashboardScreenProps {
   orders: Order[];
@@ -99,18 +102,81 @@ export function DashboardScreen({
     .sort((a, b) => b.balance - a.balance)
     .slice(0, 5);
 
+  const customerColumns: ColumnDef<Customer, unknown>[] = [
+    {
+      accessorKey: "name",
+      header: "العميل",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-full bg-highlight/12 text-xs font-bold text-highlight">
+            {row.original.name.slice(0, 1)}
+          </div>
+          <span className="font-semibold text-ink">{row.original.name}</span>
+        </div>
+      ),
+    },
+    { accessorKey: "phone", header: "الهاتف", cell: ({ getValue }) => (
+      <span className="text-ink-mute">{String(getValue() ?? "—")}</span>
+    )},
+    {
+      accessorKey: "balance",
+      header: "الرصيد",
+      cell: ({ row }) => (
+        <span className="money-big font-bold text-ink">
+          {row.original.balance.toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "credit_limit",
+      header: "الحد",
+      cell: ({ row }) => (
+        <span className="text-ink-mute">{row.original.credit_limit.toFixed(2)}</span>
+      ),
+    },
+    {
+      id: "level",
+      header: "المستوى",
+      cell: ({ row }) => {
+        const c = row.original;
+        const ratio = c.credit_limit > 0 ? c.balance / c.credit_limit : 0;
+        const level = ratio >= 0.8 ? "مرتفع" : ratio >= 0.4 ? "متوسط" : "منخفض";
+        const levelClass =
+          ratio >= 0.8
+            ? "bg-danger/12 text-danger"
+            : ratio >= 0.4
+              ? "bg-warning/12 text-warning"
+              : "bg-success/12 text-success";
+        return (
+          <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold", levelClass)}>
+            {level}
+          </span>
+        );
+      },
+    },
+    {
+      id: "action",
+      header: "إجراء",
+      cell: () => (
+        <button
+          type="button"
+          onClick={() => onNavigate("customers")}
+          className="text-sm font-semibold text-highlight"
+        >
+          عرض
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div className="min-h-full bg-paper">
-      {/* Page header — outside cards, DomainScout pattern */}
-      <div className="border-b border-paper-line/60 bg-paper-raised px-5 py-4 sm:px-8">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-ink">لوحة التحكم</h1>
-            <p className="mt-0.5 text-sm text-ink-mute">
-              البيع محلي أولاً. الفواتير والتقارير جاهزة فوراً.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+      <PageHeader
+        title="لوحة التحكم"
+        description="نظرة شاملة على المبيعات والمخزون والعملاء — محلي أولاً."
+        breadcrumbs={[{ label: "OmniSales" }, { label: "لوحة التحكم" }]}
+        actions={
+          <>
             <button
               type="button"
               onClick={() => onNavigate("pos")}
@@ -135,9 +201,9 @@ export function DashboardScreen({
             >
               <Bell size={18} />
             </button>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="mx-auto max-w-[1400px] space-y-5 px-5 py-6 sm:px-8">
         {/* Hero command — one soft card */}
@@ -350,81 +416,12 @@ export function DashboardScreen({
               })
             )}
           </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[700px] text-sm">
-              <thead>
-                <tr className="border-y border-paper-line/70 text-xs text-ink-mute">
-                  <th className="px-6 py-3 text-start font-semibold">العميل</th>
-                  <th className="px-6 py-3 text-start font-semibold">الهاتف</th>
-                  <th className="px-6 py-3 text-start font-semibold">الرصيد</th>
-                  <th className="px-6 py-3 text-start font-semibold">الحد</th>
-                  <th className="px-6 py-3 text-start font-semibold">المستوى</th>
-                  <th className="px-6 py-3 text-end font-semibold">إجراء</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!topCustomers.length ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-ink-mute">
-                      لا يوجد عملاء بعد
-                    </td>
-                  </tr>
-                ) : (
-                  topCustomers.map((c) => {
-                    const ratio = c.credit_limit > 0 ? c.balance / c.credit_limit : 0;
-                    const level =
-                      ratio >= 0.8 ? "مرتفع" : ratio >= 0.4 ? "متوسط" : "منخفض";
-                    const levelClass =
-                      ratio >= 0.8
-                        ? "bg-danger/12 text-danger"
-                        : ratio >= 0.4
-                          ? "bg-warning/12 text-warning"
-                          : "bg-success/12 text-success";
-                    return (
-                      <tr
-                        key={c.id}
-                        className="border-b border-paper-line/50 last:border-0"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="grid h-9 w-9 place-items-center rounded-full bg-highlight/12 text-xs font-bold text-highlight">
-                              {c.name.slice(0, 1)}
-                            </div>
-                            <span className="font-semibold text-ink">{c.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-ink-mute">{c.phone}</td>
-                        <td className="money-big px-6 py-4 font-bold text-ink">
-                          {c.balance.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 text-ink-mute">
-                          {c.credit_limit.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={cn(
-                              "rounded-full px-2.5 py-1 text-[11px] font-bold",
-                              levelClass
-                            )}
-                          >
-                            {level}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-end">
-                          <button
-                            type="button"
-                            onClick={() => onNavigate("customers")}
-                            className="text-sm font-semibold text-highlight"
-                          >
-                            عرض
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          <div className="hidden md:block">
+            <DataTable
+              data={topCustomers}
+              columns={customerColumns}
+              emptyMessage="لا يوجد عملاء بعد"
+            />
           </div>
         </div>
 

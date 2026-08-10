@@ -4,6 +4,7 @@ import App from "./App";
 import { signalPwaUpdate } from "./components/pwa/PwaUpdateToast";
 import { detectRuntime, initNativeChrome } from "./lib/native";
 import { applyTheme, getInitialTheme } from "./lib/theme";
+import { initViewportHeight } from "./hooks/use-viewport-height";
 import "./styles/index.css";
 
 declare const __OMNI_NATIVE__: boolean;
@@ -15,6 +16,7 @@ if (!root) {
 
 applyTheme(getInitialTheme());
 void initNativeChrome();
+initViewportHeight();
 
 createRoot(root).render(
   <StrictMode>

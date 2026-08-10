@@ -42,7 +42,7 @@ export function CashierGate({
 
   if (checking) {
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-paper px-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+      <div className="grid h-app place-items-center bg-paper px-4 safe-top safe-bottom">
         <p className="text-sm text-ink-mute">جاري التحقق من جلسة الكاشير…</p>
       </div>
     );

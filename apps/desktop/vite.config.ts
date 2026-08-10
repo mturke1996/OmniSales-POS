@@ -18,22 +18,34 @@ export default defineConfig({
       // Prompt so the in-app update toast can confirm reload (native shells skip register).
       registerType: "prompt",
       injectRegister: null,
-      includeAssets: ["favicon.svg", "icons/*.png", "icons/*.svg"],
+      includeAssets: [
+        "favicon.svg",
+        "icons/*.png",
+        "icons/*.svg",
+        "splash/*.png",
+      ],
       manifest: {
+        id: "/",
         name: "OmniSales — منظومة مبيعات متكاملة",
         short_name: "OmniSales",
         description:
           "نقطة بيع سريعة متعددة المجالات مع وضع دون اتصال وورديات وتحليلات",
         lang: "ar",
         dir: "rtl",
-        start_url: "/",
+        start_url: "/?source=pwa",
         scope: "/",
         display: "standalone",
         orientation: "any",
-        background_color: "#FAFAFA",
-        theme_color: "#0A0A0A",
+        background_color: "#0B1220",
+        theme_color: "#0B1220",
         categories: ["business", "finance", "productivity"],
         icons: [
+          {
+            src: "icons/apple-touch-icon.png",
+            sizes: "180x180",
+            type: "image/png",
+            purpose: "any",
+          },
           {
             src: "icons/icon-192.png",
             sizes: "192x192",

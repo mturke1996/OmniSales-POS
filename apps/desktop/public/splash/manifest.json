@@ -1,0 +1,44 @@
+[
+  {
+    "file": "iphone-se.png",
+    "w": 750,
+    "h": 1334,
+    "media": "(device-width: 375px) and (device-height: 667px)",
+    "href": "/splash/iphone-se.png"
+  },
+  {
+    "file": "iphone-xr.png",
+    "w": 828,
+    "h": 1792,
+    "media": "(device-width: 414px) and (device-height: 896px)",
+    "href": "/splash/iphone-xr.png"
+  },
+  {
+    "file": "iphone-12.png",
+    "w": 1170,
+    "h": 2532,
+    "media": "(device-width: 390px) and (device-height: 844px)",
+    "href": "/splash/iphone-12.png"
+  },
+  {
+    "file": "iphone-14-pro.png",
+    "w": 1179,
+    "h": 2556,
+    "media": "(device-width: 393px) and (device-height: 852px)",
+    "href": "/splash/iphone-14-pro.png"
+  },
+  {
+    "file": "iphone-15-pro-max.png",
+    "w": 1290,
+    "h": 2796,
+    "media": "(device-width: 430px) and (device-height: 932px)",
+    "href": "/splash/iphone-15-pro-max.png"
+  },
+  {
+    "file": "ipad.png",
+    "w": 1536,
+    "h": 2048,
+    "media": "(device-width: 768px) and (device-height: 1024px)",
+    "href": "/splash/ipad.png"
+  }
+]

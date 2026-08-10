@@ -70,10 +70,24 @@ export default {
           from: { opacity: "0", transform: "translateY(12px) scaleY(0.96)" },
           to: { opacity: "1", transform: "translateY(0) scaleY(1)" },
         },
+        "bounce-soft": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-4px)" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.35s cubic-bezier(0.32, 0.72, 0, 1) both",
         "chart-rise": "chart-rise 0.5s cubic-bezier(0.32, 0.72, 0, 1) both",
+        "bounce-soft": "bounce-soft 2s ease-in-out infinite",
+      },
+      height: {
+        app: "var(--app-height)",
+      },
+      maxHeight: {
+        app: "var(--app-height)",
+      },
+      minHeight: {
+        app: "var(--app-height)",
       },
     },
   },

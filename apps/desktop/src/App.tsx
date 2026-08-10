@@ -27,6 +27,7 @@ import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { ShortcutsModal } from "./components/pos/ShortcutsModal";
 import { PwaInstallBanner } from "./components/pwa/PwaInstallBanner";
 import { PwaUpdateToast } from "./components/pwa/PwaUpdateToast";
+import { AppShell } from "./components/layout/AppShell";
 import { can } from "./lib/permissions";
 
 function initialTab(): SidebarTab {
@@ -113,7 +114,7 @@ export default function App() {
 
   if (error) {
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-paper px-4">
+      <div className="grid h-app place-items-center bg-paper px-4 safe-top safe-bottom">
         <div className="panel max-w-md p-6 text-center">
           <h1 className="text-lg font-bold text-ink">تعذر التشغيل</h1>
           <p className="mt-2 text-xs text-ink-mute">{error}</p>
@@ -131,7 +132,7 @@ export default function App() {
 
   if (!data || !draft) {
     return (
-      <div className="grid min-h-[100dvh] place-items-center bg-paper px-4" aria-busy="true">
+      <div className="grid h-app place-items-center bg-paper px-4 safe-top safe-bottom" aria-busy="true">
         <div className="w-full max-w-sm space-y-3">
           <div className="h-10 animate-pulse rounded-2xl bg-paper-line" />
           <div className="h-40 animate-pulse rounded-2xl bg-paper-line" />
@@ -169,23 +170,51 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-paper text-ink transition-colors duration-300 ease-spring">
-      {!isPos && (
-        <StatusBar
-          runtime={data.runtime}
-          branchName={draft.name}
-          cashierName={session.cashier_name}
-          pendingSync={pendingSync}
-          onMenuOpen={() => setMobileMenuOpen(true)}
-          onOpenShortcuts={() => setShowShortcutsModal(true)}
-          onLock={() => {
-            void lockSession().then(() => setSession(null));
-          }}
-        />
-      )}
-
+    <AppShell
+      immersive={isPos}
+      topBar={
+        !isPos ? (
+          <StatusBar
+            runtime={data.runtime}
+            branchName={draft.name}
+            cashierName={session.cashier_name}
+            pendingSync={pendingSync}
+            onMenuOpen={() => setMobileMenuOpen(true)}
+            onOpenShortcuts={() => setShowShortcutsModal(true)}
+            onLock={() => {
+              void lockSession().then(() => setSession(null));
+            }}
+          />
+        ) : undefined
+      }
+      sidebar={
+        !isPos ? <Sidebar {...sidebarProps} className="hidden lg:flex" /> : undefined
+      }
+      bottomNav={
+        !isPos ? (
+          <>
+            <MobileBottomNav
+              currentTab={tab}
+              onNavigate={navigate}
+              onOpenMenu={() => setMobileMenuOpen(true)}
+            />
+            <MobileNavDrawer
+              open={mobileMenuOpen}
+              onClose={() => setMobileMenuOpen(false)}
+            >
+              <Sidebar
+                {...sidebarProps}
+                onClose={() => setMobileMenuOpen(false)}
+                className="w-full"
+              />
+            </MobileNavDrawer>
+          </>
+        ) : undefined
+      }
+      contentClassName={!isPos ? "lg:pb-[max(1rem,env(safe-area-inset-bottom))]" : undefined}
+    >
       {isPos ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden safe-top">
           <PosScreen
             settings={draft}
             products={data.products}
@@ -203,11 +232,8 @@ export default function App() {
           />
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1">
-          <Sidebar {...sidebarProps} className="hidden lg:flex" />
-
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pb-[max(5rem,calc(4.25rem+env(safe-area-inset-bottom)))] lg:pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-            {tab === "dashboard" && (
+        <>
+          {tab === "dashboard" && (
               <DashboardScreen
                 orders={data.orders}
                 returns={data.returns}
@@ -441,27 +467,6 @@ export default function App() {
                   </div>
                 </div>
               ))}
-          </main>
-        </div>
-      )}
-
-      {!isPos && (
-        <>
-          <MobileBottomNav
-            currentTab={tab}
-            onNavigate={navigate}
-            onOpenMenu={() => setMobileMenuOpen(true)}
-          />
-          <MobileNavDrawer
-            open={mobileMenuOpen}
-            onClose={() => setMobileMenuOpen(false)}
-          >
-            <Sidebar
-              {...sidebarProps}
-              onClose={() => setMobileMenuOpen(false)}
-              className="w-full"
-            />
-          </MobileNavDrawer>
         </>
       )}
 
@@ -471,6 +476,6 @@ export default function App() {
 
       <PwaInstallBanner />
       <PwaUpdateToast />
-    </div>
+    </AppShell>
   );
 }
