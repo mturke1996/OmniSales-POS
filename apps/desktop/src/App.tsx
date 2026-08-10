@@ -101,6 +101,7 @@ export default function App() {
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
   const [profileCustomerId, setProfileCustomerId] = useState<string | null>(null);
   const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(null);
+  const [focusOrderId, setFocusOrderId] = useState<string | null>(null);
   const [posSearchQuery, setPosSearchQuery] = useState<string | null>(null);
   const [inventorySearchQuery, setInventorySearchQuery] = useState<string | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -111,6 +112,7 @@ export default function App() {
     if (next !== "returns") setReturnOrderId(null);
     if (next !== "customers") setProfileCustomerId(null);
     if (next !== "invoices") setFocusInvoiceId(null);
+    if (next !== "orders") setFocusOrderId(null);
     if (next !== "pos") setPosSearchQuery(null);
     if (next !== "inventory") setInventorySearchQuery(null);
   }, []);
@@ -311,6 +313,7 @@ export default function App() {
               <OrdersScreen
                 orders={data.orders}
                 settings={draft}
+                initialOrderId={focusOrderId}
                 onRefreshData={loadData}
                 canCancel={can(session, "orders.cancel")}
               />
@@ -534,9 +537,18 @@ export default function App() {
         orders={data.orders}
         customers={data.customers}
         products={data.products}
+        returns={data.returns}
         onOpenInvoice={(orderId) => {
           setFocusInvoiceId(orderId);
           navigate("invoices");
+        }}
+        onOpenDelivery={(orderId) => {
+          setFocusOrderId(orderId);
+          navigate("orders");
+        }}
+        onOpenReturn={(orderId) => {
+          setReturnOrderId(orderId);
+          navigate("returns");
         }}
         onOpenCustomer={(customerId) => {
           setProfileCustomerId(customerId);

@@ -6,6 +6,8 @@ import {
   FileText,
   Users,
   Package,
+  Truck,
+  ArrowUUpLeft,
 } from "@phosphor-icons/react";
 import { NAV_ITEMS } from "../../lib/nav-config";
 import {
@@ -13,13 +15,15 @@ import {
   searchCommandResults,
   type CommandResult,
 } from "../../lib/command-search";
-import type { Customer, Order, Product } from "../../lib/types";
+import type { Customer, Order, Product, ReturnRecord } from "../../lib/types";
 import type { SidebarTab } from "../Sidebar";
 import { cn } from "../../lib/cn";
 
 const GROUP_LABELS: Record<string, string> = {
   navigation: "التنقل",
   invoices: "فواتير",
+  deliveries: "توصيل",
+  returns: "مرتجعات",
   customers: "عملاء",
   products: "أصناف",
 };
@@ -31,7 +35,10 @@ export function CommandPalette({
   orders,
   customers,
   products,
+  returns,
   onOpenInvoice,
+  onOpenDelivery,
+  onOpenReturn,
   onOpenCustomer,
   onOpenProduct,
 }: {
@@ -41,7 +48,10 @@ export function CommandPalette({
   orders: Order[];
   customers: Customer[];
   products: Product[];
+  returns: ReturnRecord[];
   onOpenInvoice: (orderId: string) => void;
+  onOpenDelivery: (orderId: string) => void;
+  onOpenReturn: (orderId: string) => void;
   onOpenCustomer: (customerId: string) => void;
   onOpenProduct: (searchText: string) => void;
 }) {
@@ -72,8 +82,8 @@ export function CommandPalette({
   }, [open, onOpenChange]);
 
   const groups = useMemo(
-    () => searchCommandResults(query, NAV_ITEMS, orders, customers, products),
-    [query, orders, customers, products]
+    () => searchCommandResults(query, NAV_ITEMS, orders, customers, products, returns),
+    [query, orders, customers, products, returns]
   );
 
   const flat = useMemo(() => flattenCommandResults(groups), [groups]);
@@ -92,6 +102,20 @@ export function CommandPalette({
         key: "invoices",
         label: GROUP_LABELS.invoices,
         items: groups.invoices,
+      });
+    }
+    if (groups.deliveries.length) {
+      entries.push({
+        key: "deliveries",
+        label: GROUP_LABELS.deliveries,
+        items: groups.deliveries,
+      });
+    }
+    if (groups.returns.length) {
+      entries.push({
+        key: "returns",
+        label: GROUP_LABELS.returns,
+        items: groups.returns,
       });
     }
     if (groups.customers.length) {
@@ -120,6 +144,12 @@ export function CommandPalette({
         case "invoice":
           onOpenInvoice(item.orderId);
           break;
+        case "delivery":
+          onOpenDelivery(item.orderId);
+          break;
+        case "return":
+          onOpenReturn(item.orderId);
+          break;
         case "customer":
           onOpenCustomer(item.customerId);
           break;
@@ -129,7 +159,7 @@ export function CommandPalette({
       }
       onOpenChange(false);
     },
-    [onNavigate, onOpenInvoice, onOpenCustomer, onOpenProduct, onOpenChange]
+    [onNavigate, onOpenInvoice, onOpenDelivery, onOpenReturn, onOpenCustomer, onOpenProduct, onOpenChange]
   );
 
   useEffect(() => {
@@ -168,7 +198,7 @@ export function CommandPalette({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleInputKeyDown}
-              placeholder="ابحث عن قسم، فاتورة، عميل، أو صنف… (⌘K)"
+              placeholder="ابحث عن قسم، فاتورة، توصيل، مرتجع، عميل، أو صنف… (⌘K)"
               className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-mute"
             />
             <button
@@ -245,6 +275,10 @@ function ResultIcon({ item }: { item: CommandResult }) {
   const icon =
     item.kind === "invoice" ? (
       <FileText size={18} weight="duotone" />
+    ) : item.kind === "delivery" ? (
+      <Truck size={18} weight="duotone" />
+    ) : item.kind === "return" ? (
+      <ArrowUUpLeft size={18} weight="duotone" />
     ) : item.kind === "customer" ? (
       <Users size={18} weight="duotone" />
     ) : (

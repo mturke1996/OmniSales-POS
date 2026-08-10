@@ -1,6 +1,7 @@
 import {
   useMemo,
   useState,
+  useEffect,
   type Dispatch,
   type ReactNode,
   type SetStateAction,
@@ -44,6 +45,7 @@ const NEXT_LABEL: Partial<Record<OrderStatus, string>> = {
 interface OrdersScreenProps {
   orders: Order[];
   settings: BranchSettings;
+  initialOrderId?: string | null;
   onRefreshData: () => void;
   canCancel?: boolean;
 }
@@ -51,6 +53,7 @@ interface OrdersScreenProps {
 export function OrdersScreen({
   orders,
   settings,
+  initialOrderId,
   onRefreshData,
   canCancel = false,
 }: OrdersScreenProps) {
@@ -77,6 +80,15 @@ export function OrdersScreen({
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
   }, [orders, filterStatus, filterType, filterDate]);
+
+  useEffect(() => {
+    if (!initialOrderId) return;
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`order-${initialOrderId}`)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  }, [initialOrderId, filtered.length, view]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, Order[]>();
@@ -363,6 +375,7 @@ export function OrdersScreen({
                   canCancel={canCancel}
                   driverDraft={driverDraft}
                   setDriverDraft={setDriverDraft}
+                  highlighted={order.id === initialOrderId}
                   onAdvance={() => void advance(order)}
                   onCancel={() => void cancel(order)}
                 />
@@ -381,6 +394,7 @@ export function OrdersScreen({
                   canCancel={canCancel}
                   driverDraft={driverDraft}
                   setDriverDraft={setDriverDraft}
+                  highlighted={order.id === initialOrderId}
                   onAdvance={() => void advance(order)}
                   onCancel={() => void cancel(order)}
                 />
@@ -391,6 +405,9 @@ export function OrdersScreen({
                 data={filtered}
                 columns={orderColumns}
                 emptyMessage="لا توجد طلبات — أنشئ طلب توصيل من نقطة البيع"
+                getRowClassName={(o) =>
+                  o.id === initialOrderId ? "bg-highlight/10 ring-1 ring-highlight/30" : undefined
+                }
               />
             </div>
           </>
@@ -408,6 +425,7 @@ function OrderCard({
   canCancel,
   driverDraft,
   setDriverDraft,
+  highlighted,
   onAdvance,
   onCancel,
 }: {
@@ -417,13 +435,20 @@ function OrderCard({
   canCancel: boolean;
   driverDraft: Record<string, string>;
   setDriverDraft: Dispatch<SetStateAction<Record<string, string>>>;
+  highlighted?: boolean;
   onAdvance: () => void;
   onCancel: () => void;
 }) {
   const next = NEXT[order.status];
   const nextLabel = NEXT_LABEL[order.status];
   return (
-    <div className="rounded-2xl border border-paper-line bg-paper-raised p-4 shadow-xs">
+    <div
+      id={`order-${order.id}`}
+      className={cn(
+        "rounded-2xl border border-paper-line bg-paper-raised p-4 shadow-xs",
+        highlighted && "ring-2 ring-highlight/40"
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">

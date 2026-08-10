@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, lazy, Suspense, type ReactNode } from "react";
 import {
   Money,
   TrendUp,
@@ -26,14 +26,22 @@ import {
 } from "../../lib/analytics";
 import { formatMoney } from "../../lib/format";
 import { cn } from "../../lib/cn";
-import { SalesTrendChart } from "../charts/SalesTrendChart";
-import { TopProductsChart } from "../charts/TopProductsChart";
-import { PaymentMixChart } from "../charts/PaymentMixChart";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import { ChartSkeleton } from "../ui/ChartSkeleton";
 import type { ColumnDef } from "@tanstack/react-table";
+
+const SalesTrendChart = lazy(() =>
+  import("../charts/SalesTrendChart").then((m) => ({ default: m.SalesTrendChart }))
+);
+const TopProductsChart = lazy(() =>
+  import("../charts/TopProductsChart").then((m) => ({ default: m.TopProductsChart }))
+);
+const PaymentMixChart = lazy(() =>
+  import("../charts/PaymentMixChart").then((m) => ({ default: m.PaymentMixChart }))
+);
 
 const PERIODS: { key: PeriodKey; label: string }[] = [
   { key: "today", label: "اليوم" },
@@ -207,24 +215,30 @@ export function ReportsScreen({
       <div className="grid gap-4 lg:grid-cols-5">
         <section className="panel space-y-3 p-4 lg:col-span-3">
           <h3 className="text-sm font-bold text-ink">اتجاه صافي المبيعات</h3>
-          <SalesTrendChart data={snap.series} currency={settings.currency_symbol} />
+          <Suspense fallback={<ChartSkeleton className="h-56" />}>
+            <SalesTrendChart data={snap.series} currency={settings.currency_symbol} />
+          </Suspense>
         </section>
         <section className="panel space-y-3 p-4 lg:col-span-2">
           <h3 className="text-sm font-bold text-ink">توزيع طرق الدفع</h3>
-          <PaymentMixChart
-            data={snap.paymentMix}
-            currency={settings.currency_symbol}
-          />
+          <Suspense fallback={<ChartSkeleton className="h-56" />}>
+            <PaymentMixChart
+              data={snap.paymentMix}
+              currency={settings.currency_symbol}
+            />
+          </Suspense>
         </section>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-5">
         <section className="panel space-y-3 p-4 lg:col-span-3">
           <h3 className="text-sm font-bold text-ink">أفضل المنتجات</h3>
-          <TopProductsChart
-            data={snap.topProducts}
-            currency={settings.currency_symbol}
-          />
+          <Suspense fallback={<ChartSkeleton className="h-56" />}>
+            <TopProductsChart
+              data={snap.topProducts}
+              currency={settings.currency_symbol}
+            />
+          </Suspense>
         </section>
         <section className="panel space-y-3 p-4 lg:col-span-2">
           <div className="flex items-center gap-2">

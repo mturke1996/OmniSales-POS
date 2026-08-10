@@ -67,17 +67,27 @@ export function StatusBar({
           </div>
 
           {onOpenCommand && (
-            <button
-              type="button"
-              onClick={onOpenCommand}
-              className="hidden max-w-xs flex-1 items-center gap-2 rounded-xl border border-paper-line/60 bg-paper px-3 py-2 text-start transition hover:border-highlight/30 lg:flex"
-            >
-              <MagnifyingGlass size={16} className="text-ink-mute" />
-              <span className="min-w-0 flex-1 text-xs text-ink-mute">بحث سريع…</span>
-              <kbd className="rounded-md bg-paper-raised px-1.5 py-0.5 font-mono text-[10px] text-ink-mute">
-                ⌘K
-              </kbd>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onOpenCommand}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-paper-line/70 bg-paper text-ink transition hover:border-highlight/30 hover:bg-highlight/8 lg:hidden"
+                aria-label="بحث سريع"
+              >
+                <MagnifyingGlass size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={onOpenCommand}
+                className="hidden max-w-xs flex-1 items-center gap-2 rounded-xl border border-paper-line/60 bg-paper px-3 py-2 text-start transition hover:border-highlight/30 lg:flex"
+              >
+                <MagnifyingGlass size={16} className="text-ink-mute" />
+                <span className="min-w-0 flex-1 text-xs text-ink-mute">بحث سريع…</span>
+                <kbd className="rounded-md bg-paper-raised px-1.5 py-0.5 font-mono text-[10px] text-ink-mute">
+                  ⌘K
+                </kbd>
+              </button>
+            </>
           )}
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">

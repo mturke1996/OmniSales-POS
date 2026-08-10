@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, lazy, Suspense } from "react";
 import {
   Money,
   TrendUp,
@@ -28,11 +28,15 @@ import type { SidebarTab } from "../Sidebar";
 import { cn } from "../../lib/cn";
 import { computeAnalytics } from "../../lib/analytics";
 import { formatMoney } from "../../lib/format";
-import { SalesTrendChart } from "../charts/SalesTrendChart";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
+import { ChartSkeleton } from "../ui/ChartSkeleton";
 import type { ColumnDef } from "@tanstack/react-table";
+
+const SalesTrendChart = lazy(() =>
+  import("../charts/SalesTrendChart").then((m) => ({ default: m.SalesTrendChart }))
+);
 
 interface DashboardScreenProps {
   orders: Order[];
@@ -285,7 +289,9 @@ export function DashboardScreen({
               تحليلات كاملة
             </button>
           </div>
-          <SalesTrendChart data={week.series} currency={settings.currency_symbol} />
+          <Suspense fallback={<ChartSkeleton className="h-56" />}>
+            <SalesTrendChart data={week.series} currency={settings.currency_symbol} />
+          </Suspense>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
