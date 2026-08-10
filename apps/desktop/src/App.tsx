@@ -15,6 +15,7 @@ import { AppShell } from "./components/layout/AppShell";
 import { CommandPalette } from "./components/layout/CommandPalette";
 import { ScreenLoader } from "./components/ui/ScreenLoader";
 import { can } from "./lib/permissions";
+import { initialFocusFromUrl, parseAppUrl, writeAppUrl } from "./lib/app-url";
 
 const SetupWizard = lazy(() =>
   import("./components/setup/SetupWizard").then((m) => ({ default: m.SetupWizard }))
@@ -68,24 +69,10 @@ const ShortcutsModal = lazy(() =>
 );
 
 function initialTab(): SidebarTab {
-  const q = new URLSearchParams(window.location.search).get("tab") as SidebarTab | null;
-  const validTabs: SidebarTab[] = [
-    "dashboard",
-    "pos",
-    "shifts",
-    "orders",
-    "invoices",
-    "returns",
-    "inventory",
-    "purchases",
-    "customers",
-    "expenses",
-    "ops",
-    "reports",
-    "settings",
-  ];
-  return q && validTabs.includes(q) ? q : "dashboard";
+  return parseAppUrl().tab;
 }
+
+const urlFocus = initialFocusFromUrl();
 
 export default function App() {
   const [session, setSession] = useState<CashierSession | null>(null);
@@ -98,10 +85,16 @@ export default function App() {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
-  const [profileCustomerId, setProfileCustomerId] = useState<string | null>(null);
-  const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(null);
-  const [focusOrderId, setFocusOrderId] = useState<string | null>(null);
+  const [returnOrderId, setReturnOrderId] = useState<string | null>(
+    urlFocus.returnOrderId
+  );
+  const [profileCustomerId, setProfileCustomerId] = useState<string | null>(
+    urlFocus.customerId
+  );
+  const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(
+    urlFocus.invoiceId
+  );
+  const [focusOrderId, setFocusOrderId] = useState<string | null>(urlFocus.orderId);
   const [posSearchQuery, setPosSearchQuery] = useState<string | null>(null);
   const [inventorySearchQuery, setInventorySearchQuery] = useState<string | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -116,6 +109,17 @@ export default function App() {
     if (next !== "pos") setPosSearchQuery(null);
     if (next !== "inventory") setInventorySearchQuery(null);
   }, []);
+
+  useEffect(() => {
+    if (!session || !data) return;
+    writeAppUrl({
+      tab,
+      invoiceId: focusInvoiceId,
+      orderId: focusOrderId,
+      customerId: profileCustomerId,
+      returnOrderId,
+    });
+  }, [tab, focusInvoiceId, focusOrderId, profileCustomerId, returnOrderId, session, data]);
 
   const refreshPending = useCallback(() => {
     void getPendingSyncCount().then(setPendingSync);

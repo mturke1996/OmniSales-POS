@@ -74,11 +74,16 @@ export default {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-4px)" },
         },
+        "slide-up": {
+          from: { opacity: "0", transform: "translateY(40px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.35s cubic-bezier(0.32, 0.72, 0, 1) both",
         "chart-rise": "chart-rise 0.5s cubic-bezier(0.32, 0.72, 0, 1) both",
         "bounce-soft": "bounce-soft 2s ease-in-out infinite",
+        "slide-up": "slide-up 0.3s cubic-bezier(0.32, 0.72, 0, 1) both",
       },
       height: {
         app: "var(--app-height)",

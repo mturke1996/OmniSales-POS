@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { DownloadSimple, DeviceMobile, X, ShareNetwork } from "@phosphor-icons/react";
-import { motion, AnimatePresence } from "framer-motion";
 import { usePwaInstall } from "../../hooks/use-pwa-install";
 import { detectRuntime } from "../../lib/native";
 
@@ -43,11 +42,7 @@ export function PwaInstallBanner() {
         className="pointer-events-none fixed inset-x-0 z-50 px-3 lg:bottom-0 lg:px-4 lg:pb-[max(0.75rem,env(safe-area-inset-bottom))]"
         style={{ bottom: "var(--mobile-nav-offset)" }}
       >
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="pointer-events-auto mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-paper-line bg-paper-raised p-3 shadow-lift"
-        >
+        <div className="pointer-events-auto mx-auto flex max-w-lg animate-fade-up items-center gap-3 rounded-2xl border border-paper-line bg-paper-raised p-3 shadow-lift">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-highlight/12 text-highlight">
             <DeviceMobile size={22} weight="duotone" />
           </div>
@@ -87,61 +82,53 @@ export function PwaInstallBanner() {
           >
             <X size={16} />
           </button>
-        </motion.div>
+        </div>
       </div>
 
-      <AnimatePresence>
-        {iosOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
-            role="dialog"
-            aria-modal="true"
-            onClick={dismiss}
+      {iosOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex animate-fade-up items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          onClick={dismiss}
+        >
+          <div
+            className="w-full max-w-sm animate-slide-up rounded-2xl border border-paper-line bg-paper-raised p-5 shadow-lift safe-bottom"
+            onClick={(e) => e.stopPropagation()}
           >
-            <motion.div
-              initial={{ y: 40, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 40, opacity: 0 }}
-              className="w-full max-w-sm rounded-2xl border border-paper-line bg-paper-raised p-5 shadow-lift safe-bottom"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-3">
-                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-highlight/12 text-highlight">
-                  <ShareNetwork size={26} weight="duotone" className="animate-bounce-soft" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-ink">إضافة للشاشة الرئيسية</h3>
-                  <p className="text-[11px] text-ink-mute">Safari على iPhone / iPad</p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-highlight/12 text-highlight">
+                <ShareNetwork size={26} weight="duotone" className="animate-bounce-soft" />
               </div>
-              <ol className="mt-4 list-decimal space-y-2.5 pe-4 text-xs leading-relaxed text-ink-soft">
-                <li>
-                  اضغط زر <strong>المشاركة</strong> أسفل Safari (المربع مع السهم للأعلى).
-                </li>
-                <li>
-                  مرّر للأسفل واختر <strong>«إضافة إلى الشاشة الرئيسية»</strong>.
-                </li>
-                <li>
-                  اضغط <strong>«إضافة»</strong> — يفتح OmniSales كتطبيق مستقل بملء الشاشة.
-                </li>
-              </ol>
-              <p className="mt-3 rounded-xl bg-paper px-3 py-2 text-[10px] text-ink-mute">
-                ملاحظة: التثبيت يعمل من Safari فقط. Chrome على iOS لا يدعم PWA كاملاً.
-              </p>
-              <button
-                type="button"
-                className="btn-primary mt-4 w-full text-xs font-bold"
-                onClick={dismiss}
-              >
-                حسناً
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <div>
+                <h3 className="text-sm font-bold text-ink">إضافة للشاشة الرئيسية</h3>
+                <p className="text-[11px] text-ink-mute">Safari على iPhone / iPad</p>
+              </div>
+            </div>
+            <ol className="mt-4 list-decimal space-y-2.5 pe-4 text-xs leading-relaxed text-ink-soft">
+              <li>
+                اضغط زر <strong>المشاركة</strong> أسفل Safari (المربع مع السهم للأعلى).
+              </li>
+              <li>
+                مرّر للأسفل واختر <strong>«إضافة إلى الشاشة الرئيسية»</strong>.
+              </li>
+              <li>
+                اضغط <strong>«إضافة»</strong> — يفتح OmniSales كتطبيق مستقل بملء الشاشة.
+              </li>
+            </ol>
+            <p className="mt-3 rounded-xl bg-paper px-3 py-2 text-[10px] text-ink-mute">
+              ملاحظة: التثبيت يعمل من Safari فقط. Chrome على iOS لا يدعم PWA كاملاً.
+            </p>
+            <button
+              type="button"
+              className="btn-primary mt-4 w-full text-xs font-bold"
+              onClick={dismiss}
+            >
+              حسناً
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -180,7 +167,7 @@ export function PwaInstallButton({ className }: { className?: string }) {
           onClick={() => setIosOpen(false)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl border border-paper-line bg-paper-raised p-5 shadow-lift"
+            className="w-full max-w-sm animate-slide-up rounded-2xl border border-paper-line bg-paper-raised p-5 shadow-lift"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-sm font-bold text-ink">إضافة للشاشة الرئيسية</h3>
