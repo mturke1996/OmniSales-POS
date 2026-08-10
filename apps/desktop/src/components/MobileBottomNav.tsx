@@ -34,8 +34,8 @@ export function MobileBottomNav({
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex shrink-0 flex-col justify-end border-t border-paper-line/80 bg-paper-raised backdrop-blur-lg lg:hidden"
-      style={{ paddingBottom: "var(--safe-bottom)" }}
+      className="z-40 shrink-0 border-t border-paper-line/80 bg-paper-raised/98 backdrop-blur-lg lg:hidden"
+      style={{ height: "var(--mobile-nav-offset)" }}
       aria-label="التنقل السريع"
     >
       <div className="mx-auto flex h-[var(--mobile-nav-inner)] w-full max-w-lg items-stretch justify-around gap-0.5 px-1 pt-1">

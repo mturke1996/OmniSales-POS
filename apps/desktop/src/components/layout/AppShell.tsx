@@ -24,7 +24,6 @@ export function AppShell({
     <div
       className={cn(
         "flex h-app max-h-app min-h-0 flex-col overflow-hidden bg-paper text-ink",
-        "pt-[var(--safe-top)]",
         className
       )}
     >
@@ -37,7 +36,6 @@ export function AppShell({
             immersive
               ? "flex flex-col overflow-hidden"
               : "overflow-y-auto overscroll-contain",
-            bottomNav ? "pb-[var(--mobile-nav-offset)] lg:pb-0" : "",
             contentClassName
           )}
         >

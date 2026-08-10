@@ -42,7 +42,7 @@ export function CashierGate({
 
   if (checking) {
     return (
-      <div className="screen-fill px-4">
+      <div className="grid h-app place-items-center bg-paper px-4 safe-top safe-bottom">
         <p className="text-sm text-ink-mute">جاري التحقق من جلسة الكاشير…</p>
       </div>
     );
@@ -98,7 +98,7 @@ export function CashierGate({
 
   if (pendingChange) {
     return (
-      <div className="screen-fill px-4">
+      <div className="grid h-app place-items-center bg-paper px-4 safe-top safe-bottom">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
@@ -175,7 +175,7 @@ export function CashierGate({
   }
 
   return (
-    <div className="screen-fill px-4">
+    <div className="grid h-app place-items-center bg-paper px-4 py-8 safe-top safe-bottom">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-90"
