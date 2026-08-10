@@ -11,6 +11,7 @@ import { MobileBottomNav } from "./components/MobileBottomNav";
 import { CashierGate } from "./components/auth/CashierGate";
 import { PwaInstallBanner } from "./components/pwa/PwaInstallBanner";
 import { PwaUpdateToast } from "./components/pwa/PwaUpdateToast";
+import { PdfPreviewHost } from "./components/pdf/PdfPreviewHost";
 import { AppShell } from "./components/layout/AppShell";
 import { CommandPalette } from "./components/layout/CommandPalette";
 import { ScreenLoader } from "./components/ui/ScreenLoader";
@@ -164,6 +165,7 @@ export default function App() {
       <>
         <CashierGate onSession={setSession} />
         <PwaInstallBanner />
+        <PdfPreviewHost />
         <PwaUpdateToast />
       </>
     );
@@ -556,6 +558,7 @@ export default function App() {
       )}
 
       <PwaInstallBanner />
+      <PdfPreviewHost />
       <PwaUpdateToast />
       <CommandPalette
         open={commandOpen}

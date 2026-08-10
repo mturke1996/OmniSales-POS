@@ -8,7 +8,10 @@
 |--------|---------|--------|
 | **الويب / PWA** | React 19 + Vite 6 + IndexedDB | `pnpm dev` · `pnpm build:web` |
 | **سطح المكتب** | Tauri 2 + Rust | `pnpm desktop:dev` · `pnpm desktop:build` |
-| **Android APK** | Capacitor 7 | `pnpm android:apk` |
+| **Android APK** | Capacitor 7 | `pnpm apk` (أو `pnpm android:apk`) |
+
+**تحميل مباشر:** بعد النشر على Vercel → [`/downloads/OmniSales.apk`](/downloads/OmniSales.apk)  
+أو من القائمة الجانبية داخل التطبيق → **تحميل تطبيق Android**.
 | **Vercel** | Vite static + SPA rewrite | اربط المستودع على Vercel (يستخدم `vercel.json`) |
 
 ## تشغيل سريع
@@ -20,7 +23,7 @@ pnpm install
 pnpm dev              # http://localhost:1420
 pnpm tauri:dev        # تطبيق سطح المكتب (تطوير)
 pnpm tauri:build      # MSI / NSIS تثبيت Windows
-pnpm android:apk      # APK → apps/desktop/OmniSales-debug.apk
+pnpm apk              # APK → apps/desktop/public/downloads/OmniSales.apk
 ```
 
 من جذر المشروع:

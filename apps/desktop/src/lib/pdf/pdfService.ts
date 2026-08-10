@@ -1,5 +1,8 @@
 import type { ReactElement } from "react";
+import { detectRuntime } from "../native";
 import { ensurePdfFontsLoaded } from "./pdfFonts";
+import { downloadPdfNative } from "./pdfNative";
+import { showPdfPreview } from "./pdfPreview";
 
 export async function generatePdfBlob(component: ReactElement): Promise<Blob> {
   await ensurePdfFontsLoaded();
@@ -15,6 +18,12 @@ export async function downloadPdf(
 ): Promise<void> {
   const blob = await generatePdfBlob(component);
   const name = filename.replace(/\.pdf$/i, "") + ".pdf";
+
+  if (detectRuntime() === "capacitor") {
+    const saved = await downloadPdfNative(blob, name, "فاتورة PDF");
+    if (saved) return;
+  }
+
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -26,15 +35,20 @@ export async function downloadPdf(
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-export async function openPdf(component: ReactElement): Promise<void> {
+export async function openPdf(
+  component: ReactElement,
+  opts?: { title?: string; filename?: string }
+): Promise<void> {
   const blob = await generatePdfBlob(component);
+  const filename = (opts?.filename ?? "invoice").replace(/\.pdf$/i, "") + ".pdf";
+  const title = opts?.title ?? "معاينة فاتورة PDF";
   const url = URL.createObjectURL(blob);
+
+  if (showPdfPreview({ url, title, filename, blob })) return;
+
   try {
     const tab = window.open(url, "_blank", "noopener,noreferrer");
-    if (!tab) {
-      // Fallback for mobile WebViews / blocked popups
-      window.location.href = url;
-    }
+    if (!tab) window.location.href = url;
   } catch {
     window.location.href = url;
   }

@@ -10,6 +10,7 @@ import {
 import { useOnline } from "../hooks/use-online";
 import { cn } from "../lib/cn";
 import { PwaInstallButton } from "./pwa/PwaInstallBanner";
+import { AppDownloadLink } from "./AppDownloadLink";
 
 export function StatusBar({
   runtime,
@@ -102,6 +103,7 @@ export function StatusBar({
             )}
 
             <PwaInstallButton />
+            <AppDownloadLink compact />
 
             {onOpenShortcuts && (
               <button

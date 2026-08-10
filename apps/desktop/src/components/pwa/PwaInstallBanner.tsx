@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { DownloadSimple, DeviceMobile, X, ShareNetwork } from "@phosphor-icons/react";
 import { usePwaInstall } from "../../hooks/use-pwa-install";
 import { detectRuntime } from "../../lib/native";
+import { isAndroidBrowser, resolveApkDownloadUrl, APK_FILENAME } from "../../lib/app-download";
 
 const DISMISS_KEY = "omni.pwa-install-dismissed";
 
@@ -24,7 +25,7 @@ export function PwaInstallBanner() {
   }, [installed]);
 
   if (!isBrowserPwa || installed || dismissed) return null;
-  if (!canPrompt && !showIosTip) return null;
+  if (!canPrompt && !showIosTip && !isAndroidBrowser()) return null;
 
   const dismiss = () => {
     try {
@@ -65,6 +66,16 @@ export function PwaInstallBanner() {
               <DownloadSimple size={14} weight="bold" />
               تثبيت
             </button>
+          ) : isAndroidBrowser() ? (
+            <a
+              href={resolveApkDownloadUrl()}
+              download={APK_FILENAME}
+              className="btn-primary shrink-0 gap-1 px-3 py-2 text-[11px] font-bold"
+              onClick={dismiss}
+            >
+              <DownloadSimple size={14} weight="bold" />
+              APK
+            </a>
           ) : (
             <button
               type="button"

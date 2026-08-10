@@ -108,8 +108,12 @@ const apk = path.join(
 
 if (fs.existsSync(apk)) {
   const out = path.join(root, "OmniSales-debug.apk");
+  const publicApk = path.join(root, "public", "downloads", "OmniSales.apk");
+  fs.mkdirSync(path.dirname(publicApk), { recursive: true });
   fs.copyFileSync(apk, out);
+  fs.copyFileSync(apk, publicApk);
   console.log(`APK ready: ${out}`);
+  console.log(`Public download: ${publicApk}`);
 } else {
   console.error("APK not found after build");
   process.exit(1);

@@ -15,6 +15,8 @@ import {
 import { PwaInstallButton } from "../pwa/PwaInstallBanner";
 import { usePwaInstall } from "../../hooks/use-pwa-install";
 import { detectRuntime } from "../../lib/native";
+import { AppDownloadLink } from "../AppDownloadLink";
+import { isAndroidBrowser } from "../../lib/app-download";
 import {
   clearAllData,
   exportBackup,
@@ -226,6 +228,9 @@ export function SettingsPanel({
               وضع العرض: {pwa.installed ? "standalone" : "متصفح"}
             </span>
           </div>
+          {isAndroidBrowser() && (
+            <AppDownloadLink className="border-ink/10 bg-paper text-ink hover:bg-paper-raised" />
+          )}
         </div>
       )}
 

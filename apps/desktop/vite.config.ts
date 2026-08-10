@@ -23,6 +23,8 @@ export default defineConfig({
         "icons/*.png",
         "icons/*.svg",
         "splash/*.png",
+        "fonts/*.ttf",
+        "downloads/*.apk",
       ],
       manifest: {
         id: "/",

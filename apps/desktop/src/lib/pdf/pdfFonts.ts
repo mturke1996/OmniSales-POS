@@ -6,15 +6,33 @@ export const PDF_FONT_FAMILY = "OmniPdf";
 let registered = false;
 let loadPromise: Promise<void> | null = null;
 
+function fontAssetUrl(file: string): string {
+  const base = import.meta.env.BASE_URL || "/";
+  const rel = `${base}fonts/${file}`.replace(/\/+/g, "/");
+  if (typeof window === "undefined") return rel;
+  try {
+    return new URL(rel, window.location.href).href;
+  } catch {
+    return rel;
+  }
+}
+
 export function registerPdfFonts(): void {
   if (registered || typeof window === "undefined") return;
   try {
-    const origin = window.location.origin;
     Font.register({
       family: PDF_FONT_FAMILY,
       fonts: [
-        { src: `${origin}/fonts/Tajawal-Regular.ttf`, fontWeight: 400, fontStyle: "normal" },
-        { src: `${origin}/fonts/Tajawal-Bold.ttf`, fontWeight: 700, fontStyle: "normal" },
+        {
+          src: fontAssetUrl("Tajawal-Regular.ttf"),
+          fontWeight: 400,
+          fontStyle: "normal",
+        },
+        {
+          src: fontAssetUrl("Tajawal-Bold.ttf"),
+          fontWeight: 700,
+          fontStyle: "normal",
+        },
       ],
     });
     Font.registerHyphenationCallback((word) => [word]);

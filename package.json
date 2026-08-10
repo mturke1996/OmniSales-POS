@@ -12,6 +12,7 @@
     "android:sync": "pnpm --dir apps/desktop android:sync",
     "android:open": "pnpm --dir apps/desktop android:open",
     "android:apk": "pnpm --dir apps/desktop android:apk",
+    "apk": "pnpm --dir apps/desktop apk",
     "test": "pnpm --dir apps/desktop test",
     "test:core": "cargo test -p omni-core",
     "test:all": "pnpm test && pnpm test:core"

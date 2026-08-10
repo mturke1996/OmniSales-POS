@@ -25,8 +25,12 @@ export async function openInvoicePdf(
   order: Order,
   settings: BranchSettings
 ): Promise<void> {
+  const company = settings.name?.trim() || "OmniSales";
   const doc = await invoiceDoc(order, settings);
-  await openPdf(doc);
+  await openPdf(doc, {
+    title: `فاتورة ${order.order_number}`,
+    filename: `${company}-${order.order_number}`,
+  });
 }
 
 /**

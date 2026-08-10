@@ -1,0 +1,59 @@
+name: android-apk
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/android-apk.yml"
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - run: pnpm install
+      - run: pnpm test
+      - run: pnpm android:apk
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      - name: Commit refreshed APK on main
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/downloads/OmniSales.apk
+          git diff --staged --quiet && echo "APK unchanged" && exit 0
+          git commit -m "chore(android): refresh OmniSales.apk [skip ci]"
+          git push
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OmniSales-debug-apk
+          path: apps/desktop/public/downloads/OmniSales.apk
+          if-no-files-found: error

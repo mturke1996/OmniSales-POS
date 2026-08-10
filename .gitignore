@@ -32,6 +32,7 @@ package-lock.json
 npm-debug.log*
 
 *.apk
+!apps/desktop/public/downloads/OmniSales.apk
 *.msi
 *.nsis.zip
 .turbo/
