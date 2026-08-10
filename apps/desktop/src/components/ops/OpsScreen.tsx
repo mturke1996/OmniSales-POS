@@ -1,8 +1,13 @@
 import { useMemo, useState } from "react";
-import { Percent, ShieldCheck } from "@phosphor-icons/react";
+import { Percent, ShieldCheck, Printer, ShareNetwork } from "@phosphor-icons/react";
 import { addPromotion, setPromotionActive } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 import { buildDailyOwnerSummary, openWhatsApp } from "../../lib/whatsapp";
+import {
+  computeDailySummary,
+  printDailySummarySmart,
+} from "../../lib/daily-summary";
+import { canShareReceipt, shareTextReceipt } from "../../lib/share-receipt";
 import type {
   AuditEntry,
   BranchSettings,
@@ -15,7 +20,10 @@ import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
 import type { ColumnDef } from "@tanstack/react-table";
+import { cn } from "../../lib/cn";
 
 export function OpsScreen({
   promotions,
@@ -25,6 +33,8 @@ export function OpsScreen({
   expenses,
   customers,
   onRefreshData,
+  pendingSync = 0,
+  onSync,
 }: {
   promotions: Promotion[];
   auditLog: AuditEntry[];
@@ -33,11 +43,19 @@ export function OpsScreen({
   expenses: Expense[];
   customers: Customer[];
   onRefreshData: () => void;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }) {
   const [tab, setTab] = useState<"promos" | "audit" | "daily">("promos");
   const [name, setName] = useState("");
   const [kind, setKind] = useState<"percent" | "fixed">("percent");
   const [value, setValue] = useState(10);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [msgKind, setMsgKind] = useState<"success" | "error" | "info">("info");
+  const [busyPromoId, setBusyPromoId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
 
   const audits = useMemo(
     () =>
@@ -83,35 +101,56 @@ export function OpsScreen({
     []
   );
 
-  const todaySales = useMemo(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    return orders
-      .filter(
-        (o) =>
-          o.status === "completed" && new Date(o.created_at) >= start
-      )
-      .reduce((s, o) => s + o.total_amount, 0);
-  }, [orders]);
+  const summaryInput = useMemo(
+    () => ({ settings, orders, expenses, customers }),
+    [settings, orders, expenses, customers]
+  );
 
-  const todayExpenses = useMemo(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    return expenses
-      .filter((e) => new Date(e.created_at) >= start)
-      .reduce((s, e) => s + e.amount, 0);
-  }, [expenses]);
+  const daily = useMemo(
+    () => computeDailySummary(summaryInput),
+    [summaryInput]
+  );
 
-  const debts = customers.reduce((s, c) => s + c.balance, 0);
+  const whatsAppSummary = buildDailyOwnerSummary({
+    branchName: settings.name,
+    sales: daily.sales,
+    expenses: daily.expenses,
+    debts: daily.debts,
+    symbol: settings.currency_symbol,
+    deliveryOpen: daily.deliveryOpen,
+  });
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="العروض والتدقيق"
         description="إدارة ترويجية وحوكمة يومية وملخص المالك"
         breadcrumbs={[{ label: "OmniSales" }, { label: "الإدارة" }, { label: "عروض وتدقيق" }]}
       />
       <PageContent size="narrow" className="space-y-6">
+
+      {msg && (
+        <div
+          className={cn(
+            "rounded-xl px-3 py-2 text-xs font-medium",
+            msgKind === "success"
+              ? "bg-success/10 text-success"
+              : msgKind === "error"
+                ? "bg-danger/10 text-danger"
+                : "bg-highlight/10 text-highlight"
+          )}
+        >
+          {msg}
+        </div>
+      )}
 
       <div className="flex gap-1 rounded-2xl border border-paper-line bg-paper-raised p-1">
         {(
@@ -140,6 +179,8 @@ export function OpsScreen({
             className="panel grid gap-2 p-4 sm:grid-cols-4"
             onSubmit={(e) => {
               e.preventDefault();
+              setSubmitting(true);
+              setMsg(null);
               void addPromotion({
                 name,
                 kind,
@@ -149,11 +190,15 @@ export function OpsScreen({
               })
                 .then(() => {
                   setName("");
+                  setMsgKind("success");
+                  setMsg("تم إضافة العرض");
                   onRefreshData();
                 })
-                .catch((err) =>
-                  alert(err instanceof Error ? err.message : "فشل")
-                );
+                .catch((err) => {
+                  setMsgKind("error");
+                  setMsg(err instanceof Error ? err.message : "فشل إضافة العرض");
+                })
+                .finally(() => setSubmitting(false));
             }}
           >
             <input
@@ -178,36 +223,61 @@ export function OpsScreen({
               min={1}
               onChange={(e) => setValue(Number(e.target.value))}
             />
-            <button type="submit" className="btn-primary text-xs font-bold sm:col-span-4">
-              <Percent size={14} className="inline" /> إضافة عرض
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary text-xs font-bold sm:col-span-4 disabled:opacity-50"
+            >
+              <Percent size={14} className="inline" />{" "}
+              {submitting ? "جاري الإضافة…" : "إضافة عرض"}
             </button>
           </form>
-          <div className="space-y-2">
-            {promotions.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between rounded-xl border border-paper-line bg-paper-raised px-4 py-3 text-xs"
-              >
-                <div>
-                  <p className="font-bold text-ink">{p.name}</p>
-                  <p className="text-ink-mute">
-                    {p.kind === "percent" ? `${p.value}%` : formatMoney(p.value, settings.currency_symbol)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className={`rounded-full px-3 py-1 font-bold ${
-                    p.active ? "bg-success/15 text-success" : "bg-paper text-ink-mute"
-                  }`}
-                  onClick={() =>
-                    void setPromotionActive(p.id, !p.active).then(onRefreshData)
-                  }
-                >
-                  {p.active ? "مفعّل" : "متوقف"}
-                </button>
+          {!promotions.length ? (
+            <div className="panel grid place-items-center py-12 text-center text-xs text-ink-mute">
+              <div>
+                <Percent size={32} className="mx-auto mb-2 text-highlight" />
+                <p className="font-bold text-ink">لا توجد عروض بعد</p>
+                <p className="mt-1">أضف عرضاً نسبياً أو مبلغاً ثابتاً — يُطبّق تلقائياً في نقطة البيع</p>
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {promotions.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between rounded-xl border border-paper-line bg-paper-raised px-4 py-3 text-xs"
+                >
+                  <div>
+                    <p className="font-bold text-ink">{p.name}</p>
+                    <p className="text-ink-mute">
+                      {p.kind === "percent"
+                        ? `${p.value}%`
+                        : formatMoney(p.value, settings.currency_symbol)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busyPromoId === p.id}
+                    className={`rounded-full px-3 py-1 font-bold disabled:opacity-50 ${
+                      p.active ? "bg-success/15 text-success" : "bg-paper text-ink-mute"
+                    }`}
+                    onClick={() => {
+                      setBusyPromoId(p.id);
+                      void setPromotionActive(p.id, !p.active)
+                        .then(onRefreshData)
+                        .catch((err) => {
+                          setMsgKind("error");
+                          setMsg(err instanceof Error ? err.message : "فشل تحديث العرض");
+                        })
+                        .finally(() => setBusyPromoId(null));
+                    }}
+                  >
+                    {busyPromoId === p.id ? "…" : p.active ? "مفعّل" : "متوقف"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -240,53 +310,103 @@ export function OpsScreen({
             <ShieldCheck size={18} className="text-highlight" />
             ملخص اليوم للمالك
           </div>
-          <div className="grid grid-cols-3 gap-3 text-xs">
+          <p className="text-[11px] text-ink-mute">{daily.dateLabel}</p>
+          <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
             <div className="rounded-xl bg-paper p-3">
-              <p className="text-ink-mute">مبيعات مكتملة</p>
+              <p className="text-ink-mute">مبيعات</p>
               <p className="font-mono font-bold">
-                {formatMoney(todaySales, settings.currency_symbol)}
+                {formatMoney(daily.sales, settings.currency_symbol)}
               </p>
             </div>
             <div className="rounded-xl bg-paper p-3">
               <p className="text-ink-mute">مصروفات</p>
               <p className="font-mono font-bold">
-                {formatMoney(todayExpenses, settings.currency_symbol)}
+                {formatMoney(daily.expenses, settings.currency_symbol)}
               </p>
             </div>
             <div className="rounded-xl bg-paper p-3">
-              <p className="text-ink-mute">إجمالي الديون</p>
+              <p className="text-ink-mute">صافي اليوم</p>
+              <p className="font-mono font-bold text-success">
+                {formatMoney(daily.net, settings.currency_symbol)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-paper p-3">
+              <p className="text-ink-mute">ديون</p>
               <p className="font-mono font-bold text-danger">
-                {formatMoney(debts, settings.currency_symbol)}
+                {formatMoney(daily.debts, settings.currency_symbol)}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            className="btn-primary text-xs font-bold"
-            onClick={() => {
-              const phone = settings.owner_whatsapp || settings.phone;
-              if (!phone) {
-                alert("أضف رقم واتساب المالك من الإعدادات");
-                return;
-              }
-              const msg = buildDailyOwnerSummary({
-                branchName: settings.name,
-                sales: todaySales,
-                expenses: todayExpenses,
-                debts,
-                symbol: settings.currency_symbol,
-                deliveryOpen: orders.filter(
-                  (o) =>
-                    o.type === "delivery" &&
-                    o.status !== "completed" &&
-                    o.status !== "cancelled"
-                ).length,
-              });
-              openWhatsApp(phone, msg);
-            }}
-          >
-            إرسال الملخص واتساب للمالك
-          </button>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={printing}
+              className="btn-primary inline-flex items-center justify-center gap-2 text-xs font-bold disabled:opacity-50"
+              onClick={() => {
+                setPrinting(true);
+                setMsg(null);
+                void printDailySummarySmart(summaryInput)
+                  .then((mode) => {
+                    setMsgKind("success");
+                    setMsg(
+                      mode === "escpos"
+                        ? "طُبع الملخص حرارياً"
+                        : "فُتح الملخص للطباعة"
+                    );
+                  })
+                  .catch((e) => {
+                    setMsgKind("error");
+                    setMsg(e instanceof Error ? e.message : "فشلت الطباعة");
+                  })
+                  .finally(() => setPrinting(false));
+              }}
+            >
+              <Printer size={16} />
+              {printing ? "جاري الطباعة…" : "طباعة ملخص حراري"}
+            </button>
+            {canShareReceipt() && (
+              <button
+                type="button"
+                className="btn-ghost inline-flex items-center justify-center gap-2 text-xs font-bold"
+                onClick={() =>
+                  void shareTextReceipt({
+                    title: `ملخص ${settings.name}`,
+                    text: whatsAppSummary.replace(/\*/g, ""),
+                  })
+                    .then((ok) => {
+                      if (ok) {
+                        setMsgKind("success");
+                        setMsg("تم فتح المشاركة");
+                      }
+                    })
+                    .catch((e) => {
+                      setMsgKind("error");
+                      setMsg(e instanceof Error ? e.message : "فشل المشاركة");
+                    })
+                }
+              >
+                <ShareNetwork size={16} />
+                مشاركة الملخص
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-ghost text-xs font-bold sm:col-span-2"
+              onClick={() => {
+                const phone = settings.owner_whatsapp || settings.phone;
+                if (!phone) {
+                  setMsgKind("error");
+                  setMsg("أضف رقم واتساب المالك من الإعدادات");
+                  return;
+                }
+                openWhatsApp(phone, whatsAppSummary);
+                setMsgKind("success");
+                setMsg("فُتح واتساب");
+              }}
+            >
+              إرسال الملخص واتساب للمالك
+            </button>
+          </div>
         </div>
       )}
       </PageContent>

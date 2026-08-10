@@ -649,7 +649,7 @@ export function PosScreen({
       <ProductGrid
         products={filtered}
         categories={categories}
-        layout="touch_tiles"
+        layout={settings.pos_layout}
         currencySymbol={settings.currency_symbol}
         onAdd={addProductToCart}
         disabled={needsShift}

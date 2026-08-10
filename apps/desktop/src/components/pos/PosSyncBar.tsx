@@ -8,6 +8,7 @@ export function PosSyncBar({
   syncing,
   onSync,
   compact = false,
+  className,
 }: {
   online: boolean;
   pendingSync: number;
@@ -15,6 +16,7 @@ export function PosSyncBar({
   syncing?: boolean;
   onSync?: () => void;
   compact?: boolean;
+  className?: string;
 }) {
   const showPending = pendingSync > 0;
   if (online && !showPending) return null;
@@ -24,7 +26,8 @@ export function PosSyncBar({
       className={cn(
         "flex shrink-0 items-center justify-between gap-2 border-b font-semibold",
         compact ? "px-2 py-1 text-[10px]" : "px-3 py-2 text-xs",
-        online ? "border-highlight/20 bg-highlight/8 text-highlight" : "border-warning/25 bg-warning/10 text-warning"
+        online ? "border-highlight/20 bg-highlight/8 text-highlight" : "border-warning/25 bg-warning/10 text-warning",
+        className
       )}
     >
       <span className="inline-flex items-center gap-1.5">

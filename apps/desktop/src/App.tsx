@@ -146,6 +146,15 @@ export default function App() {
       });
   }, [refreshPending]);
 
+  const handleCloudSync = useCallback(() => {
+    if (!draft) return Promise.resolve(undefined);
+    return syncCloud(draft).then((r) => {
+      refreshPending();
+      void loadData();
+      return r;
+    });
+  }, [draft, refreshPending, loadData]);
+
   useEffect(() => {
     if (session) void loadData();
   }, [session, loadData]);
@@ -285,13 +294,7 @@ export default function App() {
             onOpenCompletedSales={() => navigate("invoices")}
             onOpenShifts={() => navigate("shifts")}
             pendingSync={pendingSync}
-            onSync={() =>
-              syncCloud(draft).then((r) => {
-                refreshPending();
-                void loadData();
-                void r;
-              })
-            }
+            onSync={() => void handleCloudSync()}
           />
         </div>
       ) : (
@@ -320,6 +323,8 @@ export default function App() {
                 cashMovements={data.cash_movements}
                 shiftHistory={data.shift_history}
                 onRefreshData={loadData}
+                pendingSync={pendingSync}
+                onSync={() => void handleCloudSync()}
               />
             )}
 
@@ -330,6 +335,8 @@ export default function App() {
                 initialOrderId={focusOrderId}
                 onRefreshData={loadData}
                 canCancel={can(session, "orders.cancel")}
+                pendingSync={pendingSync}
+                onSync={() => void handleCloudSync()}
               />
             )}
 
@@ -361,6 +368,8 @@ export default function App() {
                 onDone={() => {
                   void loadData();
                 }}
+                pendingSync={pendingSync}
+                onSync={() => void handleCloudSync()}
               />
             )}
 
@@ -452,6 +461,8 @@ export default function App() {
                   expenses={data.expenses}
                   customers={data.customers}
                   onRefreshData={loadData}
+                  pendingSync={pendingSync}
+                  onSync={() => void handleCloudSync()}
                 />
               ) : (
                 <div className="mx-auto max-w-lg px-4 py-16 text-center">

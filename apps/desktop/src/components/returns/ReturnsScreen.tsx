@@ -24,7 +24,9 @@ import { DataTable } from "../ui/DataTable";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ReturnReceiptModal } from "./ReturnReceiptModal";
+import { PosSyncBar } from "../pos/PosSyncBar";
 import { usePhoneLayout } from "../../hooks/use-media-query";
+import { usePageSync } from "../../hooks/use-page-sync";
 
 const REFUND_LABEL: Record<RefundMethod, string> = {
   cash: "نقداً",
@@ -40,6 +42,8 @@ export function ReturnsScreen({
   cashierId,
   initialOrderId,
   onDone,
+  pendingSync = 0,
+  onSync,
 }: {
   orders: Order[];
   returns: ReturnRecord[];
@@ -48,7 +52,10 @@ export function ReturnsScreen({
   cashierId: string;
   initialOrderId?: string | null;
   onDone: () => void;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const [q, setQ] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(
     initialOrderId ?? null
@@ -269,6 +276,14 @@ export function ReturnsScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="المرتجعات"
         description="إرجاع بنود من فاتورة — إعادة مخزون وتحديث الصندوق/رصيد العميل"

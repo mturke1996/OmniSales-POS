@@ -28,7 +28,9 @@ import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
 import { ReceiptModal } from "../pos/ReceiptModal";
+import { PosSyncBar } from "../pos/PosSyncBar";
 import { usePhoneLayout } from "../../hooks/use-media-query";
+import { usePageSync } from "../../hooks/use-page-sync";
 import type { ColumnDef } from "@tanstack/react-table";
 
 const NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
@@ -51,6 +53,8 @@ interface OrdersScreenProps {
   initialOrderId?: string | null;
   onRefreshData: () => void;
   canCancel?: boolean;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }
 
 export function OrdersScreen({
@@ -59,7 +63,10 @@ export function OrdersScreen({
   initialOrderId,
   onRefreshData,
   canCancel = false,
+  pendingSync = 0,
+  onSync,
 }: OrdersScreenProps) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterType, setFilterType] = useState("delivery");
   const [filterDate, setFilterDate] = useState("");
@@ -282,6 +289,14 @@ export function OrdersScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="التوصيل والطلبات"
         description="من نقطة البيع → وضع توصيل · ثم تتبّع الحالات حتى التسليم"

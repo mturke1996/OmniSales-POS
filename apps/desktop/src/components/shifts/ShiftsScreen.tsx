@@ -22,6 +22,8 @@ import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
 import type { ColumnDef } from "@tanstack/react-table";
 
 export function ShiftsScreen({
@@ -34,6 +36,8 @@ export function ShiftsScreen({
   cashMovements = [],
   shiftHistory = [],
   onRefreshData,
+  pendingSync = 0,
+  onSync,
 }: {
   settings: BranchSettings;
   openShiftState: Shift | null;
@@ -44,7 +48,10 @@ export function ShiftsScreen({
   cashMovements?: CashMovement[];
   shiftHistory?: Shift[];
   onRefreshData?: () => void;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const z = useMemo(
     () => buildZSummary(openShiftState, orders, returns),
     [openShiftState, orders, returns]
@@ -242,6 +249,14 @@ export function ShiftsScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="الورديات والخزينة"
         description="تتبع العهد النقدية، المبيعات المباشرة، وفروقات الخزينة وتقرير Z"
