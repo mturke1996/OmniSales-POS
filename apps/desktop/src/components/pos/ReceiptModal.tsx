@@ -81,11 +81,11 @@ export function ReceiptModal({
 
   const actions = (
     <div className={cn("grid gap-2", mobile ? "grid-cols-1 p-4 pt-0" : "grid-cols-1 sm:grid-cols-2")}>
-      {order.customer_phone && (
+      {(order.customer_phone || settings.phone) && (
         <WhatsAppButton
-          phone={order.customer_phone}
+          phone={order.customer_phone || settings.phone || ""}
           message={whatsAppMessage}
-          label="إرسال واتساب للعميل"
+          label={order.customer_phone ? "إرسال واتساب للعميل" : "مشاركة الفاتورة واتساب"}
           size="md"
           className="w-full"
         />

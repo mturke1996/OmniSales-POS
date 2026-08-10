@@ -275,6 +275,8 @@ export default function App() {
             openShiftState={shift}
             customers={data.customers}
             heldCarts={data.held_carts}
+            orders={data.orders}
+            returns={data.returns}
             cashierId={session.cashier_id}
             initialSearch={posSearchQuery ?? undefined}
             onShiftChange={setShift}

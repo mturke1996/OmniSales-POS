@@ -3,6 +3,8 @@ import {
   Receipt,
   Clock,
   Circle,
+  Camera,
+  Printer,
 } from "@phosphor-icons/react";
 import { cn } from "../../lib/cn";
 
@@ -10,16 +12,22 @@ export function MobilePosHeader({
   branchName,
   shiftOpen,
   heldCount,
+  printerConnected,
   onExit,
   onOpenSales,
   onOpenHeld,
+  onScan,
+  compact = false,
 }: {
   branchName: string;
   shiftOpen: boolean;
   heldCount: number;
+  printerConnected?: boolean;
   onExit?: () => void;
   onOpenSales?: () => void;
   onOpenHeld: () => void;
+  onScan?: () => void;
+  compact?: boolean;
 }) {
   return (
     <header className="flex shrink-0 items-center gap-2 border-b border-paper-line/70 bg-paper-raised/95 px-3 py-2.5 safe-top backdrop-blur-md">
@@ -36,20 +44,48 @@ export function MobilePosHeader({
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-ink">{branchName || "OmniSales"}</p>
-        <div className="mt-0.5 flex items-center gap-1.5">
-          <Circle
-            size={8}
-            weight="fill"
-            className={cn(shiftOpen ? "text-success" : "text-warning")}
-          />
-          <span className={cn("text-[10px] font-semibold", shiftOpen ? "text-success" : "text-warning")}>
-            {shiftOpen ? "وردية مفتوحة" : "وردية مغلقة"}
+        <div className="mt-0.5 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1">
+            <Circle
+              size={8}
+              weight="fill"
+              className={cn(shiftOpen ? "text-success" : "text-warning")}
+            />
+            <span
+              className={cn(
+                "text-[10px] font-semibold",
+                shiftOpen ? "text-success" : "text-warning"
+              )}
+            >
+              {shiftOpen ? "وردية مفتوحة" : "وردية مغلقة"}
+            </span>
           </span>
+          {printerConnected != null && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-0.5 text-[10px] font-semibold",
+                printerConnected ? "text-success" : "text-ink-mute"
+              )}
+            >
+              <Printer size={11} weight="duotone" />
+              {printerConnected ? "طابعة" : "بدون طابعة"}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
-        {onOpenSales && (
+        {onScan && (
+          <button
+            type="button"
+            onClick={onScan}
+            className="grid h-10 w-10 place-items-center rounded-xl bg-highlight text-white shadow-soft transition active:scale-[0.97]"
+            aria-label="مسح باركود"
+          >
+            <Camera size={18} weight="duotone" />
+          </button>
+        )}
+        {!compact && onOpenSales && (
           <button
             type="button"
             onClick={onOpenSales}

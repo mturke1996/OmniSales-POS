@@ -27,6 +27,7 @@ import type {
   Product,
   ProductCategory,
   Promotion,
+  ReturnRecord,
   Shift,
 } from "../../lib/types";
 import { ProductGrid } from "./ProductGrid";
@@ -41,7 +42,8 @@ import { MobilePosTabBar, type MobilePosTab } from "./MobilePosTabBar";
 import { MobilePosQuickPay } from "./MobilePosQuickPay";
 import { PosQuickActions } from "./PosQuickActions";
 import { PosProductStrip } from "./PosProductStrip";
-import { usePhoneLayout } from "../../hooks/use-media-query";
+import { PosLiveStats } from "./PosLiveStats";
+import { usePhoneLayout, usePosSplitLayout } from "../../hooks/use-media-query";
 import { usePrinter } from "../../hooks/use-printer";
 import {
   getPinnedProductIds,
@@ -59,6 +61,8 @@ export function PosScreen({
   openShiftState,
   customers,
   heldCarts,
+  orders = [],
+  returns = [],
   cashierId = "cashier-1",
   initialSearch,
   onShiftChange: _onShiftChange,
@@ -74,6 +78,8 @@ export function PosScreen({
   openShiftState: Shift | null;
   customers: Customer[];
   heldCarts: HeldCart[];
+  orders?: Order[];
+  returns?: ReturnRecord[];
   cashierId?: string;
   initialSearch?: string;
   onShiftChange?: (shift: Shift | null) => void;
@@ -95,6 +101,8 @@ export function PosScreen({
   } = useCart();
   const caps = industryCaps(settings.industry);
   const isPhone = usePhoneLayout();
+  const isSplitLayout = usePosSplitLayout();
+  const isMobileTabs = isPhone && !isSplitLayout;
 
   function notifyAdded(name: string) {
     if (!isPhone) return;
@@ -487,124 +495,167 @@ export function PosScreen({
     />
   );
 
+  const productsPane = (
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-2 pt-2">
+      <div className="relative mb-2 shrink-0">
+        <MagnifyingGlass
+          className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-ink-mute"
+          size={18}
+        />
+        <input
+          ref={searchInputRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleScanOrSearchEnter();
+            }
+          }}
+          placeholder="بحث أو باركود..."
+          className="input-field h-11 pe-10 ps-3 text-sm font-medium"
+          inputMode="search"
+        />
+      </div>
+
+      <div className="mb-2 shrink-0">
+        <PosQuickActions
+          customerName={selectedCustomer?.name}
+          saleMode={saleMode}
+          priceMode={priceMode}
+          onCustomer={() => setShowCustomerModal(true)}
+          onHold={() => void handleHoldCart()}
+          holdDisabled={!lines.length}
+          onToggleSaleMode={() => {
+            if (saleMode === "delivery") {
+              setSaleMode("walk_in");
+              return;
+            }
+            setSaleMode("delivery");
+            if (selectedCustomer?.phone && !deliveryPhone) {
+              setDeliveryPhone(selectedCustomer.phone);
+            }
+            if (selectedCustomer?.address && !deliveryAddress) {
+              setDeliveryAddress(selectedCustomer.address);
+            }
+          }}
+          onTogglePriceMode={() => {
+            if (priceMode === "wholesale") {
+              setPriceMode("retail");
+              return;
+            }
+            setPriceMode("wholesale");
+            if (!selectedCustomer) setShowCustomerModal(true);
+          }}
+        />
+      </div>
+
+      {needsShift && (
+        <div className="mb-2 shrink-0 rounded-2xl border border-warning/25 bg-warning/10 px-3 py-2.5">
+          <p className="text-xs font-bold text-warning">افتح وردية قبل البيع</p>
+          <button
+            type="button"
+            onClick={() => (onOpenShifts ?? onExit)?.()}
+            className="touch-chip mt-2 bg-warning text-white"
+          >
+            فتح الوردية
+          </button>
+        </div>
+      )}
+
+      {!query.trim() && (
+        <>
+          <PosProductStrip
+            title="مفضّلة سريعة"
+            icon="pinned"
+            products={pinnedProducts}
+            pinnedIds={pinnedIdSet}
+            currencySymbol={settings.currency_symbol}
+            onAdd={addProductToCart}
+            onTogglePin={handleTogglePin}
+            disabled={needsShift}
+          />
+          <PosProductStrip
+            title="أُضيف مؤخراً"
+            icon="recent"
+            products={recentProducts}
+            currencySymbol={settings.currency_symbol}
+            onAdd={addProductToCart}
+            disabled={needsShift}
+          />
+        </>
+      )}
+
+      <ProductGrid
+        products={filtered}
+        categories={categories}
+        layout="touch_tiles"
+        currencySymbol={settings.currency_symbol}
+        onAdd={addProductToCart}
+        disabled={needsShift}
+        phoneLayout
+        pinnedIds={pinnedIdSet}
+        onTogglePin={isPhone ? handleTogglePin : undefined}
+      />
+    </section>
+  );
+
   return (
     <div className="pos-console relative flex h-app min-h-0 flex-col overflow-hidden">
       {isPhone ? (
+        isSplitLayout ? (
+          <>
+            <MobilePosHeader
+              branchName={settings.name}
+              shiftOpen={Boolean(openShiftState)}
+              heldCount={heldCarts.length}
+              printerConnected={printer.connected}
+              onExit={onExit}
+              onOpenSales={onOpenCompletedSales}
+              onOpenHeld={() => setShowHoldModal(true)}
+              onScan={() => setShowScanner(true)}
+              compact
+            />
+            <PosLiveStats
+              orders={orders}
+              returns={returns}
+              openShift={openShiftState}
+              currencySymbol={settings.currency_symbol}
+            />
+            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(17rem,24rem)]">
+              {productsPane}
+              <aside className="flex min-h-0 flex-col border-s border-paper-line/60 bg-paper-raised">
+                {cartPanel}
+              </aside>
+            </div>
+            {addToast && (
+              <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 flex justify-center px-4">
+                <div className="rounded-full bg-ink/95 px-4 py-2 text-xs font-bold text-white shadow-lift">
+                  + {addToast}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
         <>
           <MobilePosHeader
             branchName={settings.name}
             shiftOpen={Boolean(openShiftState)}
             heldCount={heldCarts.length}
+            printerConnected={printer.connected}
             onExit={onExit}
             onOpenSales={onOpenCompletedSales}
             onOpenHeld={() => setShowHoldModal(true)}
           />
+          <PosLiveStats
+            orders={orders}
+            returns={returns}
+            openShift={openShiftState}
+            currencySymbol={settings.currency_symbol}
+          />
 
           {mobileTab === "products" ? (
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-2 pt-2">
-              <div className="relative mb-2 shrink-0">
-                <MagnifyingGlass
-                  className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-ink-mute"
-                  size={18}
-                />
-                <input
-                  ref={searchInputRef}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleScanOrSearchEnter();
-                    }
-                  }}
-                  placeholder="بحث أو باركود..."
-                  className="input-field h-11 pe-10 ps-3 text-sm font-medium"
-                  inputMode="search"
-                />
-              </div>
-
-              <div className="mb-2 shrink-0">
-                <PosQuickActions
-                  customerName={selectedCustomer?.name}
-                  saleMode={saleMode}
-                  priceMode={priceMode}
-                  onCustomer={() => setShowCustomerModal(true)}
-                  onHold={() => void handleHoldCart()}
-                  holdDisabled={!lines.length}
-                  onToggleSaleMode={() => {
-                    if (saleMode === "delivery") {
-                      setSaleMode("walk_in");
-                      return;
-                    }
-                    setSaleMode("delivery");
-                    if (selectedCustomer?.phone && !deliveryPhone) {
-                      setDeliveryPhone(selectedCustomer.phone);
-                    }
-                    if (selectedCustomer?.address && !deliveryAddress) {
-                      setDeliveryAddress(selectedCustomer.address);
-                    }
-                  }}
-                  onTogglePriceMode={() => {
-                    if (priceMode === "wholesale") {
-                      setPriceMode("retail");
-                      return;
-                    }
-                    setPriceMode("wholesale");
-                    if (!selectedCustomer) setShowCustomerModal(true);
-                  }}
-                />
-              </div>
-
-              {needsShift && (
-                <div className="mb-2 shrink-0 rounded-2xl border border-warning/25 bg-warning/10 px-3 py-2.5">
-                  <p className="text-xs font-bold text-warning">
-                    افتح وردية قبل البيع
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => (onOpenShifts ?? onExit)?.()}
-                    className="touch-chip mt-2 bg-warning text-white"
-                  >
-                    فتح الوردية
-                  </button>
-                </div>
-              )}
-
-              {!query.trim() && (
-                <>
-                  <PosProductStrip
-                    title="مفضّلة سريعة"
-                    icon="pinned"
-                    products={pinnedProducts}
-                    pinnedIds={pinnedIdSet}
-                    currencySymbol={settings.currency_symbol}
-                    onAdd={addProductToCart}
-                    onTogglePin={handleTogglePin}
-                    disabled={needsShift}
-                  />
-                  <PosProductStrip
-                    title="أُضيف مؤخراً"
-                    icon="recent"
-                    products={recentProducts}
-                    currencySymbol={settings.currency_symbol}
-                    onAdd={addProductToCart}
-                    disabled={needsShift}
-                  />
-                </>
-              )}
-
-              <ProductGrid
-                products={filtered}
-                categories={categories}
-                layout="touch_tiles"
-                currencySymbol={settings.currency_symbol}
-                onAdd={addProductToCart}
-                disabled={needsShift}
-                phoneLayout
-                pinnedIds={pinnedIdSet}
-                onTogglePin={isPhone ? handleTogglePin : undefined}
-              />
-            </section>
+            productsPane
           ) : (
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {cartPanel}
@@ -620,7 +671,7 @@ export function PosScreen({
             onScan={() => setShowScanner(true)}
           />
 
-          {mobileTab === "products" && (
+          {mobileTab === "products" && isMobileTabs && (
             <MobilePosQuickPay
               itemCount={totalItemsCount}
               grandTotal={grandTotal}
@@ -630,13 +681,14 @@ export function PosScreen({
           )}
 
           {addToast && (
-            <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 flex justify-center px-4">
+            <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+6.5rem)] z-50 flex justify-center px-4">
               <div className="rounded-full bg-ink/95 px-4 py-2 text-xs font-bold text-white shadow-lift">
                 + {addToast}
               </div>
             </div>
           )}
         </>
+        )
       ) : (
         <>
       <header className="pos-chrome flex shrink-0 flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
