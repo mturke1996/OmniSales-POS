@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import {
   getPinnedProductIds,
   getRecentProductIds,
+  getDisplayPinnedProductIds,
   togglePinnedProductId,
   recordRecentProductId,
   resolveProductsByIds,
@@ -28,10 +29,11 @@ describe("pos-product-memory", () => {
     localStorage.clear();
   });
 
-  it("pins and unpins products", () => {
+  it("pins and unpins products manually", () => {
     expect(getPinnedProductIds()).toEqual([]);
     togglePinnedProductId("p1");
     expect(getPinnedProductIds()).toEqual(["p1"]);
+    expect(getDisplayPinnedProductIds()).toEqual(["p1"]);
     togglePinnedProductId("p1");
     expect(getPinnedProductIds()).toEqual([]);
   });

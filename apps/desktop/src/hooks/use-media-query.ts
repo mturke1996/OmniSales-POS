@@ -30,7 +30,7 @@ export function useTabletPosSplit() {
 /** Phone rotated — split products + cart like a mini register. */
 export function useLandscapePosSplit() {
   return useMediaQuery(
-    "(orientation: landscape) and (max-width: 1023px) and (min-width: 640px)"
+    "(orientation: landscape) and (max-width: 1023px) and (min-width: 568px)"
   );
 }
 

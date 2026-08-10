@@ -18,7 +18,6 @@ export function MobilePosHeader({
   onOpenHeld,
   onScan,
   onPrinterClick,
-  compact = false,
 }: {
   branchName: string;
   shiftOpen: boolean;
@@ -29,7 +28,6 @@ export function MobilePosHeader({
   onOpenHeld: () => void;
   onScan?: () => void;
   onPrinterClick?: () => void;
-  compact?: boolean;
 }) {
   return (
     <header className="flex shrink-0 items-center gap-2 border-b border-paper-line/70 bg-paper-raised/95 px-3 py-2.5 safe-top backdrop-blur-md">
@@ -103,7 +101,7 @@ export function MobilePosHeader({
             <Camera size={18} weight="duotone" />
           </button>
         )}
-        {!compact && onOpenSales && (
+        {onOpenSales && (
           <button
             type="button"
             onClick={onOpenSales}

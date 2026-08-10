@@ -12,6 +12,8 @@ export function PosProductStrip({
   onAdd,
   onTogglePin,
   disabled,
+  compact = false,
+  autoPinnedIds,
 }: {
   title: string;
   icon: "pinned" | "recent" | "bestseller";
@@ -21,6 +23,8 @@ export function PosProductStrip({
   onAdd: (p: Product) => void;
   onTogglePin?: (p: Product) => void;
   disabled?: boolean;
+  compact?: boolean;
+  autoPinnedIds?: Set<string>;
 }) {
   if (!products.length) return null;
 
@@ -39,6 +43,7 @@ export function PosProductStrip({
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
         {products.map((p) => {
           const pinned = pinnedIds?.has(p.id);
+          const autoPinned = !pinned && autoPinnedIds?.has(p.id);
           return (
             <div key={p.id} className="relative shrink-0">
               <button
@@ -46,15 +51,26 @@ export function PosProductStrip({
                 disabled={disabled || !p.is_active}
                 onClick={() => onAdd(p)}
                 className={cn(
-                  "flex w-[5.5rem] flex-col rounded-xl border bg-paper-raised px-2 py-2 text-start shadow-soft transition active:scale-[0.97]",
-                  pinned ? "border-warning/40" : "border-paper-line/70",
+                  "flex flex-col rounded-xl border bg-paper-raised px-2 py-2 text-start shadow-soft transition active:scale-[0.97]",
+                  compact ? "w-[4.5rem]" : "w-[5.5rem]",
+                  pinned ? "border-warning/40" : autoPinned ? "border-success/35" : "border-paper-line/70",
                   (disabled || !p.is_active) && "opacity-45"
                 )}
               >
-                <span className="line-clamp-2 min-h-[2rem] text-[10px] font-bold leading-tight text-ink">
+                <span
+                  className={cn(
+                    "line-clamp-2 font-bold leading-tight text-ink",
+                    compact ? "min-h-[1.75rem] text-[9px]" : "min-h-[2rem] text-[10px]"
+                  )}
+                >
                   {p.name}
                 </span>
-                <span className="money-big mt-1 text-[10px] font-bold text-highlight">
+                <span
+                  className={cn(
+                    "money-big mt-1 font-bold text-highlight",
+                    compact ? "text-[9px]" : "text-[10px]"
+                  )}
+                >
                   {formatMoney(p.retail_price, currencySymbol)}
                 </span>
               </button>
@@ -66,12 +82,12 @@ export function PosProductStrip({
                     onTogglePin(p);
                   }}
                   className="absolute -top-1.5 -start-1.5 grid h-6 w-6 place-items-center rounded-full border border-paper-line bg-paper-raised shadow-soft"
-                  aria-label={pinned ? "إزالة من المفضلة" : "تثبيت في المفضلة"}
+                  aria-label={pinned || autoPinned ? "إزالة من المفضلة" : "تثبيت في المفضلة"}
                 >
                   <Star
                     size={12}
-                    weight={pinned ? "fill" : "regular"}
-                    className={pinned ? "text-warning" : "text-ink-mute"}
+                    weight={pinned || autoPinned ? "fill" : "regular"}
+                    className={pinned ? "text-warning" : autoPinned ? "text-success" : "text-ink-mute"}
                   />
                 </button>
               )}

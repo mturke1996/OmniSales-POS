@@ -241,6 +241,7 @@ export async function ensurePwaSeed(): Promise<void> {
         existingSettings.name !== "محلي" &&
         existingSettings.name !== "OmniSales POS",
       auto_print_thermal: existingSettings.auto_print_thermal !== false,
+      auto_pin_top_sellers: existingSettings.auto_pin_top_sellers !== false,
     };
     await set(KEYS.settings, migrated);
   }
@@ -1769,6 +1770,7 @@ export async function applyCloudPull(input: {
       supabase_anon_key: input.localSettings.supabase_anon_key,
       cloud_sync_enabled: input.localSettings.cloud_sync_enabled,
       auto_print_thermal: input.localSettings.auto_print_thermal,
+      auto_pin_top_sellers: input.localSettings.auto_pin_top_sellers,
       setup_complete: input.localSettings.setup_complete,
       branch_id: String(remote.branch_id ?? input.localSettings.branch_id),
     };

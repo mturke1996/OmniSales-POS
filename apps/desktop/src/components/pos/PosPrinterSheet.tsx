@@ -1,11 +1,17 @@
 import { Printer } from "@phosphor-icons/react";
 import { BottomSheet } from "../ui/BottomSheet";
 
+function isIos() {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
 export function PosPrinterSheet({
   open,
   onClose,
   connected,
   printerLabel,
+  supportMessage,
   onPrintBrowser,
   printing,
 }: {
@@ -13,9 +19,12 @@ export function PosPrinterSheet({
   onClose: () => void;
   connected: boolean;
   printerLabel?: string;
+  supportMessage?: string;
   onPrintBrowser?: () => void;
   printing?: boolean;
 }) {
+  const ios = isIos();
+
   return (
     <BottomSheet open={open} onOpenChange={(v) => !v && onClose()} title="الطباعة">
       <div className="space-y-4 p-4">
@@ -30,16 +39,25 @@ export function PosPrinterSheet({
             <p className="text-xs text-ink-mute">
               {connected
                 ? printerLabel || "جاهزة للطباعة ESC/POS"
-                : "يمكنك الطباعة عبر المتصفح أو ربط USB من الكمبيوتر"}
+                : supportMessage || "يمكنك الطباعة عبر المتصفح بعد كل بيع"}
             </p>
           </div>
         </div>
 
         {!connected && (
           <ul className="space-y-2 text-xs text-ink-mute">
-            <li>• iPhone/Android: استخدم «طباعة المتصفح» بعد كل بيع</li>
-            <li>• Windows/Mac: اربط طابعة USB من الإعدادات</li>
-            <li>• Bluetooth ESC/POS: قريباً — استخدم المتصفح مؤقتاً</li>
+            {ios ? (
+              <>
+                <li>• iPhone/iPad: بعد البيع اضغط «طباعة الإيصال» ثم Share → Print (AirPrint)</li>
+                <li>• أو احفظ PDF وأرسله للعميل عبر واتساب</li>
+              </>
+            ) : (
+              <>
+                <li>• Android: بعد البيع استخدم «طباعة الإيصال» (Chrome → طباعة)</li>
+                <li>• Windows/Mac: اربط طابعة USB من الإعدادات → الطابعة</li>
+              </>
+            )}
+            <li>• Bluetooth ESC/POS: قريباً — استخدم طباعة المتصفح مؤقتاً</li>
           </ul>
         )}
 
@@ -50,7 +68,7 @@ export function PosPrinterSheet({
             onClick={onPrintBrowser}
             className="btn-primary min-h-12 w-full text-sm font-bold"
           >
-            {printing ? "جاري الطباعة…" : "طباعة عبر المتصفح"}
+            {printing ? "جاري الطباعة…" : "طباعة آخر إيصال (متصفح)"}
           </button>
         )}
 

@@ -49,13 +49,17 @@ import { usePhoneLayout, usePosSplitLayout } from "../../hooks/use-media-query";
 import { usePrinter } from "../../hooks/use-printer";
 import { useOnline } from "../../hooks/use-online";
 import {
+  getDisplayPinnedProductIds,
   getPinnedProductIds,
+  getAutoPinnedProductIds,
   getRecentProductIds,
   togglePinnedProductId,
   recordRecentProductId,
   resolveProductsByIds,
 } from "../../lib/pos-product-memory";
 import { topSellerProductIds } from "../../lib/pos-top-sellers";
+import { syncAutoPinnedTopSellers } from "../../lib/pos-auto-pin";
+import { printThermalReceiptBrowser } from "../../lib/invoice";
 
 export function PosScreen({
   settings,
@@ -196,9 +200,12 @@ export function PosScreen({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [mobileTab, setMobileTab] = useState<MobilePosTab>("products");
   const [addToast, setAddToast] = useState<string | null>(null);
-  const [pinnedIds, setPinnedIds] = useState<string[]>(() => getPinnedProductIds());
+  const [pinnedIds, setPinnedIds] = useState<string[]>(() => getDisplayPinnedProductIds());
   const [recentIds, setRecentIds] = useState<string[]>(() => getRecentProductIds());
   const [showHoldModal, setShowHoldModal] = useState(false);
+  const [printerPrinting, setPrinterPrinting] = useState(false);
+  const lastOrderRef = useRef<Order | null>(null);
+  const lastChangeRef = useRef<number>(0);
   const [saleMode, setSaleMode] = useState<"walk_in" | "delivery">("walk_in");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
@@ -227,6 +234,11 @@ export function PosScreen({
       searchInputRef.current?.focus();
     }
   }, [initialSearch]);
+
+  useEffect(() => {
+    if (settings.auto_pin_top_sellers === false) return;
+    setPinnedIds(syncAutoPinnedTopSellers(orders, returns, products));
+  }, [orders, returns, products, settings.auto_pin_top_sellers]);
 
   const filtered = useMemo(
     () => filterCatalog(products, query),
@@ -294,6 +306,8 @@ export function PosScreen({
     );
   }, [orders, returns, products, pinnedIds, recentIds]);
   const pinnedIdSet = useMemo(() => new Set(pinnedIds), [pinnedIds]);
+  const manualPinnedSet = useMemo(() => new Set(getPinnedProductIds()), [pinnedIds]);
+  const autoPinnedIdSet = useMemo(() => new Set(getAutoPinnedProductIds()), [pinnedIds]);
 
   async function handleSyncNow() {
     if (!onSync || syncing) return;
@@ -449,6 +463,8 @@ export function PosScreen({
       });
 
       setCompletedOrder(result.order as Order);
+      lastOrderRef.current = result.order as Order;
+      lastChangeRef.current = result.change_due ?? 0;
       setLastChangeDue(result.change_due);
 
       clear();
@@ -504,6 +520,7 @@ export function PosScreen({
       busy={busy}
       needsShift={needsShift}
       isMobile={isPhone}
+      compact={isSplitLayout}
       onHold={() => void handleHoldCart()}
       onClear={clear}
       onRemoveLine={(productId, key) => remove(productId, key)}
@@ -598,11 +615,13 @@ export function PosScreen({
             title="مفضّلة سريعة"
             icon="pinned"
             products={pinnedProducts}
-            pinnedIds={pinnedIdSet}
+            pinnedIds={manualPinnedSet}
+            autoPinnedIds={autoPinnedIdSet}
             currencySymbol={settings.currency_symbol}
             onAdd={addProductToCart}
             onTogglePin={handleTogglePin}
             disabled={needsShift}
+            compact={isSplitLayout}
           />
           <PosProductStrip
             title="أُضيف مؤخراً"
@@ -611,6 +630,7 @@ export function PosScreen({
             currencySymbol={settings.currency_symbol}
             onAdd={addProductToCart}
             disabled={needsShift}
+            compact={isSplitLayout}
           />
           <PosProductStrip
             title="الأكثر مبيعاً"
@@ -618,7 +638,9 @@ export function PosScreen({
             products={topSellerProducts}
             currencySymbol={settings.currency_symbol}
             onAdd={addProductToCart}
+            onTogglePin={handleTogglePin}
             disabled={needsShift}
+            compact={isSplitLayout}
           />
         </>
       )}
@@ -652,7 +674,6 @@ export function PosScreen({
               onOpenHeld={() => setShowHoldModal(true)}
               onScan={() => setShowScanner(true)}
               onPrinterClick={() => setShowPrinterSheet(true)}
-              compact
             />
             <PosSyncBar
               online={online}
@@ -660,14 +681,16 @@ export function PosScreen({
               cloudEnabled={settings.cloud_sync_enabled}
               syncing={syncing}
               onSync={onSync ? handleSyncNow : undefined}
+              compact
             />
             <PosLiveStats
               orders={orders}
               returns={returns}
               openShift={openShiftState}
               currencySymbol={settings.currency_symbol}
+              compact
             />
-            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(17rem,24rem)]">
+            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(16rem,22rem)]">
               {productsPane}
               <aside className="flex min-h-0 flex-col border-s border-paper-line/60 bg-paper-raised">
                 {cartPanel}
@@ -975,6 +998,24 @@ export function PosScreen({
         onClose={() => setShowPrinterSheet(false)}
         connected={printer.connected}
         printerLabel={printer.label ?? undefined}
+        supportMessage={printer.supportMessage}
+        printing={printerPrinting}
+        onPrintBrowser={
+          lastOrderRef.current
+            ? () => {
+                setPrinterPrinting(true);
+                try {
+                  printThermalReceiptBrowser(
+                    lastOrderRef.current!,
+                    settings,
+                    lastChangeRef.current
+                  );
+                } finally {
+                  window.setTimeout(() => setPrinterPrinting(false), 800);
+                }
+              }
+            : undefined
+        }
       />
     </div>
   );

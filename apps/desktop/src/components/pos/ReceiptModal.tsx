@@ -138,6 +138,16 @@ export function ReceiptModal({
             </p>
           )}
           <p className="mt-1 text-xs text-ink-mute">{order.order_number}</p>
+          <div
+            className={cn(
+              "mx-auto mt-3 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold",
+              printer.connected ? "bg-success/15 text-success" : "bg-paper text-ink-mute"
+            )}
+          >
+            {printer.connected
+              ? `طابعة جاهزة${printer.label ? ` · ${printer.label}` : ""}`
+              : "بدون طابعة — طباعة المتصفح متاحة"}
+          </div>
         </div>
       )}
 

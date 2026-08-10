@@ -52,6 +52,7 @@ export function PosCartPanel({
   busy,
   needsShift,
   isMobile = false,
+  compact = false,
   onHold,
   onClear,
   onRemoveLine,
@@ -96,6 +97,7 @@ export function PosCartPanel({
   busy: boolean;
   needsShift: boolean;
   isMobile?: boolean;
+  compact?: boolean;
   onHold: () => void;
   onClear: () => void;
   onRemoveLine: (productId: string, key: string) => void;
@@ -180,7 +182,10 @@ export function PosCartPanel({
         {lines.map((line, lineIdx) => (
           <div
             key={`${line.product_id}-${line.imei || ""}-${line.serial || ""}-${lineIdx}`}
-            className="rounded-xl border border-paper-line/70 bg-paper-raised px-3 py-3 shadow-soft"
+            className={cn(
+              "rounded-xl border border-paper-line/70 bg-paper-raised shadow-soft",
+              compact ? "px-2.5 py-2" : "px-3 py-3"
+            )}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">

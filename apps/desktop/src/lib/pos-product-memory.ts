@@ -1,4 +1,5 @@
 const PINNED_KEY = "omnisales-pos-pinned";
+const AUTO_PINNED_KEY = "omnisales-pos-auto-pinned";
 const RECENT_KEY = "omnisales-pos-recent";
 const MAX_PINNED = 12;
 const MAX_RECENT = 16;
@@ -24,8 +25,28 @@ function writeIds(key: string, ids: string[]) {
   globalThis.localStorage.setItem(key, JSON.stringify(ids));
 }
 
+/** Manually pinned product ids (user star). */
 export function getPinnedProductIds(): string[] {
   return readIds(PINNED_KEY);
+}
+
+/** Auto-pinned from top sellers analytics. */
+export function getAutoPinnedProductIds(): string[] {
+  return readIds(AUTO_PINNED_KEY);
+}
+
+export function setAutoPinnedProductIds(ids: string[]): string[] {
+  const next = ids.slice(0, MAX_PINNED);
+  writeIds(AUTO_PINNED_KEY, next);
+  return next;
+}
+
+/** Manual + auto pins for POS strips (manual first, capped). */
+export function getDisplayPinnedProductIds(): string[] {
+  const manual = getPinnedProductIds();
+  const manualSet = new Set(manual);
+  const auto = getAutoPinnedProductIds().filter((id) => !manualSet.has(id));
+  return [...manual, ...auto].slice(0, MAX_PINNED);
 }
 
 export function getRecentProductIds(): string[] {
@@ -33,12 +54,28 @@ export function getRecentProductIds(): string[] {
 }
 
 export function togglePinnedProductId(productId: string): string[] {
-  const current = getPinnedProductIds();
-  const next = current.includes(productId)
-    ? current.filter((id) => id !== productId)
-    : [productId, ...current.filter((id) => id !== productId)].slice(0, MAX_PINNED);
-  writeIds(PINNED_KEY, next);
-  return next;
+  const manual = getPinnedProductIds();
+  const auto = getAutoPinnedProductIds();
+  const inManual = manual.includes(productId);
+  const inAuto = auto.includes(productId);
+
+  if (inManual) {
+    writeIds(
+      PINNED_KEY,
+      manual.filter((id) => id !== productId)
+    );
+  } else if (inAuto) {
+    writeIds(
+      AUTO_PINNED_KEY,
+      auto.filter((id) => id !== productId)
+    );
+  } else {
+    writeIds(
+      PINNED_KEY,
+      [productId, ...manual.filter((id) => id !== productId)].slice(0, MAX_PINNED)
+    );
+  }
+  return getDisplayPinnedProductIds();
 }
 
 export function recordRecentProductId(productId: string): string[] {

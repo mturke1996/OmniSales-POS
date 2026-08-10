@@ -304,6 +304,8 @@ export interface BranchSettings {
   owner_whatsapp?: string;
   /** Auto-print thermal ESC/POS after successful checkout */
   auto_print_thermal?: boolean;
+  /** Auto-pin top sellers (7d) into POS favorites strip */
+  auto_pin_top_sellers?: boolean;
   /** Setup wizard completed */
   setup_complete?: boolean;
 }
@@ -473,6 +475,7 @@ export function defaultSettings(): BranchSettings {
     default_delivery_fee: 5,
     owner_whatsapp: "",
     auto_print_thermal: true,
+    auto_pin_top_sellers: true,
     setup_complete: false,
   };
 }

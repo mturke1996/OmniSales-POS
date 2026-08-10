@@ -7,12 +7,14 @@ export function PosSyncBar({
   cloudEnabled,
   syncing,
   onSync,
+  compact = false,
 }: {
   online: boolean;
   pendingSync: number;
   cloudEnabled?: boolean;
   syncing?: boolean;
   onSync?: () => void;
+  compact?: boolean;
 }) {
   const showPending = pendingSync > 0;
   if (online && !showPending) return null;
@@ -20,7 +22,8 @@ export function PosSyncBar({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2 text-xs font-semibold",
+        "flex shrink-0 items-center justify-between gap-2 border-b font-semibold",
+        compact ? "px-2 py-1 text-[10px]" : "px-3 py-2 text-xs",
         online ? "border-highlight/20 bg-highlight/8 text-highlight" : "border-warning/25 bg-warning/10 text-warning"
       )}
     >

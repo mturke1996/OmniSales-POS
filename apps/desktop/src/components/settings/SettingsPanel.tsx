@@ -687,6 +687,22 @@ export function SettingsPanel({
             <input
               type="checkbox"
               className="mt-0.5"
+              checked={settings.auto_pin_top_sellers !== false}
+              onChange={(e) =>
+                onChange({ ...settings, auto_pin_top_sellers: e.target.checked })
+              }
+            />
+            <span className="text-xs leading-relaxed">
+              <span className="font-bold text-ink">تثبيت الأكثر مبيعاً تلقائياً</span>
+              <span className="mt-0.5 block text-[11px] text-ink-mute">
+                يُضاف أفضل 4 أصناف (آخر 7 أيام) إلى شريط المفضلة في نقطة البيع
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 rounded-xl border border-paper-line bg-paper px-3 py-2.5 sm:col-span-2">
+            <input
+              type="checkbox"
+              className="mt-0.5"
               checked={settings.auto_print_thermal !== false}
               onChange={(e) =>
                 onChange({ ...settings, auto_print_thermal: e.target.checked })
