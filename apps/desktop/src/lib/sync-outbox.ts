@@ -458,6 +458,9 @@ function mapOrder(payload: Record<string, unknown>) {
     created_at: payload.created_at,
     notes: payload.notes ?? payload.note ?? null,
     settled_to_shift: Boolean(payload.settled_to_shift),
+    cash_tendered:
+      payload.cash_tendered != null ? money(payload.cash_tendered) : null,
+    change_due: payload.change_due != null ? money(payload.change_due) : null,
   };
 }
 

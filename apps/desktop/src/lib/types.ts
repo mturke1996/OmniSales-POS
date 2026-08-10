@@ -207,6 +207,10 @@ export interface Order {
   settled_to_shift?: boolean;
   promotion_id?: string;
   promotion_name?: string;
+  /** Cash amount received from customer (cash / mixed) */
+  cash_tendered?: number;
+  /** Change returned to customer */
+  change_due?: number;
 }
 
 export interface Supplier {

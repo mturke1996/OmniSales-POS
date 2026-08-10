@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Keyboard,
   Camera,
+  Printer,
 } from "@phosphor-icons/react";
 import { checkout, addHeldCart, removeHeldCart, addCustomer } from "../../lib/api";
 import { applyBestPromotion, calcTotals } from "../../lib/offline-store";
@@ -767,6 +768,14 @@ export function PosScreen({
         )
       ) : (
         <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <header className="pos-chrome flex shrink-0 flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-2.5">
           {onExit && (
@@ -786,17 +795,23 @@ export function PosScreen({
               {openShiftState ? "مفتوحة" : "مغلقة"}
             </span>
           </div>
-          <div className="pos-kpi-pill hidden md:flex">
+          <button
+            type="button"
+            onClick={() => setShowPrinterSheet(true)}
+            className="pos-kpi-pill hidden md:flex transition hover:bg-paper"
+            title="إعداد الطابعة"
+          >
             <span className="text-[10px] text-ink-mute">الطابعة</span>
             <span
               className={cn(
-                "text-sm font-bold",
+                "inline-flex items-center gap-1 text-sm font-bold",
                 printer.connected ? "text-success" : "text-ink-mute"
               )}
             >
+              <Printer size={14} weight="duotone" />
               {printer.connected ? "متصلة" : "—"}
             </span>
-          </div>
+          </button>
           <div className="pos-kpi-pill hidden sm:flex">
             <span className="text-[10px] text-ink-mute">الأصناف</span>
             <span className="money-big text-sm font-bold">{products.length}</span>
@@ -1019,7 +1034,7 @@ export function PosScreen({
         <ReceiptModal
           order={completedOrder}
           settings={settings}
-          changeDue={lastChangeDue}
+          changeDue={completedOrder.change_due ?? lastChangeDue}
           onClose={() => setCompletedOrder(null)}
           autoPrint={settings.auto_print_thermal !== false && printer.connected}
           mobile={isPhone}

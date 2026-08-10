@@ -6,7 +6,7 @@ import {
   printThermalReceipt,
   printThermalReceiptBrowser,
 } from "../../lib/invoice";
-import { printThermalReceiptSmart } from "../../lib/print/thermal";
+import { printThermalReceiptSmart, resolveOrderChangeDue } from "../../lib/print/thermal";
 import { usePrinter } from "../../hooks/use-printer";
 import { saleShareMessage } from "../../lib/whatsapp";
 import { WhatsAppButton } from "../ui/WhatsAppButton";
@@ -32,6 +32,7 @@ export function ReceiptModal({
   mobile = false,
 }: ReceiptModalProps) {
   const printer = usePrinter();
+  const resolvedChange = resolveOrderChangeDue(order, changeDue);
   const [busy, setBusy] = useState<"pdf" | "thermal" | "escpos" | "html" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [printMode, setPrintMode] = useState<"escpos" | "html" | null>(null);
@@ -42,24 +43,24 @@ export function ReceiptModal({
     setAutoTried(true);
     if (!printer.connected) return;
     setBusy("thermal");
-    void printThermalReceipt(order, settings, changeDue)
+    void printThermalReceipt(order, settings, resolvedChange)
       .then((mode) => setPrintMode(mode))
       .catch((e) =>
         setError(e instanceof Error ? e.message : "فشلت الطباعة التلقائية")
       )
       .finally(() => setBusy(null));
-  }, [autoPrint, autoTried, order, settings, changeDue, printer.connected]);
+  }, [autoPrint, autoTried, order, settings, resolvedChange, printer.connected]);
 
   const runThermal = async (force: "escpos" | "html" | "auto" = "auto") => {
     setBusy(force === "html" ? "html" : force === "escpos" ? "escpos" : "thermal");
     setError(null);
     try {
       if (force === "html") {
-        printThermalReceiptBrowser(order, settings, changeDue);
+        printThermalReceiptBrowser(order, settings, resolvedChange);
         setPrintMode("html");
         return;
       }
-      const mode = await printThermalReceiptSmart(order, settings, changeDue, force);
+      const mode = await printThermalReceiptSmart(order, settings, resolvedChange, force);
       setPrintMode(mode);
       if (mode === "html") {
         setError("فُتحت طباعة المتصفح — اربط الطابعة الحرارية من الإعدادات.");
@@ -70,6 +71,18 @@ export function ReceiptModal({
       setBusy(null);
     }
   };
+
+  useEffect(() => {
+    if (mobile) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "F10") return;
+      e.preventDefault();
+      if (busy !== null) return;
+      void runThermal(printer.connected ? "escpos" : "html");
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobile, printer.connected, busy, order, settings, resolvedChange]);
 
   const whatsAppMessage = saleShareMessage(
     order.order_number,
@@ -100,6 +113,9 @@ export function ReceiptModal({
         {busy === "escpos" || busy === "thermal" || busy === "html"
           ? "جاري الطباعة…"
           : "طباعة الإيصال"}
+        {!mobile && (
+          <span className="pos-key-badge ms-1.5 hidden sm:inline">F10</span>
+        )}
       </button>
       <button
         type="button"
@@ -120,6 +136,11 @@ export function ReceiptModal({
           متابعة البيع
         </button>
       )}
+      {!mobile && (
+        <button type="button" onClick={onClose} className="btn-ghost min-h-11 text-xs font-bold">
+          متابعة البيع
+        </button>
+      )}
     </div>
   );
 
@@ -132,9 +153,9 @@ export function ReceiptModal({
           <p className="money-big mt-1 text-2xl font-bold text-highlight">
             {formatMoney(order.total_amount, settings.currency_symbol)}
           </p>
-          {changeDue > 0 && (
+          {resolvedChange > 0 && (
             <p className="mt-1 text-sm font-semibold text-success">
-              الباقي للعميل: {formatMoney(changeDue, settings.currency_symbol)}
+              الباقي للعميل: {formatMoney(resolvedChange, settings.currency_symbol)}
             </p>
           )}
           <p className="mt-1 text-xs text-ink-mute">{order.order_number}</p>
@@ -164,7 +185,7 @@ export function ReceiptModal({
         </div>
       )}
 
-      <ReceiptPreview order={order} settings={settings} changeDue={changeDue} compact={mobile} />
+      <ReceiptPreview order={order} settings={settings} changeDue={resolvedChange} compact={mobile} />
 
       {printMode && (
         <p className="my-2 text-center text-[11px] font-semibold text-success">

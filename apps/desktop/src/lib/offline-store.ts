@@ -748,6 +748,7 @@ export async function checkoutPwa(input: {
   const total_amount = Math.round((totals.total + delivery_fee) * 100) / 100;
 
   let change_due = 0;
+  let saved_cash_tendered: number | undefined;
   const deferShift = isDeliveryLike && status === "new";
 
   if (method === "cash" && !deferShift) {
@@ -755,7 +756,12 @@ export async function checkoutPwa(input: {
     if (tendered + 1e-9 < total_amount) {
       throw new Error("المبلغ النقدي المكتوب أقل من إجمالي المطلوب");
     }
-    change_due = tendered - total_amount;
+    change_due = Math.round((tendered - total_amount) * 100) / 100;
+    saved_cash_tendered = tendered;
+  }
+
+  if (method === "mixed" && !deferShift && cash_tendered != null) {
+    saved_cash_tendered = cash_tendered;
   }
 
   if (method === "mixed" && !deferShift) {
@@ -844,6 +850,8 @@ export async function checkoutPwa(input: {
     settled_to_shift,
     promotion_id: appliedPromo?.id,
     promotion_name: appliedPromo?.name,
+    cash_tendered: saved_cash_tendered,
+    change_due: change_due > 0 ? change_due : undefined,
   };
 
   // Deduct inventory via stock ledger

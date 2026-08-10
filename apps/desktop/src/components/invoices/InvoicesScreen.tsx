@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import type { BranchSettings, Customer, Order } from "../../lib/types";
 import { downloadInvoicePdf, openInvoicePdf, printThermalReceipt } from "../../lib/invoice";
+import { resolveOrderChangeDue } from "../../lib/print/thermal";
 import { PAYMENT_AR, STATUS_AR } from "../../lib/pdf/pdfBrand";
 import { formatMoney } from "../../lib/format";
 import { saleShareMessage } from "../../lib/whatsapp";
@@ -459,7 +460,11 @@ function InvoiceDetailBody({
             void run(
               "thermal",
               async () => {
-                await printThermalReceipt(selected, settings);
+                await printThermalReceipt(
+                  selected,
+                  settings,
+                  resolveOrderChangeDue(selected)
+                );
               },
               "تم إرسال الفاتورة الحرارية للطباعة"
             )

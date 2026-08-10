@@ -1,6 +1,7 @@
 import { Printer } from "@phosphor-icons/react";
 import { BottomSheet } from "../ui/BottomSheet";
 import { NativePrinterPanel } from "./NativePrinterPanel";
+import { WebSerialPrinterPanel } from "./WebSerialPrinterPanel";
 import { detectRuntime } from "../../lib/native";
 
 function isIos() {
@@ -63,6 +64,10 @@ export function PosPrinterSheet({
 
         {isNative && (
           <NativePrinterPanel thermalWidthMm={thermalWidthMm} compact />
+        )}
+
+        {!isNative && (
+          <WebSerialPrinterPanel thermalWidthMm={thermalWidthMm} compact />
         )}
 
         {!connected && !isNative && (

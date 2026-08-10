@@ -13,11 +13,18 @@ import { printThermalReceiptHtml } from "../invoice-html";
 
 export type ThermalPrintMode = "escpos" | "html" | "auto";
 
+/** Prefer explicit override, then persisted order field (reprints). */
+export function resolveOrderChangeDue(order: Order, override?: number): number {
+  if (override != null && override > 0) return override;
+  return order.change_due ?? 0;
+}
+
 export function buildReceiptTextLines(
   order: Order,
   settings: BranchSettings,
-  changeDue = 0
+  changeDue?: number
 ): string[] {
+  const change = resolveOrderChangeDue(order, changeDue);
   const company = settings.name?.trim() || "OmniSales";
   const payment = PAYMENT_AR[order.payment_method] || order.payment_method;
   const sym = settings.currency_symbol;
@@ -65,8 +72,15 @@ export function buildReceiptTextLines(
   if (order.delivery_address) {
     lines.push(`عنوان: ${order.delivery_address}`);
   }
-  if (changeDue > 0) {
-    lines.push(`الباقي: ${changeDue.toFixed(2)} ${sym}`);
+  if (change > 0) {
+    lines.push(`الباقي: ${change.toFixed(2)} ${sym}`);
+  }
+  if (
+    order.cash_tendered != null &&
+    order.cash_tendered > order.total_amount &&
+    change > 0
+  ) {
+    lines.push(`المدفوع: ${order.cash_tendered.toFixed(2)} ${sym}`);
   }
   lines.push("------------------------------");
   lines.push(
@@ -84,9 +98,10 @@ export function buildReceiptTextLines(
 export async function printThermalReceiptSmart(
   order: Order,
   settings: BranchSettings,
-  changeDue = 0,
+  changeDue?: number,
   mode: ThermalPrintMode = "auto"
 ): Promise<"escpos" | "html"> {
+  const resolvedChange = resolveOrderChangeDue(order, changeDue);
   const forceEscpos = mode === "escpos";
   const tryEscpos =
     forceEscpos ||
@@ -101,7 +116,7 @@ export async function printThermalReceiptSmart(
     try {
       const widthMm = settings.thermal_width_mm === 58 ? 58 : 80;
       const bytes = await buildEscPosReceiptBytes({
-        lines: buildReceiptTextLines(order, settings, changeDue),
+        lines: buildReceiptTextLines(order, settings, resolvedChange),
         widthMm,
         openDrawer:
           order.payment_method === "cash" || order.payment_method === "mixed",
@@ -114,6 +129,6 @@ export async function printThermalReceiptSmart(
     }
   }
 
-  printThermalReceiptHtml(order, settings, changeDue);
+  printThermalReceiptHtml(order, settings, resolvedChange);
   return "html";
 }

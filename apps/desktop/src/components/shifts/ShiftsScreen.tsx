@@ -10,7 +10,7 @@ import {
 import { openShift, closeShift, recordCashMovement } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 import { buildZSummary } from "../../lib/analytics";
-import { printZReport } from "../../lib/z-report";
+import { printZReportSmart } from "../../lib/z-report";
 import type {
   BranchSettings,
   CashMovement,
@@ -71,18 +71,16 @@ export function ShiftsScreen({
   const historyRows = useMemo(() => shiftHistory.slice(0, 20), [shiftHistory]);
 
   function printHistoryZ(s: Shift) {
-    try {
-      printZReport({
-        settings,
-        shift: s,
-        orders,
-        returns,
-        cashMovements,
-        cashierName: s.cashier_id,
-      });
-    } catch (e) {
+    void printZReportSmart({
+      settings,
+      shift: s,
+      orders,
+      returns,
+      cashMovements,
+      cashierName: s.cashier_id,
+    }).catch((e) => {
       setMessage(e instanceof Error ? e.message : "تعذر الطباعة");
-    }
+    });
   }
 
   const historyColumns: ColumnDef<Shift, unknown>[] = [
@@ -154,7 +152,7 @@ export function ShiftsScreen({
         : openShiftState.expected_cash;
       const closed = await closeShift(counted);
       try {
-        printZReport({
+        await printZReportSmart({
           settings,
           shift: closed,
           orders,
@@ -178,18 +176,16 @@ export function ShiftsScreen({
 
   function handlePrintOpenZ() {
     if (!openShiftState) return;
-    try {
-      printZReport({
-        settings,
-        shift: openShiftState,
-        orders,
-        returns,
-        cashMovements,
-        cashierName: cashierId,
-      });
-    } catch (e) {
+    void printZReportSmart({
+      settings,
+      shift: openShiftState,
+      orders,
+      returns,
+      cashMovements,
+      cashierName: cashierId,
+    }).catch((e) => {
       setMessage(e instanceof Error ? e.message : "تعذر الطباعة");
-    }
+    });
   }
 
   return (
