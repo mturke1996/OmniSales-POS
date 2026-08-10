@@ -16,6 +16,7 @@ import { cn } from "../../lib/cn";
 import { formatMoney } from "../../lib/format";
 import type { BranchSettings, Customer, PaymentMethod, Promotion, CartLine } from "../../lib/types";
 import { PosNumpad } from "./PosNumpad";
+import { PosDiscountControl } from "./PosDiscountControl";
 
 type PromoPreview = {
   promotion: Promotion;
@@ -330,18 +331,14 @@ export function PosCartPanel({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block text-[11px] font-semibold text-ink-mute">
-            خصم
-            <input
-              type="number"
-              min={0}
-              placeholder="0"
-              value={discount || ""}
-              onChange={(e) => onDiscountChange(Number(e.target.value) || 0)}
-              className="input-field mt-1 font-mono text-xs"
-            />
-          </label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <PosDiscountControl
+            discount={discount}
+            cartSubtotal={cartSubtotal}
+            currencySymbol={settings.currency_symbol}
+            isMobile={isMobile}
+            onDiscountChange={onDiscountChange}
+          />
           <label className="block text-[11px] font-semibold text-ink-mute">
             ملاحظة
             <input

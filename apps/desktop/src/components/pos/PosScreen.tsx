@@ -38,6 +38,7 @@ import { BarcodeScannerModal } from "./BarcodeScannerModal";
 import { PosCartPanel } from "./PosCartPanel";
 import { MobilePosHeader } from "./MobilePosHeader";
 import { MobilePosTabBar, type MobilePosTab } from "./MobilePosTabBar";
+import { MobilePosQuickPay } from "./MobilePosQuickPay";
 import { PosQuickActions } from "./PosQuickActions";
 import { PosProductStrip } from "./PosProductStrip";
 import { usePhoneLayout } from "../../hooks/use-media-query";
@@ -619,6 +620,15 @@ export function PosScreen({
             onScan={() => setShowScanner(true)}
           />
 
+          {mobileTab === "products" && (
+            <MobilePosQuickPay
+              itemCount={totalItemsCount}
+              grandTotal={grandTotal}
+              currencySymbol={settings.currency_symbol}
+              onPay={() => setMobileTab("cart")}
+            />
+          )}
+
           {addToast && (
             <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 flex justify-center px-4">
               <div className="rounded-full bg-ink/95 px-4 py-2 text-xs font-bold text-white shadow-lift">
@@ -850,9 +860,8 @@ export function PosScreen({
           settings={settings}
           changeDue={lastChangeDue}
           onClose={() => setCompletedOrder(null)}
-          autoPrint={
-            settings.auto_print_thermal !== false && printer.connected
-          }
+          autoPrint={settings.auto_print_thermal !== false && printer.connected}
+          mobile={isPhone}
         />
       )}
     </div>

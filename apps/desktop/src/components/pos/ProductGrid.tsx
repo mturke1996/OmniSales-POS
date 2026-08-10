@@ -4,6 +4,7 @@ import { Plus, Image as ImageIcon } from "@phosphor-icons/react";
 import { cn } from "../../lib/cn";
 import { formatMoney } from "../../lib/format";
 import type { PosLayout, Product, ProductCategory } from "../../lib/types";
+import { PosCategoryBar } from "./PosCategoryBar";
 
 function columnsFor(layout: PosLayout, width: number) {
   if (layout === "list_barcode") return 1;
@@ -130,6 +131,20 @@ export function ProductGrid({
     return out;
   }, [filteredProducts, cols]);
 
+  const categoryBarItems = useMemo(() => {
+    const all = {
+      id: "all",
+      label: "الكل",
+      count: products.length,
+    };
+    const rest = categoryIds.map((cat) => ({
+      id: cat,
+      label: labelFor(cat),
+      count: products.filter((p) => p.category_id === cat).length,
+    }));
+    return [all, ...rest];
+  }, [categoryIds, products, categoryNameById, categories]);
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
@@ -138,27 +153,35 @@ export function ProductGrid({
   });
 
   return (
-    <div className="mt-3 flex min-h-0 flex-1 flex-col">
-      {categoryIds.length > 0 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
-          <CategoryChip
-            active={activeCategory === "all"}
-            onClick={() => setActiveCategory("all")}
-            label={`الكل (${products.length})`}
+    <div className={cn("flex min-h-0 flex-1 flex-col", phoneLayout ? "mt-1" : "mt-3")}>
+      {categoryIds.length > 0 &&
+        (phoneLayout ? (
+          <PosCategoryBar
+            activeId={activeCategory}
+            onSelect={setActiveCategory}
+            items={categoryBarItems}
+            phoneLayout
           />
-          {categoryIds.map((cat) => {
-            const count = products.filter((p) => p.category_id === cat).length;
-            return (
-              <CategoryChip
-                key={cat}
-                active={activeCategory === cat}
-                onClick={() => setActiveCategory(cat)}
-                label={`${labelFor(cat)} (${count})`}
-              />
-            );
-          })}
-        </div>
-      )}
+        ) : (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
+            <CategoryChip
+              active={activeCategory === "all"}
+              onClick={() => setActiveCategory("all")}
+              label={`الكل (${products.length})`}
+            />
+            {categoryIds.map((cat) => {
+              const count = products.filter((p) => p.category_id === cat).length;
+              return (
+                <CategoryChip
+                  key={cat}
+                  active={activeCategory === cat}
+                  onClick={() => setActiveCategory(cat)}
+                  label={`${labelFor(cat)} (${count})`}
+                />
+              );
+            })}
+          </div>
+        ))}
 
       <div
         ref={parentRef}
