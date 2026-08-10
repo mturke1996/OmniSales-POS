@@ -43,8 +43,11 @@ import { MobilePosQuickPay } from "./MobilePosQuickPay";
 import { PosQuickActions } from "./PosQuickActions";
 import { PosProductStrip } from "./PosProductStrip";
 import { PosLiveStats } from "./PosLiveStats";
+import { PosSyncBar } from "./PosSyncBar";
+import { PosPrinterSheet } from "./PosPrinterSheet";
 import { usePhoneLayout, usePosSplitLayout } from "../../hooks/use-media-query";
 import { usePrinter } from "../../hooks/use-printer";
+import { useOnline } from "../../hooks/use-online";
 import {
   getPinnedProductIds,
   getRecentProductIds,
@@ -52,6 +55,7 @@ import {
   recordRecentProductId,
   resolveProductsByIds,
 } from "../../lib/pos-product-memory";
+import { topSellerProductIds } from "../../lib/pos-top-sellers";
 
 export function PosScreen({
   settings,
@@ -70,6 +74,8 @@ export function PosScreen({
   onExit,
   onOpenCompletedSales,
   onOpenShifts,
+  pendingSync = 0,
+  onSync,
 }: {
   settings: BranchSettings;
   products: Product[];
@@ -87,6 +93,8 @@ export function PosScreen({
   onExit?: () => void;
   onOpenCompletedSales?: () => void;
   onOpenShifts?: () => void;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }) {
   const {
     lines,
@@ -103,6 +111,9 @@ export function PosScreen({
   const isPhone = usePhoneLayout();
   const isSplitLayout = usePosSplitLayout();
   const isMobileTabs = isPhone && !isSplitLayout;
+  const online = useOnline();
+  const [syncing, setSyncing] = useState(false);
+  const [showPrinterSheet, setShowPrinterSheet] = useState(false);
 
   function notifyAdded(name: string) {
     if (!isPhone) return;
@@ -274,7 +285,25 @@ export function PosScreen({
       ).slice(0, 8),
     [products, recentIds, pinnedIds]
   );
+  const topSellerProducts = useMemo(() => {
+    const ids = topSellerProductIds(orders, returns, products);
+    const exclude = new Set([...pinnedIds, ...recentIds]);
+    return resolveProductsByIds(
+      products,
+      ids.filter((id) => !exclude.has(id))
+    );
+  }, [orders, returns, products, pinnedIds, recentIds]);
   const pinnedIdSet = useMemo(() => new Set(pinnedIds), [pinnedIds]);
+
+  async function handleSyncNow() {
+    if (!onSync || syncing) return;
+    setSyncing(true);
+    try {
+      await onSync();
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   function handleTogglePin(p: Product) {
     const next = togglePinnedProductId(p.id);
@@ -583,6 +612,14 @@ export function PosScreen({
             onAdd={addProductToCart}
             disabled={needsShift}
           />
+          <PosProductStrip
+            title="الأكثر مبيعاً"
+            icon="bestseller"
+            products={topSellerProducts}
+            currencySymbol={settings.currency_symbol}
+            onAdd={addProductToCart}
+            disabled={needsShift}
+          />
         </>
       )}
 
@@ -614,7 +651,15 @@ export function PosScreen({
               onOpenSales={onOpenCompletedSales}
               onOpenHeld={() => setShowHoldModal(true)}
               onScan={() => setShowScanner(true)}
+              onPrinterClick={() => setShowPrinterSheet(true)}
               compact
+            />
+            <PosSyncBar
+              online={online}
+              pendingSync={pendingSync}
+              cloudEnabled={settings.cloud_sync_enabled}
+              syncing={syncing}
+              onSync={onSync ? handleSyncNow : undefined}
             />
             <PosLiveStats
               orders={orders}
@@ -646,6 +691,14 @@ export function PosScreen({
             onExit={onExit}
             onOpenSales={onOpenCompletedSales}
             onOpenHeld={() => setShowHoldModal(true)}
+            onPrinterClick={() => setShowPrinterSheet(true)}
+          />
+          <PosSyncBar
+            online={online}
+            pendingSync={pendingSync}
+            cloudEnabled={settings.cloud_sync_enabled}
+            syncing={syncing}
+            onSync={onSync ? handleSyncNow : undefined}
           />
           <PosLiveStats
             orders={orders}
@@ -916,6 +969,13 @@ export function PosScreen({
           mobile={isPhone}
         />
       )}
+
+      <PosPrinterSheet
+        open={showPrinterSheet}
+        onClose={() => setShowPrinterSheet(false)}
+        connected={printer.connected}
+        printerLabel={printer.label ?? undefined}
+      />
     </div>
   );
 }

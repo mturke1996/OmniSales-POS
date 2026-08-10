@@ -284,6 +284,14 @@ export default function App() {
             onExit={() => navigate("dashboard")}
             onOpenCompletedSales={() => navigate("invoices")}
             onOpenShifts={() => navigate("shifts")}
+            pendingSync={pendingSync}
+            onSync={() =>
+              syncCloud(draft).then((r) => {
+                refreshPending();
+                void loadData();
+                void r;
+              })
+            }
           />
         </div>
       ) : (

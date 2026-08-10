@@ -1,4 +1,4 @@
-import { Star, ClockCounterClockwise } from "@phosphor-icons/react";
+import { Star, ClockCounterClockwise, TrendUp } from "@phosphor-icons/react";
 import { formatMoney } from "../../lib/format";
 import { cn } from "../../lib/cn";
 import type { Product } from "../../lib/types";
@@ -14,7 +14,7 @@ export function PosProductStrip({
   disabled,
 }: {
   title: string;
-  icon: "pinned" | "recent";
+  icon: "pinned" | "recent" | "bestseller";
   products: Product[];
   pinnedIds?: Set<string>;
   currencySymbol: string;
@@ -29,6 +29,8 @@ export function PosProductStrip({
       <p className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[10px] font-bold text-ink-mute">
         {icon === "pinned" ? (
           <Star size={12} weight="fill" className="text-warning" />
+        ) : icon === "bestseller" ? (
+          <TrendUp size={12} weight="duotone" className="text-success" />
         ) : (
           <ClockCounterClockwise size={12} weight="duotone" />
         )}

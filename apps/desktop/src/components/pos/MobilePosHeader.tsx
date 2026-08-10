@@ -17,6 +17,7 @@ export function MobilePosHeader({
   onOpenSales,
   onOpenHeld,
   onScan,
+  onPrinterClick,
   compact = false,
 }: {
   branchName: string;
@@ -27,6 +28,7 @@ export function MobilePosHeader({
   onOpenSales?: () => void;
   onOpenHeld: () => void;
   onScan?: () => void;
+  onPrinterClick?: () => void;
   compact?: boolean;
 }) {
   return (
@@ -61,15 +63,31 @@ export function MobilePosHeader({
             </span>
           </span>
           {printerConnected != null && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-0.5 text-[10px] font-semibold",
-                printerConnected ? "text-success" : "text-ink-mute"
-              )}
-            >
-              <Printer size={11} weight="duotone" />
-              {printerConnected ? "طابعة" : "بدون طابعة"}
-            </span>
+            onPrinterClick ? (
+              <button
+                type="button"
+                onClick={onPrinterClick}
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold transition active:scale-[0.97]",
+                  printerConnected
+                    ? "text-success hover:bg-success/10"
+                    : "text-ink-mute hover:bg-paper"
+                )}
+              >
+                <Printer size={11} weight="duotone" />
+                {printerConnected ? "طابعة" : "بدون طابعة"}
+              </button>
+            ) : (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 text-[10px] font-semibold",
+                  printerConnected ? "text-success" : "text-ink-mute"
+                )}
+              >
+                <Printer size={11} weight="duotone" />
+                {printerConnected ? "طابعة" : "بدون طابعة"}
+              </span>
+            )
           )}
         </div>
       </div>
