@@ -14,10 +14,15 @@ import {
   CaretLeft,
   WhatsappLogo,
   Printer,
+  CookingPot,
 } from "@phosphor-icons/react";
 import { updateOrderStatus } from "../../lib/api";
 import { formatMoney } from "../../lib/format";
 import { openWhatsApp, saleShareMessage } from "../../lib/whatsapp";
+import {
+  isKitchenTicketOrder,
+  printKitchenTicketSmart,
+} from "../../lib/print/kitchen-ticket";
 import type {
   BranchSettings,
   Order,
@@ -75,6 +80,7 @@ export function OrdersScreen({
   const [driverDraft, setDriverDraft] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
+  const [kitchenMsg, setKitchenMsg] = useState<string | null>(null);
   const isPhone = usePhoneLayout();
 
   const filtered = useMemo(() => {
@@ -134,13 +140,50 @@ export function OrdersScreen({
     if (!next) return;
     setBusyId(order.id);
     setError(null);
+    setKitchenMsg(null);
     try {
       await updateOrderStatus(order.id, next, {
         driver: driverDraft[order.id] || order.delivery_driver,
       });
+      if (
+        next === "in_prep" &&
+        isKitchenTicketOrder(order) &&
+        settings.auto_print_kitchen !== false
+      ) {
+        void printKitchenTicketSmart(
+          { ...order, status: next },
+          settings
+        ).then((mode) => {
+          setKitchenMsg(
+            mode === "escpos"
+              ? `طُبعت تذكرة مطبخ ${order.order_number} حرارياً`
+              : `فُتحت تذكرة مطبخ ${order.order_number}`
+          );
+        }).catch(() => {
+          /* kitchen print optional */
+        });
+      }
       onRefreshData();
     } catch (e) {
       setError(e instanceof Error ? e.message : "فشل تحديث الحالة");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function printKitchen(order: Order) {
+    setBusyId(order.id);
+    setKitchenMsg(null);
+    setError(null);
+    try {
+      const mode = await printKitchenTicketSmart(order, settings);
+      setKitchenMsg(
+        mode === "escpos"
+          ? `طُبعت تذكرة المطبخ حرارياً`
+          : `فُتحت تذكرة المطبخ للطباعة`
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "فشل طباعة تذكرة المطبخ");
     } finally {
       setBusyId(null);
     }
@@ -366,6 +409,12 @@ export function OrdersScreen({
         </div>
       )}
 
+      {kitchenMsg && (
+        <div className="rounded-xl border border-success/30 bg-success/10 px-4 py-2 text-xs font-semibold text-success">
+          {kitchenMsg}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <PipeCard icon={<ShoppingBag size={18} />} label="طلبات توصيل" count={pipeline.total} />
         <PipeCard icon={<Clock size={18} />} label="جديدة" count={pipeline.new} tone="blue" />
@@ -408,6 +457,7 @@ export function OrdersScreen({
                   onAdvance={() => void advance(order)}
                   onCancel={() => void cancel(order)}
                   onPrintReceipt={() => setReceiptOrder(order)}
+                  onPrintKitchen={() => void printKitchen(order)}
                 />
               ))}
             </div>
@@ -428,6 +478,7 @@ export function OrdersScreen({
                   onAdvance={() => void advance(order)}
                   onCancel={() => void cancel(order)}
                   onPrintReceipt={() => setReceiptOrder(order)}
+                  onPrintKitchen={() => void printKitchen(order)}
                 />
               ))}
             </div>
@@ -471,6 +522,7 @@ function OrderCard({
   onAdvance,
   onCancel,
   onPrintReceipt,
+  onPrintKitchen,
 }: {
   order: Order;
   settings: BranchSettings;
@@ -482,6 +534,7 @@ function OrderCard({
   onAdvance: () => void;
   onCancel: () => void;
   onPrintReceipt: () => void;
+  onPrintKitchen: () => void;
 }) {
   const next = NEXT[order.status];
   const nextLabel = NEXT_LABEL[order.status];
@@ -582,6 +635,19 @@ function OrderCard({
                 واتساب
               </button>
             )}
+            {isKitchenTicketOrder(order) &&
+              order.status !== "cancelled" &&
+              order.status !== "completed" && (
+                <button
+                  type="button"
+                  disabled={busyId === order.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-3 py-1.5 text-[11px] font-bold text-warning"
+                  onClick={onPrintKitchen}
+                >
+                  <CookingPot size={14} />
+                  مطبخ
+                </button>
+              )}
             {order.status === "completed" && (
               <button
                 type="button"

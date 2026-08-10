@@ -16,6 +16,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "android:sync": "pnpm build:native && cap sync android",
+    "android:init": "pnpm build:native && cap add android && cap sync android",
     "android:open": "cap open android",
     "android:apk": "pnpm android:sync && node ./scripts/build-apk.mjs",
     "icons:ios-splash": "node ./scripts/generate-ios-splash.mjs",

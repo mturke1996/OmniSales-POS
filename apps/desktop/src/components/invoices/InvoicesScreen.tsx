@@ -9,6 +9,7 @@ import {
   User,
   CreditCard,
   X,
+  CookingPot,
 } from "@phosphor-icons/react";
 import type { BranchSettings, Customer, Order } from "../../lib/types";
 import { downloadInvoicePdf, openInvoicePdf } from "../../lib/invoice";
@@ -26,6 +27,12 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { cn } from "../../lib/cn";
 import { usePhoneLayout } from "../../hooks/use-media-query";
 import { ReceiptModal } from "../pos/ReceiptModal";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
+import {
+  isKitchenTicketOrder,
+  printKitchenTicketSmart,
+} from "../../lib/print/kitchen-ticket";
 
 export function InvoicesScreen({
   orders,
@@ -34,6 +41,8 @@ export function InvoicesScreen({
   initialOrderId,
   onStartReturn,
   onOpenCustomer,
+  pendingSync = 0,
+  onSync,
 }: {
   orders: Order[];
   customers?: Customer[];
@@ -41,11 +50,14 @@ export function InvoicesScreen({
   initialOrderId?: string | null;
   onStartReturn?: (orderId: string) => void;
   onOpenCustomer?: (customerId: string) => void;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Order | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"pdf" | "open" | "thermal" | null>(null);
+  const [busy, setBusy] = useState<"pdf" | "open" | "thermal" | "kitchen" | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const isPhone = usePhoneLayout();
 
@@ -76,7 +88,7 @@ export function InvoicesScreen({
   }, [sorted, q]);
 
   const run = async (
-    kind: "pdf" | "open" | "thermal",
+    kind: "pdf" | "open" | "thermal" | "kitchen",
     fn: () => void | Promise<void>,
     ok: string
   ) => {
@@ -174,6 +186,14 @@ export function InvoicesScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="المبيعات المنفذة"
         description={`فواتير مكتملة · PDF · حرارية ${settings.thermal_width_mm}مم · ${settings.name}`}
@@ -324,11 +344,11 @@ function InvoiceDetailBody({
   selected: Order | null;
   settings: BranchSettings;
   customers: Customer[];
-  busy: "pdf" | "open" | "thermal" | null;
+  busy: "pdf" | "open" | "thermal" | "kitchen" | null;
   onStartReturn?: (orderId: string) => void;
   onOpenCustomer?: (customerId: string) => void;
   run: (
-    kind: "pdf" | "open" | "thermal",
+    kind: "pdf" | "open" | "thermal" | "kitchen",
     fn: () => void | Promise<void>,
     ok: string
   ) => Promise<void>;
@@ -477,6 +497,25 @@ function InvoiceDetailBody({
           <Printer size={18} weight="duotone" />
           إيصال / طباعة حرارية
         </button>
+        {isKitchenTicketOrder(selected) && (
+          <button
+            type="button"
+            disabled={busy !== null}
+            className="btn-ghost inline-flex items-center justify-center gap-2 rounded-xl disabled:opacity-60"
+            onClick={() =>
+              void run(
+                "kitchen",
+                async () => {
+                  await printKitchenTicketSmart(selected, settings);
+                },
+                "تم إرسال تذكرة المطبخ للطباعة"
+              )
+            }
+          >
+            <CookingPot size={18} weight="duotone" />
+            {busy === "kitchen" ? "جاري الطباعة…" : "تذكرة مطبخ"}
+          </button>
+        )}
         {onStartReturn && selected.status !== "cancelled" && (
           <button
             type="button"

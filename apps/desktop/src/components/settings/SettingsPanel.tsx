@@ -700,6 +700,22 @@ export function SettingsPanel({
             <input
               type="checkbox"
               className="mt-0.5"
+              checked={settings.auto_print_kitchen !== false}
+              onChange={(e) =>
+                onChange({ ...settings, auto_print_kitchen: e.target.checked })
+              }
+            />
+            <span className="text-xs leading-relaxed">
+              <span className="font-bold text-ink">طباعة تذكرة مطبخ تلقائياً</span>
+              <span className="mt-0.5 block text-[11px] text-ink-mute">
+                عند بدء تحضير طلب توصيل/مناسبة تُطبع تذكرة المطبخ حرارياً
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 rounded-xl border border-paper-line bg-paper px-3 py-2.5 sm:col-span-2">
+            <input
+              type="checkbox"
+              className="mt-0.5"
               checked={settings.auto_print_thermal !== false}
               onChange={(e) =>
                 onChange({ ...settings, auto_print_thermal: e.target.checked })

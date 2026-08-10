@@ -346,6 +346,8 @@ export default function App() {
                 customers={data.customers}
                 settings={draft}
                 initialOrderId={focusInvoiceId}
+                pendingSync={pendingSync}
+                onSync={() => void handleCloudSync()}
                 onStartReturn={(orderId) => {
                   setReturnOrderId(orderId);
                   navigate("returns");
