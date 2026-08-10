@@ -1,20 +1,18 @@
 import { useEffect, useState } from "react";
 import {
-  getPrinterConnectionState,
-  subscribePrinterState,
-  tryAutoReconnectSerialPrinter,
-  type PrinterConnectionState,
-} from "../lib/print/escpos";
+  getUnifiedPrinterState,
+  subscribeUnifiedPrinterState,
+  bootReconnectPrinters,
+  type UnifiedPrinterState,
+} from "../lib/print/printer-hub";
 
-/** Live printer connection status + boot auto-reconnect. */
-export function usePrinter(): PrinterConnectionState {
-  const [state, setState] = useState(getPrinterConnectionState);
+/** Live printer connection (USB serial + Bluetooth native). */
+export function usePrinter(): UnifiedPrinterState {
+  const [state, setState] = useState(getUnifiedPrinterState);
 
   useEffect(() => {
-    const unsub = subscribePrinterState(setState);
-    void tryAutoReconnectSerialPrinter().then(() =>
-      setState(getPrinterConnectionState())
-    );
+    const unsub = subscribeUnifiedPrinterState(setState);
+    void bootReconnectPrinters().then(() => setState(getUnifiedPrinterState()));
     return unsub;
   }, []);
 

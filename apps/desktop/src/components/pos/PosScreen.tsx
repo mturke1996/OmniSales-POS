@@ -999,6 +999,8 @@ export function PosScreen({
         connected={printer.connected}
         printerLabel={printer.label ?? undefined}
         supportMessage={printer.supportMessage}
+        transport={printer.transport}
+        thermalWidthMm={settings.thermal_width_mm === 58 ? 58 : 80}
         printing={printerPrinting}
         onPrintBrowser={
           lastOrderRef.current

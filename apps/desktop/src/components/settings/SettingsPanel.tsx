@@ -37,9 +37,10 @@ import {
   connectSerialPrinter,
   disconnectSerialPrinter,
   getStoredBaudRate,
-  printTestSlip,
   setStoredBaudRate,
 } from "../../lib/print/escpos";
+import { printTestSlip } from "../../lib/print/printer-hub";
+import { BluetoothPrinterPanel } from "../pos/BluetoothPrinterPanel";
 import { usePrinter } from "../../hooks/use-printer";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
@@ -774,12 +775,24 @@ export function SettingsPanel({
             }`}
           >
             {printer.connected
-              ? `متصلة${printer.label ? ` · ${printer.label}` : ""}`
+              ? `متصلة${printer.label ? ` · ${printer.label}` : ""}${
+                  printer.transport === "bluetooth"
+                    ? " (BT)"
+                    : printer.transport === "usb_serial"
+                      ? " (USB)"
+                      : ""
+                }`
               : printer.supported
                 ? "غير متصلة"
                 : printer.supportMessage}
           </span>
         </div>
+        {runtime === "capacitor" && (
+          <BluetoothPrinterPanel
+            thermalWidthMm={settings.thermal_width_mm === 58 ? 58 : 80}
+            onMessage={setPrinterMsg}
+          />
+        )}
         {printerMsg && (
           <p className="text-xs font-semibold text-ink">{printerMsg}</p>
         )}

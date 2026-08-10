@@ -4,8 +4,9 @@ import {
   buildEscPosReceiptBytes,
   canUseWebSerial,
   isSerialConnected,
-  writeToSerial,
 } from "./escpos";
+import { isBluetoothConnected } from "./bluetooth-printer";
+import { writeToPrinter } from "./printer-hub";
 import { printThermalReceiptHtml } from "../invoice-html";
 
 export type ThermalPrintMode = "escpos" | "html" | "auto";
@@ -87,7 +88,8 @@ export async function printThermalReceiptSmart(
   const forceEscpos = mode === "escpos";
   const tryEscpos =
     forceEscpos ||
-    (mode === "auto" && canUseWebSerial() && isSerialConnected());
+    (mode === "auto" &&
+      (isSerialConnected() || isBluetoothConnected() || canUseWebSerial()));
 
   if (tryEscpos) {
     try {
@@ -98,7 +100,7 @@ export async function printThermalReceiptSmart(
         openDrawer:
           order.payment_method === "cash" || order.payment_method === "mixed",
       });
-      await writeToSerial(bytes);
+      await writeToPrinter(bytes);
       return "escpos";
     } catch (err) {
       if (forceEscpos) throw err;

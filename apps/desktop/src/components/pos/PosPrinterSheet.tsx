@@ -1,5 +1,7 @@
 import { Printer } from "@phosphor-icons/react";
 import { BottomSheet } from "../ui/BottomSheet";
+import { BluetoothPrinterPanel } from "./BluetoothPrinterPanel";
+import { detectRuntime } from "../../lib/native";
 
 function isIos() {
   if (typeof navigator === "undefined") return false;
@@ -12,6 +14,8 @@ export function PosPrinterSheet({
   connected,
   printerLabel,
   supportMessage,
+  transport,
+  thermalWidthMm = 80,
   onPrintBrowser,
   printing,
 }: {
@@ -20,10 +24,13 @@ export function PosPrinterSheet({
   connected: boolean;
   printerLabel?: string;
   supportMessage?: string;
+  transport?: "usb_serial" | "bluetooth" | null;
+  thermalWidthMm?: 58 | 80;
   onPrintBrowser?: () => void;
   printing?: boolean;
 }) {
   const ios = isIos();
+  const isNative = detectRuntime() === "capacitor";
 
   return (
     <BottomSheet open={open} onOpenChange={(v) => !v && onClose()} title="الطباعة">
@@ -38,26 +45,30 @@ export function PosPrinterSheet({
             </p>
             <p className="text-xs text-ink-mute">
               {connected
-                ? printerLabel || "جاهزة للطباعة ESC/POS"
+                ? `${printerLabel || "جاهزة ESC/POS"}${transport === "bluetooth" ? " · Bluetooth" : transport === "usb_serial" ? " · USB" : ""}`
                 : supportMessage || "يمكنك الطباعة عبر المتصفح بعد كل بيع"}
             </p>
           </div>
         </div>
 
-        {!connected && (
+        {isNative && (
+          <BluetoothPrinterPanel thermalWidthMm={thermalWidthMm} compact />
+        )}
+
+        {!connected && !isNative && (
           <ul className="space-y-2 text-xs text-ink-mute">
             {ios ? (
               <>
-                <li>• iPhone/iPad: بعد البيع اضغط «طباعة الإيصال» ثم Share → Print (AirPrint)</li>
+                <li>• iPhone/iPad: بعد البيع «طباعة الإيصال» → Share → Print (AirPrint)</li>
                 <li>• أو احفظ PDF وأرسله للعميل عبر واتساب</li>
               </>
             ) : (
               <>
-                <li>• Android: بعد البيع استخدم «طباعة الإيصال» (Chrome → طباعة)</li>
-                <li>• Windows/Mac: اربط طابعة USB من الإعدادات → الطابعة</li>
+                <li>• Android PWA: «طباعة الإيصال» عبر Chrome</li>
+                <li>• Windows/Mac: اربط USB من الإعدادات → الطابعة</li>
+                <li>• تطبيق Android APK: Bluetooth ESC/POS من الأسفل</li>
               </>
             )}
-            <li>• Bluetooth ESC/POS: قريباً — استخدم طباعة المتصفح مؤقتاً</li>
           </ul>
         )}
 
