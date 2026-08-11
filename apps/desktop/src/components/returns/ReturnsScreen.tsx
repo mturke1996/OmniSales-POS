@@ -333,7 +333,7 @@ export function ReturnsScreen({
           <MobileDataList
             empty={!filtered.length}
             emptyLabel="لا فواتير مطابقة"
-            className="max-h-[60dvh] overflow-y-auto p-2 md:hidden"
+            className="max-h-[60dvh] overflow-y-auto p-2 lg:hidden"
           >
             {filtered.map((o) => (
               <MobileDataCard
@@ -517,7 +517,7 @@ export function ReturnsScreen({
         <div className="border-b border-paper-line px-4 py-3">
           <h3 className="text-sm font-bold text-ink">سجل المرتجعات</h3>
         </div>
-        <div className="space-y-2 p-3 md:hidden">
+        <div className="space-y-2 p-3 lg:hidden">
           {!sortedReturns.length ? (
             <p className="py-8 text-center text-xs text-ink-mute">لا مرتجعات بعد</p>
           ) : (
@@ -545,7 +545,7 @@ export function ReturnsScreen({
             ))
           )}
         </div>
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <DataTable
             data={sortedReturns}
             columns={returnColumns}

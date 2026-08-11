@@ -284,7 +284,7 @@ export function ReportsScreen({
             />
           ))}
         </MobileDataList>
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <DataTable
             data={snap.returns}
             columns={returnColumns}

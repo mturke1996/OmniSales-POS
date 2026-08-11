@@ -19,7 +19,13 @@ export function PageContent({
         : "max-w-6xl";
 
   return (
-    <div className={cn("mx-auto space-y-5 px-4 py-5 sm:px-6 sm:py-6", max, className)}>
+    <div
+      className={cn(
+        "mobile-page-body mx-auto space-y-4 px-4 py-4 sm:space-y-5 sm:px-6 sm:py-6 lg:pb-6",
+        max,
+        className
+      )}
+    >
       {children}
     </div>
   );

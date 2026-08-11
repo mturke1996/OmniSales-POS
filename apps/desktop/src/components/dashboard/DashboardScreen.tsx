@@ -185,18 +185,19 @@ export function DashboardScreen({
             <button
               type="button"
               onClick={() => onNavigate("pos")}
-              className="btn-primary gap-2 px-4 py-2.5 text-sm"
+              className="btn-primary gap-2 px-4 py-2.5 text-sm max-lg:px-3 max-lg:py-2 max-lg:text-xs"
             >
               <Plus size={16} weight="bold" />
-              بيع جديد
+              <span className="max-sm:hidden">بيع جديد</span>
+              <span className="sm:hidden">بيع</span>
             </button>
             <button
               type="button"
               onClick={() => onNavigate("returns")}
-              className="inline-flex items-center gap-1.5 rounded-full border border-paper-line/70 bg-paper-raised px-3 py-2 text-xs font-bold text-ink transition hover:bg-warning/10"
+              className="inline-flex items-center gap-1.5 rounded-full border border-paper-line/70 bg-paper-raised px-3 py-2 text-xs font-bold text-ink transition hover:bg-warning/10 max-lg:px-2.5"
             >
               <ArrowUUpLeft size={16} />
-              مرتجع
+              <span className="max-sm:hidden">مرتجع</span>
             </button>
             <button
               type="button"
@@ -212,7 +213,7 @@ export function DashboardScreen({
 
       <PageContent size="wide" className="space-y-5">
         {/* Hero command — one soft card */}
-        <div className="panel flex flex-col gap-5 p-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="panel flex flex-col gap-4 p-4 sm:gap-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
             <div className="stat-icon shrink-0 bg-highlight/15 text-highlight">
               <Storefront size={22} weight="duotone" />
@@ -377,7 +378,7 @@ export function DashboardScreen({
               <ArrowLeft size={14} />
             </button>
           </div>
-          <div className="space-y-2 px-3 pb-4 md:hidden">
+          <div className="space-y-2 px-3 pb-4 lg:hidden">
             {!topCustomers.length ? (
               <p className="py-8 text-center text-xs text-ink-mute">لا يوجد عملاء بعد</p>
             ) : (
@@ -423,7 +424,7 @@ export function DashboardScreen({
               })
             )}
           </div>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DataTable
               data={topCustomers}
               columns={customerColumns}
@@ -432,7 +433,7 @@ export function DashboardScreen({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
           <Quick icon={<Truck size={18} />} label="التوصيل" onClick={() => onNavigate("orders")} />
           <Quick icon={<Package size={18} />} label="المخزون" onClick={() => onNavigate("inventory")} />
           <Quick icon={<Handshake size={18} />} label="المشتريات" onClick={() => onNavigate("purchases")} />
@@ -473,7 +474,7 @@ function Metric({
   }[tone];
 
   return (
-    <div className="panel p-5">
+    <div className="panel p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-ink-mute">{title}</p>
@@ -506,7 +507,7 @@ function Donut({
     .join(", ");
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
       <div
         className="relative h-40 w-40 shrink-0 rounded-full"
         style={{

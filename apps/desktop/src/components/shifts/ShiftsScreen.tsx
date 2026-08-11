@@ -617,7 +617,7 @@ export function ShiftsScreen({
               />
             ))}
           </MobileDataList>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DataTable
               data={historyRows}
               columns={historyColumns}

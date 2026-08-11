@@ -544,7 +544,7 @@ export function CustomerProfileScreen({
               />
             ))}
           </MobileDataList>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DataTable
               data={sales}
               columns={salesColumns}
@@ -589,7 +589,7 @@ export function CustomerProfileScreen({
               />
             ))}
           </MobileDataList>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DataTable
               data={entries}
               columns={ledgerColumns}
@@ -618,7 +618,7 @@ export function CustomerProfileScreen({
               />
             ))}
           </MobileDataList>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DataTable
               data={custReturns}
               columns={returnsColumns}

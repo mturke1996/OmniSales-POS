@@ -51,6 +51,7 @@ export default {
         display: ["var(--font-cairo)", "Cairo", "sans-serif"],
       },
       boxShadow: {
+        xs: "0 1px 2px rgb(var(--ink) / 0.04), 0 1px 3px rgb(var(--ink) / 0.06)",
         soft: "var(--shadow-soft)",
         lift: "var(--shadow-lift)",
         inset: "inset 0 -1px 0 rgb(var(--ink) / 0.08)",

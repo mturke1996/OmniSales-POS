@@ -34,11 +34,11 @@ export function MobileBottomNav({
 
   return (
     <nav
-      className="z-40 shrink-0 border-t border-paper-line/80 bg-paper-raised/98 backdrop-blur-lg lg:hidden"
+      className="mobile-bottom-nav z-40 shrink-0 safe-bottom lg:hidden"
       style={{ height: "var(--mobile-nav-offset)" }}
       aria-label="التنقل السريع"
     >
-      <div className="mx-auto flex h-[var(--mobile-nav-inner)] w-full max-w-lg items-stretch justify-around gap-0.5 px-1 pt-1">
+      <div className="mx-auto flex h-[var(--mobile-nav-inner)] w-full max-w-lg items-stretch justify-around gap-1 px-2 pt-1.5">
         {PRIMARY.map(({ id, label, Icon }) => {
           const active = currentTab === id;
           return (
@@ -47,13 +47,14 @@ export function MobileBottomNav({
               type="button"
               onClick={() => onNavigate(id)}
               className={cn(
-                "flex min-h-[2.75rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[10px] font-bold transition active:scale-[0.97]",
-                active
-                  ? "bg-highlight/12 text-highlight"
-                  : "text-ink-mute hover:bg-paper hover:text-ink"
+                "mobile-tab-btn relative flex min-h-[2.85rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-1 text-[10px] font-bold transition duration-200 ease-spring active:scale-[0.96]",
+                active ? "mobile-tab-btn-active text-highlight" : "text-ink-mute"
               )}
             >
-              <Icon size={21} weight={active ? "fill" : "duotone"} />
+              {active && (
+                <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-highlight" aria-hidden />
+              )}
+              <Icon size={22} weight={active ? "fill" : "duotone"} />
               <span className="truncate leading-none">{label}</span>
             </button>
           );
@@ -62,14 +63,15 @@ export function MobileBottomNav({
           type="button"
           onClick={onOpenMenu}
           className={cn(
-            "flex min-h-[2.75rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[10px] font-bold transition active:scale-[0.97]",
-            moreActive
-              ? "bg-highlight/12 text-highlight"
-              : "text-ink-mute hover:bg-paper hover:text-ink"
+            "mobile-tab-btn relative flex min-h-[2.85rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-1 text-[10px] font-bold transition duration-200 ease-spring active:scale-[0.96]",
+            moreActive ? "mobile-tab-btn-active text-highlight" : "text-ink-mute"
           )}
           aria-label="المزيد من الأقسام"
         >
-          <SquaresFour size={21} weight={moreActive ? "fill" : "duotone"} />
+          {moreActive && (
+            <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-highlight" aria-hidden />
+          )}
+          <SquaresFour size={22} weight={moreActive ? "fill" : "duotone"} />
           <span className="leading-none">المزيد</span>
         </button>
       </div>

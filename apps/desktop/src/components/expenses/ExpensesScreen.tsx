@@ -131,7 +131,7 @@ export function ExpensesScreen({
         ))}
       </MobileDataList>
 
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         <DataTable
           data={filtered}
           columns={columns}

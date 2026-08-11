@@ -270,7 +270,7 @@ export function PurchasesScreen({
 
       {tab === "suppliers" && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 md:hidden">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:hidden">
             {!suppliers.length && (
               <p className="col-span-full py-10 text-center text-xs text-ink-mute">
                 لا يوجد موردون بعد
@@ -309,7 +309,7 @@ export function PurchasesScreen({
               </div>
             ))}
           </div>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DataTable
               data={suppliers}
               columns={supplierColumns}
@@ -394,11 +394,11 @@ export function PurchasesScreen({
       {tab === "purchases" && (
         <div className="space-y-3">
           {!sorted.length && (
-            <p className="py-10 text-center text-xs text-ink-mute md:hidden">
+            <p className="py-10 text-center text-xs text-ink-mute lg:hidden">
               لا توجد مشتريات — أنشئ أمر شراء واستلمه لإضافة المخزون
             </p>
           )}
-          <div className="space-y-3 md:hidden">
+          <div className="space-y-3 lg:hidden">
           {sorted.map((p) => {
             const paid = Number(p.paid_amount) || 0;
             const due = Math.max(0, p.total_cost - paid);
@@ -481,7 +481,7 @@ export function PurchasesScreen({
             );
           })}
           </div>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DataTable
               data={sorted}
               columns={purchaseColumns}

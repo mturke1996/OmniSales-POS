@@ -154,6 +154,7 @@ export function Sidebar({
     <aside
       className={cn(
         "sidebar-shell flex h-full min-h-0 flex-col transition-[width] duration-300 ease-spring",
+        isDrawer && "mobile-drawer-sidebar bg-transparent shadow-none",
         !isDrawer && "sticky top-0 z-40 h-app shrink-0",
         !isDrawer && (slim ? "w-[76px]" : "w-[280px]"),
         isDrawer && "h-full w-full",
@@ -385,7 +386,7 @@ function SidebarItem({
       aria-current={active ? "page" : undefined}
       title={collapsed ? label : undefined}
       className={cn(
-        "sidebar-nav-item",
+        "sidebar-nav-item min-h-11",
         active ? "sidebar-nav-item-active" : "sidebar-nav-item-idle",
         collapsed && "justify-center px-2"
       )}

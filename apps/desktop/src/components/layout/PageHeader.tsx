@@ -20,15 +20,17 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "sticky top-0 z-20 border-b border-paper-line/70 bg-paper-raised/95 backdrop-blur-md",
+        "mobile-page-header",
+        "max-lg:relative max-lg:top-auto max-lg:z-10",
+        "lg:sticky lg:top-0 lg:z-20",
         className
       )}
     >
-      <div className="mx-auto max-w-[1600px] px-4 py-3 sm:px-6 sm:py-4">
+      <div className="mx-auto max-w-[1600px] px-4 py-2.5 sm:px-6 sm:py-4">
         {breadcrumbs && breadcrumbs.length > 0 && (
           <nav
             aria-label="مسار التنقل"
-            className="mb-1.5 flex flex-wrap items-center gap-1 text-[11px] font-medium text-ink-mute"
+            className="mb-1 hidden flex-wrap items-center gap-1 text-[11px] font-medium text-ink-mute sm:flex"
           >
             {breadcrumbs.map((crumb, i) => (
               <span key={`${crumb.label}-${i}`} className="inline-flex items-center gap-1">
@@ -49,29 +51,33 @@ export function PageHeader({
           </nav>
         )}
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div className="flex min-w-0 items-start gap-2">
             {onBack && (
               <button
                 type="button"
                 onClick={onBack}
-                className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-paper-line/70 bg-paper text-ink transition hover:border-highlight/30 hover:bg-highlight/8 active:scale-[0.97]"
+                className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-paper-line/70 bg-paper text-ink shadow-sm transition hover:border-highlight/30 hover:bg-highlight/8 active:scale-[0.97]"
                 aria-label="رجوع"
               >
                 <CaretLeft size={18} weight="bold" className="rtl:rotate-180" />
               </button>
             )}
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-extrabold tracking-tight text-ink sm:text-2xl">
+              <h1 className="truncate text-lg font-extrabold tracking-tight text-ink sm:text-2xl">
                 {title}
               </h1>
               {description && (
-                <p className="mt-0.5 text-sm text-ink-mute">{description}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs text-ink-mute sm:text-sm">
+                  {description}
+                </p>
               )}
             </div>
           </div>
           {actions && (
-            <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+            <div className="mobile-page-actions flex shrink-0 flex-wrap items-center gap-2">
+              {actions}
+            </div>
           )}
         </div>
       </div>

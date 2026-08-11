@@ -345,63 +345,34 @@ export function OrdersScreen({
         description="من نقطة البيع → وضع توصيل · ثم تتبّع الحالات حتى التسليم"
         breadcrumbs={[{ label: "OmniSales" }, { label: "المبيعات" }, { label: "التوصيل" }]}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="rounded-xl border border-paper-line bg-paper-raised px-3 py-2 text-xs font-semibold"
-            >
-              <option value="all">كل الحالات</option>
-              <option value="new">جديد</option>
-              <option value="in_prep">تحضير</option>
-              <option value="ready">جاهز</option>
-              <option value="delivering">جاري التوصيل</option>
-              <option value="completed">مكتمل</option>
-              <option value="cancelled">ملغى</option>
-            </select>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="rounded-xl border border-paper-line bg-paper-raised px-3 py-2 text-xs font-semibold"
-            >
-              <option value="delivery">توصيل فقط</option>
-              <option value="special_event">مناسبات</option>
-              <option value="all">كل الأنواع</option>
-              <option value="pos_walk_in">بيع مباشر</option>
-            </select>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="rounded-xl border border-paper-line bg-paper-raised px-3 py-2 text-xs font-semibold"
-              title="تصفية بتاريخ التوصيل"
+          <div className="hidden flex-wrap items-center gap-2 lg:flex">
+            <OrdersFilters
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+              filterType={filterType}
+              setFilterType={setFilterType}
+              filterDate={filterDate}
+              setFilterDate={setFilterDate}
+              view={view}
+              setView={setView}
             />
-            <div className="flex rounded-xl border border-paper-line p-0.5 text-[11px] font-bold">
-              <button
-                type="button"
-                onClick={() => setView("list")}
-                className={cn(
-                  "rounded-lg px-3 py-1",
-                  view === "list" ? "bg-ink text-paper" : "text-ink-mute"
-                )}
-              >
-                قائمة
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("calendar")}
-                className={cn(
-                  "rounded-lg px-3 py-1",
-                  view === "calendar" ? "bg-ink text-paper" : "text-ink-mute"
-                )}
-              >
-                حسب اليوم
-              </button>
-            </div>
           </div>
         }
       />
       <PageContent className="space-y-6">
+      <div className="panel space-y-2.5 p-3 lg:hidden">
+        <OrdersFilters
+          filterStatus={filterStatus}
+          setFilterStatus={setFilterStatus}
+          filterType={filterType}
+          setFilterType={setFilterType}
+          filterDate={filterDate}
+          setFilterDate={setFilterDate}
+          view={view}
+          setView={setView}
+          mobile
+        />
+      </div>
 
       {error && (
         <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-xs font-semibold text-danger">
@@ -464,7 +435,7 @@ export function OrdersScreen({
           ))
         ) : (
           <>
-            <div className="space-y-3 md:hidden">
+            <div className="space-y-3 lg:hidden">
               {filtered.map((order) => (
                 <OrderCard
                   key={order.id}
@@ -482,7 +453,7 @@ export function OrdersScreen({
                 />
               ))}
             </div>
-            <div className="hidden md:block">
+            <div className="hidden lg:block">
               <DataTable
                 data={filtered}
                 columns={orderColumns}
@@ -687,6 +658,100 @@ function OrderCard({
   );
 }
 
+function OrdersFilters({
+  filterStatus,
+  setFilterStatus,
+  filterType,
+  setFilterType,
+  filterDate,
+  setFilterDate,
+  view,
+  setView,
+  mobile = false,
+}: {
+  filterStatus: string;
+  setFilterStatus: (v: string) => void;
+  filterType: string;
+  setFilterType: (v: string) => void;
+  filterDate: string;
+  setFilterDate: (v: string) => void;
+  view: "list" | "calendar";
+  setView: (v: "list" | "calendar") => void;
+  mobile?: boolean;
+}) {
+  const fieldClass = cn(
+    "input-field min-h-10 w-full rounded-xl border border-paper-line/70 bg-paper px-3 py-2 text-xs font-semibold text-ink",
+    mobile && "bg-paper-raised"
+  );
+
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-2",
+        mobile && "grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap"
+      )}
+    >
+      <select
+        value={filterStatus}
+        onChange={(e) => setFilterStatus(e.target.value)}
+        className={fieldClass}
+      >
+        <option value="all">كل الحالات</option>
+        <option value="new">جديد</option>
+        <option value="in_prep">تحضير</option>
+        <option value="ready">جاهز</option>
+        <option value="delivering">جاري التوصيل</option>
+        <option value="completed">مكتمل</option>
+        <option value="cancelled">ملغى</option>
+      </select>
+      <select
+        value={filterType}
+        onChange={(e) => setFilterType(e.target.value)}
+        className={fieldClass}
+      >
+        <option value="delivery">توصيل فقط</option>
+        <option value="special_event">مناسبات</option>
+        <option value="all">كل الأنواع</option>
+        <option value="pos_walk_in">بيع مباشر</option>
+      </select>
+      <input
+        type="date"
+        value={filterDate}
+        onChange={(e) => setFilterDate(e.target.value)}
+        className={cn(fieldClass, mobile && "col-span-2 sm:col-span-1 sm:w-auto")}
+        title="تصفية بتاريخ التوصيل"
+      />
+      <div
+        className={cn(
+          "flex rounded-xl border border-paper-line/70 bg-paper p-0.5 text-[11px] font-bold",
+          mobile && "col-span-2 w-full sm:col-span-1 sm:w-auto"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setView("list")}
+          className={cn(
+            "min-h-9 flex-1 rounded-lg px-3 py-1.5 transition",
+            view === "list" ? "bg-highlight text-white shadow-xs" : "text-ink-mute"
+          )}
+        >
+          قائمة
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("calendar")}
+          className={cn(
+            "min-h-9 flex-1 rounded-lg px-3 py-1.5 transition",
+            view === "calendar" ? "bg-highlight text-white shadow-xs" : "text-ink-mute"
+          )}
+        >
+          حسب اليوم
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PipeCard({
   icon,
   label,
@@ -720,12 +785,12 @@ function PipeCard({
 
 function StatusBadge({ status }: { status: OrderStatus }) {
   const map: Record<OrderStatus, string> = {
-    new: "bg-blue-100 text-blue-800",
-    in_prep: "bg-amber-100 text-amber-800",
-    ready: "bg-indigo-100 text-indigo-800",
-    delivering: "bg-purple-100 text-purple-800",
-    completed: "bg-emerald-100 text-emerald-800",
-    cancelled: "bg-red-100 text-red-800",
+    new: "bg-info/12 text-info",
+    in_prep: "bg-warning/12 text-warning",
+    ready: "bg-highlight/12 text-highlight",
+    delivering: "bg-accent/12 text-accent",
+    completed: "bg-success/12 text-success",
+    cancelled: "bg-danger/12 text-danger",
   };
   const labels: Record<OrderStatus, string> = {
     new: "جديد",

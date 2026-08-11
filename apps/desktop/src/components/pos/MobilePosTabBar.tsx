@@ -21,7 +21,7 @@ export function MobilePosTabBar({
 }) {
   return (
     <nav
-      className="flex shrink-0 items-stretch gap-2 border-t border-paper-line/80 bg-paper-raised/98 px-3 py-2 safe-bottom backdrop-blur-lg"
+      className="flex shrink-0 items-stretch gap-2 border-t border-paper-line/80 bg-paper-raised/95 px-3 py-2 safe-bottom backdrop-blur-lg"
       aria-label="تنقل نقطة البيع"
     >
       <TabButton

@@ -134,7 +134,7 @@
   --sidebar: 24 24 27;
   --sidebar-text: 244 244 245;
   --sidebar-mute: 161 161 170;
-  --sidebar-active: 244 244 245;
+  --sidebar-active: 161 161 170;
   --success: 16 185 129;
   --warning: 245 158 11;
   --info: 59 130 246;
@@ -420,6 +420,65 @@ body {
   }
   .pos-kpi-chip {
     @apply inline-flex flex-col gap-0.5 rounded-xl border border-paper-line/60 bg-paper px-2.5 py-1.5 transition duration-200 ease-spring hover:border-highlight/25;
+  }
+  .mobile-top-bar {
+    @apply border-b border-paper-line/60 bg-paper-raised/95 backdrop-blur-xl;
+    box-shadow: 0 1px 0 rgb(var(--paper-line) / 0.5);
+  }
+  .mobile-page-header {
+    @apply border-b border-paper-line/70 bg-paper-raised/95 backdrop-blur-md;
+  }
+  .mobile-page-actions {
+    @apply -mx-1 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:pb-1 max-lg:scrollbar-none;
+  }
+  .mobile-bottom-nav {
+    @apply border-t border-paper-line/60 bg-paper-raised/95 backdrop-blur-xl safe-bottom;
+    box-shadow: 0 -4px 24px rgb(var(--ink) / 0.06);
+  }
+  .mobile-tab-btn-active {
+    background: rgb(var(--highlight) / 0.1);
+  }
+  .mobile-drawer-sidebar .sidebar-nav-item {
+    @apply min-h-11 text-[14px];
+  }
+  .mobile-drawer-sidebar .sidebar-nav-icon {
+    @apply h-9 w-9;
+  }
+  .mobile-drawer-overlay {
+    background: rgb(var(--ink) / 0.45);
+    backdrop-filter: blur(3px);
+  }
+  .mobile-drawer-panel {
+    background: linear-gradient(
+      180deg,
+      rgb(var(--sidebar)) 0%,
+      rgb(var(--sidebar) / 0.98) 100%
+    );
+    color: rgb(var(--sidebar-text));
+    box-shadow: -8px 0 40px rgb(0 0 0 / 0.28);
+  }
+  .mobile-page-body {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  @media (max-width: 1023px) {
+    .mobile-page-body {
+      padding-bottom: calc(var(--mobile-nav-offset) + 0.75rem);
+    }
+  }
+  .mobile-data-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mobile-data-card:active {
+    transform: scale(0.995);
+  }
+  .mobile-card-list {
+    @apply space-y-2.5;
+  }
+  .mobile-empty-state {
+    @apply rounded-2xl border border-dashed border-paper-line/80 bg-paper/50 px-4 py-12 text-center text-sm text-ink-mute;
+  }
+  .mobile-icon-btn {
+    @apply grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-paper-line/60 bg-paper text-ink shadow-sm transition duration-200 ease-spring hover:border-highlight/30 hover:bg-highlight/10 active:scale-[0.97];
   }
   .stat-icon {
     @apply grid h-11 w-11 place-items-center rounded-2xl;

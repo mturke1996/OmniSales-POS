@@ -394,7 +394,7 @@ export function InventoryScreen({
             })}
           </MobileDataList>
 
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DataTable
               data={filtered}
               columns={catalogColumns}
@@ -477,7 +477,7 @@ export function InventoryScreen({
               />
             ))}
           </MobileDataList>
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <DataTable
               data={movements}
               columns={movementColumns}
