@@ -16,6 +16,7 @@ export function PosQuickActions({
   onToggleSaleMode,
   onTogglePriceMode,
   holdDisabled,
+  heldCount = 0,
 }: {
   customerName?: string | null;
   saleMode: "walk_in" | "delivery";
@@ -25,9 +26,10 @@ export function PosQuickActions({
   onToggleSaleMode: () => void;
   onTogglePriceMode: () => void;
   holdDisabled?: boolean;
+  heldCount?: number;
 }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+    <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
       <QuickChip
         icon={<User size={16} weight="duotone" />}
         label={customerName || "عميل"}
@@ -39,9 +41,16 @@ export function PosQuickActions({
         label="تعليق"
         onClick={onHold}
         disabled={holdDisabled}
+        badge={heldCount > 0 ? heldCount : undefined}
       />
       <QuickChip
-        icon={saleMode === "delivery" ? <Truck size={16} weight="fill" /> : <Storefront size={16} weight="duotone" />}
+        icon={
+          saleMode === "delivery" ? (
+            <Truck size={16} weight="fill" />
+          ) : (
+            <Storefront size={16} weight="duotone" />
+          )
+        }
         label={saleMode === "delivery" ? "توصيل" : "مباشر"}
         active={saleMode === "delivery"}
         onClick={onToggleSaleMode}
@@ -64,6 +73,7 @@ function QuickChip({
   active,
   disabled,
   accent = "highlight",
+  badge,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -71,13 +81,14 @@ function QuickChip({
   active?: boolean;
   disabled?: boolean;
   accent?: "highlight" | "success" | "warning";
+  badge?: number;
 }) {
   const activeClass =
     accent === "warning"
-      ? "border-warning/30 bg-warning/10 text-warning"
+      ? "border-warning/35 bg-warning/12 text-warning shadow-sm"
       : accent === "success"
-        ? "border-success/30 bg-success/10 text-success"
-        : "border-highlight/30 bg-highlight/10 text-highlight";
+        ? "border-success/35 bg-success/12 text-success shadow-sm"
+        : "border-highlight/35 bg-highlight/12 text-highlight shadow-sm";
 
   return (
     <button
@@ -85,13 +96,18 @@ function QuickChip({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-bold transition active:scale-[0.97]",
-        active ? activeClass : "border-paper-line/70 bg-paper-raised text-ink shadow-soft",
+        "relative inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition duration-200 ease-spring active:scale-[0.97]",
+        active ? activeClass : "border-paper-line/60 bg-paper-raised text-ink shadow-sm hover:border-highlight/25",
         disabled && "pointer-events-none opacity-40"
       )}
     >
       {icon}
-      <span className="max-w-[7rem] truncate">{label}</span>
+      <span className="max-w-[8rem] truncate">{label}</span>
+      {badge !== undefined && (
+        <span className="rounded-full bg-highlight px-1.5 py-0.5 text-[9px] font-bold text-white">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }

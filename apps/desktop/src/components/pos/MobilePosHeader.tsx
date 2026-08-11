@@ -5,6 +5,7 @@ import {
   Circle,
   Camera,
   Printer,
+  ShoppingCart,
 } from "@phosphor-icons/react";
 import { cn } from "../../lib/cn";
 
@@ -12,21 +13,29 @@ export function MobilePosHeader({
   branchName,
   shiftOpen,
   heldCount,
+  cartCount = 0,
+  cartTotal,
+  currencySymbol,
   printerConnected,
   onExit,
   onOpenSales,
   onOpenHeld,
   onScan,
+  onOpenCart,
   onPrinterClick,
 }: {
   branchName: string;
   shiftOpen: boolean;
   heldCount: number;
+  cartCount?: number;
+  cartTotal?: string;
+  currencySymbol?: string;
   printerConnected?: boolean;
   onExit?: () => void;
   onOpenSales?: () => void;
   onOpenHeld: () => void;
   onScan?: () => void;
+  onOpenCart?: () => void;
   onPrinterClick?: () => void;
 }) {
   return (
@@ -91,6 +100,20 @@ export function MobilePosHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
+        {onOpenCart && cartCount > 0 && (
+          <button
+            type="button"
+            onClick={onOpenCart}
+            className="relative inline-flex h-10 items-center gap-1.5 rounded-xl border border-highlight/25 bg-highlight/10 px-2.5 text-highlight transition active:scale-[0.97]"
+            aria-label="السلة"
+          >
+            <ShoppingCart size={18} weight="duotone" />
+            <span className="money-pos tabular-nums">{cartCount}</span>
+            {cartTotal && currencySymbol && (
+              <span className="hidden text-[10px] font-bold sm:inline">{cartTotal}</span>
+            )}
+          </button>
+        )}
         {onScan && (
           <button
             type="button"

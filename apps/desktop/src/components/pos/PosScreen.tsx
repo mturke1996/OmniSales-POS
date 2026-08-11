@@ -1,12 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import {
-  MagnifyingGlass,
-  User,
-  Clock,
   Receipt,
   ArrowLeft,
   Keyboard,
-  Camera,
   Printer,
 } from "@phosphor-icons/react";
 import { checkout, addHeldCart, removeHeldCart, addCustomer } from "../../lib/api";
@@ -46,6 +42,7 @@ import { PosProductStrip } from "./PosProductStrip";
 import { PosLiveStats } from "./PosLiveStats";
 import { PosSyncBar } from "./PosSyncBar";
 import { PosPrinterSheet } from "./PosPrinterSheet";
+import { PosSearchBar } from "./PosSearchBar";
 import { usePhoneLayout, usePosSplitLayout } from "../../hooks/use-media-query";
 import { usePrinter } from "../../hooks/use-printer";
 import { useOnline } from "../../hooks/use-online";
@@ -544,25 +541,18 @@ export function PosScreen({
 
   const productsPane = (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-2 pt-2">
-      <div className="relative mb-2 shrink-0">
-        <MagnifyingGlass
-          className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-ink-mute"
-          size={18}
-        />
-        <input
-          ref={searchInputRef}
+      <div className="mb-2 shrink-0">
+        <PosSearchBar
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleScanOrSearchEnter();
-            }
-          }}
-          placeholder="بحث أو باركود..."
-          className="input-field h-11 pe-10 ps-3 text-sm font-medium"
-          inputMode="search"
+          onChange={setQuery}
+          onEnter={handleScanOrSearchEnter}
+          onScan={() => setShowScanner(true)}
+          inputRef={searchInputRef}
+          compact
         />
+        <p className="mt-1.5 text-center text-[10px] text-ink-mute">
+          Enter للإضافة · امسح الباركود أو اضغط كاميرا
+        </p>
       </div>
 
       <div className="mb-2 shrink-0">
@@ -573,6 +563,7 @@ export function PosScreen({
           onCustomer={() => setShowCustomerModal(true)}
           onHold={() => void handleHoldCart()}
           holdDisabled={!lines.length}
+          heldCount={heldCarts.length}
           onToggleSaleMode={() => {
             if (saleMode === "delivery") {
               setSaleMode("walk_in");
@@ -669,6 +660,9 @@ export function PosScreen({
               branchName={settings.name}
               shiftOpen={Boolean(openShiftState)}
               heldCount={heldCarts.length}
+              cartCount={totalItemsCount}
+              cartTotal={formatMoney(grandTotal, settings.currency_symbol)}
+              currencySymbol={settings.currency_symbol}
               printerConnected={printer.connected}
               onExit={onExit}
               onOpenSales={onOpenCompletedSales}
@@ -711,10 +705,15 @@ export function PosScreen({
             branchName={settings.name}
             shiftOpen={Boolean(openShiftState)}
             heldCount={heldCarts.length}
+            cartCount={totalItemsCount}
+            cartTotal={formatMoney(grandTotal, settings.currency_symbol)}
+            currencySymbol={settings.currency_symbol}
             printerConnected={printer.connected}
             onExit={onExit}
             onOpenSales={onOpenCompletedSales}
             onOpenHeld={() => setShowHoldModal(true)}
+            onScan={() => setShowScanner(true)}
+            onOpenCart={mobileTab === "products" ? () => setMobileTab("cart") : undefined}
             onPrinterClick={() => setShowPrinterSheet(true)}
           />
           <PosSyncBar
@@ -778,35 +777,35 @@ export function PosScreen({
         onSync={onSync ? handleSyncNow : undefined}
         compact
       />
-      <header className="pos-chrome flex shrink-0 flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-2.5">
+      <header className="pos-toolbar-strip">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {onExit && (
             <button
               type="button"
               onClick={onExit}
-              className="inline-flex h-10 items-center gap-2 rounded-full bg-paper px-3.5 text-sm font-semibold text-ink transition hover:bg-highlight/10"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-paper-line/60 bg-paper px-3 text-sm font-semibold text-ink transition hover:border-highlight/30"
               title="العودة (Esc)"
             >
               <ArrowLeft size={16} />
               <span className="hidden sm:inline">لوحة التحكم</span>
             </button>
           )}
-          <div className="pos-kpi-pill">
+          <div className="pos-kpi-chip">
             <span className="text-[10px] text-ink-mute">الوردية</span>
-            <span className={cn("text-sm font-bold", openShiftState ? "text-success" : "text-warning")}>
+            <span className={cn("money-pos text-sm", openShiftState ? "text-success" : "text-warning")}>
               {openShiftState ? "مفتوحة" : "مغلقة"}
             </span>
           </div>
           <button
             type="button"
             onClick={() => setShowPrinterSheet(true)}
-            className="pos-kpi-pill hidden md:flex transition hover:bg-paper"
+            className="pos-kpi-chip hidden md:flex"
             title="إعداد الطابعة"
           >
             <span className="text-[10px] text-ink-mute">الطابعة</span>
             <span
               className={cn(
-                "inline-flex items-center gap-1 text-sm font-bold",
+                "inline-flex items-center gap-1 money-pos text-sm",
                 printer.connected ? "text-success" : "text-ink-mute"
               )}
             >
@@ -814,18 +813,17 @@ export function PosScreen({
               {printer.connected ? "متصلة" : "—"}
             </span>
           </button>
-          <div className="pos-kpi-pill hidden sm:flex">
-            <span className="text-[10px] text-ink-mute">الأصناف</span>
-            <span className="money-big text-sm font-bold">{products.length}</span>
+          <div className="pos-kpi-chip hidden sm:flex">
+            <span className="text-[10px] text-ink-mute">السلة</span>
+            <span className="money-pos-lg text-highlight">{totalItemsCount}</span>
           </div>
-          <div
-            className={cn(
-              "pos-kpi-pill",
-              heldCarts.length === 0 && "hidden sm:flex"
-            )}
-          >
+          <div className="pos-kpi-chip hidden sm:flex">
+            <span className="text-[10px] text-ink-mute">الإجمالي</span>
+            <span className="money-pos-lg">{formatMoney(grandTotal, settings.currency_symbol)}</span>
+          </div>
+          <div className={cn("pos-kpi-chip", heldCarts.length === 0 && "hidden sm:flex")}>
             <span className="text-[10px] text-ink-mute">معلقة</span>
-            <span className="money-big text-sm font-bold">{heldCarts.length}</span>
+            <span className="money-pos">{heldCarts.length}</span>
           </div>
         </div>
 
@@ -834,7 +832,7 @@ export function PosScreen({
             <button
               type="button"
               onClick={onOpenCompletedSales}
-              className="inline-flex h-10 items-center gap-2 rounded-full bg-ink px-3.5 text-sm font-bold text-paper transition hover:opacity-90"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-ink px-3.5 text-sm font-bold text-paper shadow-soft transition hover:opacity-90 active:scale-[0.98]"
               title="المبيعات المنفذة"
             >
               <Receipt size={16} weight="duotone" />
@@ -844,7 +842,7 @@ export function PosScreen({
           <button
             type="button"
             onClick={() => setShowShortcutsModal(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-paper px-3 text-sm font-semibold text-ink-mute transition hover:text-ink sm:px-3.5"
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-paper-line/60 bg-paper px-3 text-sm font-semibold text-ink-mute transition hover:text-ink"
             aria-label="اختصارات لوحة المفاتيح"
           >
             <Keyboard size={16} />
@@ -864,68 +862,45 @@ export function PosScreen({
 
       <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:grid-cols-[minmax(0,1fr)_30rem]">
         <section className="flex min-h-0 flex-col px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
-          <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
-            <div className="relative min-w-0 w-full flex-1 sm:min-w-[14rem]">
-              <MagnifyingGlass
-                className="pointer-events-none absolute end-4 top-1/2 -translate-y-1/2 text-ink-mute"
-                size={20}
-              />
-              <input
-                ref={searchInputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleScanOrSearchEnter();
-                  }
-                }}
-                placeholder="ابحث بالاسم أو الباركود أو SKU..."
-                className="input-field pe-11 ps-14 text-sm font-medium"
-                inputMode="search"
-                autoFocus={!isPhone}
-              />
-              <span className="pos-key-badge absolute start-3.5 top-1/2 -translate-y-1/2">F1</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowScanner(true)}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-paper-line/70 bg-paper-raised px-3.5 text-sm font-semibold text-ink shadow-soft transition hover:border-highlight/35"
-              title="مسح بالكاميرا"
-            >
-              <Camera size={18} className="text-highlight" weight="duotone" />
-              <span className="hidden sm:inline">كاميرا</span>
-            </button>
-
-            <div className="flex w-full gap-2 sm:w-auto sm:flex-initial">
-            <button
-              type="button"
-              onClick={() => setShowCustomerModal(true)}
-              className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-paper-line/70 bg-paper-raised px-3 text-sm font-semibold text-ink shadow-soft transition hover:border-highlight/35 sm:flex-initial sm:px-4"
-            >
-              <User size={18} className="text-highlight" weight="duotone" />
-              <span className="max-w-[10rem] truncate">
-                {selectedCustomer ? selectedCustomer.name : "عميل"}
-              </span>
-              <span className="pos-key-badge">F2</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowHoldModal(true)}
-              className="relative inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-paper-line/70 bg-paper-raised px-3 text-sm font-semibold text-ink shadow-soft transition hover:border-highlight/35 sm:flex-initial sm:px-4"
-            >
-              <Clock size={18} className="text-highlight" weight="duotone" />
-              <span className="hidden sm:inline">المعلقة</span>
-              <span className="pos-key-badge">F6</span>
-              {heldCarts.length > 0 && (
-                <span className="absolute -top-1.5 -end-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-highlight px-1 text-[10px] font-bold text-white">
-                  {heldCarts.length}
-                </span>
-              )}
-            </button>
-            </div>
+          <div className="mb-3 shrink-0 space-y-2">
+            <PosSearchBar
+              value={query}
+              onChange={setQuery}
+              onEnter={handleScanOrSearchEnter}
+              onScan={() => setShowScanner(true)}
+              inputRef={searchInputRef}
+              showShortcut
+            />
+            <PosQuickActions
+              customerName={selectedCustomer?.name}
+              saleMode={saleMode}
+              priceMode={priceMode}
+              onCustomer={() => setShowCustomerModal(true)}
+              onHold={() => void handleHoldCart()}
+              holdDisabled={!lines.length}
+              heldCount={heldCarts.length}
+              onToggleSaleMode={() => {
+                if (saleMode === "delivery") {
+                  setSaleMode("walk_in");
+                  return;
+                }
+                setSaleMode("delivery");
+                if (selectedCustomer?.phone && !deliveryPhone) {
+                  setDeliveryPhone(selectedCustomer.phone);
+                }
+                if (selectedCustomer?.address && !deliveryAddress) {
+                  setDeliveryAddress(selectedCustomer.address);
+                }
+              }}
+              onTogglePriceMode={() => {
+                if (priceMode === "wholesale") {
+                  setPriceMode("retail");
+                  return;
+                }
+                setPriceMode("wholesale");
+                if (!selectedCustomer) setShowCustomerModal(true);
+              }}
+            />
           </div>
 
           {needsShift && (

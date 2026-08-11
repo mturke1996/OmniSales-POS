@@ -24,9 +24,11 @@ export function PosSyncBar({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-between gap-2 border-b font-semibold",
+        "flex shrink-0 items-center justify-between gap-2 border-b font-semibold backdrop-blur-sm",
         compact ? "px-2 py-1 text-[10px]" : "px-3 py-2 text-xs",
-        online ? "border-highlight/20 bg-highlight/8 text-highlight" : "border-warning/25 bg-warning/10 text-warning",
+        online
+          ? "border-highlight/15 bg-highlight/6 text-highlight"
+          : "border-warning/20 bg-warning/8 text-warning",
         className
       )}
     >

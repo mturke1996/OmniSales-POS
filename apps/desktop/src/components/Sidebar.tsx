@@ -19,6 +19,7 @@ import {
   MagnifyingGlass,
   DeviceMobile,
   DownloadSimple,
+  CloudArrowUp,
 } from "@phosphor-icons/react";
 import type { BranchSettings, Shift } from "../lib/types";
 import type { CashierSession } from "../lib/session";
@@ -73,14 +74,14 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "الرئيسية",
     items: [
-      { kind: "tab", id: "dashboard", label: "لوحة التحكم", icon: <House size={17} weight="duotone" /> },
-      { kind: "tab", id: "pos", label: "نقطة البيع", icon: <Storefront size={17} weight="duotone" /> },
-      { kind: "tab", id: "shifts", label: "الورديات", icon: <ClockAfternoon size={17} weight="duotone" /> },
+      { kind: "tab", id: "dashboard", label: "لوحة التحكم", icon: <House size={18} weight="duotone" /> },
+      { kind: "tab", id: "pos", label: "نقطة البيع", icon: <Storefront size={18} weight="duotone" /> },
+      { kind: "tab", id: "shifts", label: "الورديات", icon: <ClockAfternoon size={18} weight="duotone" /> },
       {
         kind: "external",
         id: "android-apk",
         label: "تطبيق Android",
-        icon: <DeviceMobile size={17} weight="duotone" />,
+        icon: <DeviceMobile size={18} weight="duotone" />,
         href: mainMenuApkDownloadUrl(),
         download: APK_FILENAME,
         when: () => shouldOfferApkDownload(detectRuntime()),
@@ -90,26 +91,26 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "المبيعات",
     items: [
-      { kind: "tab", id: "orders", label: "التوصيل", icon: <Truck size={17} weight="duotone" /> },
-      { kind: "tab", id: "invoices", label: "المبيعات المنفذة", icon: <FileText size={17} weight="duotone" /> },
-      { kind: "tab", id: "returns", label: "المرتجعات", icon: <ArrowUUpLeft size={17} weight="duotone" /> },
-      { kind: "tab", id: "customers", label: "العملاء", icon: <Users size={17} weight="duotone" /> },
+      { kind: "tab", id: "orders", label: "التوصيل", icon: <Truck size={18} weight="duotone" /> },
+      { kind: "tab", id: "invoices", label: "المبيعات المنفذة", icon: <FileText size={18} weight="duotone" /> },
+      { kind: "tab", id: "returns", label: "المرتجعات", icon: <ArrowUUpLeft size={18} weight="duotone" /> },
+      { kind: "tab", id: "customers", label: "العملاء", icon: <Users size={18} weight="duotone" /> },
     ],
   },
   {
     title: "المخزون والمشتريات",
     items: [
-      { kind: "tab", id: "inventory", label: "المخزون", icon: <Package size={17} weight="duotone" /> },
-      { kind: "tab", id: "purchases", label: "المشتريات", icon: <Handshake size={17} weight="duotone" /> },
+      { kind: "tab", id: "inventory", label: "المخزون", icon: <Package size={18} weight="duotone" /> },
+      { kind: "tab", id: "purchases", label: "المشتريات", icon: <Handshake size={18} weight="duotone" /> },
     ],
   },
   {
     title: "المالية والإدارة",
     items: [
-      { kind: "tab", id: "expenses", label: "المصروفات", icon: <Receipt size={17} weight="duotone" /> },
-      { kind: "tab", id: "ops", label: "عروض وتدقيق", icon: <ShieldCheck size={17} weight="duotone" /> },
-      { kind: "tab", id: "reports", label: "التقارير", icon: <ChartBar size={17} weight="duotone" /> },
-      { kind: "tab", id: "settings", label: "الإعدادات", icon: <GearSix size={17} weight="duotone" /> },
+      { kind: "tab", id: "expenses", label: "المصروفات", icon: <Receipt size={18} weight="duotone" /> },
+      { kind: "tab", id: "ops", label: "عروض وتدقيق", icon: <ShieldCheck size={18} weight="duotone" /> },
+      { kind: "tab", id: "reports", label: "التقارير", icon: <ChartBar size={18} weight="duotone" /> },
+      { kind: "tab", id: "settings", label: "الإعدادات", icon: <GearSix size={18} weight="duotone" /> },
     ],
   },
 ];
@@ -152,16 +153,16 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "sidebar-shell flex h-full min-h-0 flex-col border-e border-white/5 transition-[width] duration-300 ease-spring",
+        "sidebar-shell flex h-full min-h-0 flex-col transition-[width] duration-300 ease-spring",
         !isDrawer && "sticky top-0 z-40 h-app shrink-0",
-        !isDrawer && (slim ? "w-[72px]" : "w-[272px]"),
+        !isDrawer && (slim ? "w-[76px]" : "w-[280px]"),
         isDrawer && "h-full w-full",
         className
       )}
     >
       <div className="flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b border-white/10 px-3">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-highlight text-white shadow-soft">
-          <Sparkle size={18} weight="fill" />
+        <div className={cn("sidebar-brand-mark shrink-0", slim ? "h-9 w-9" : "h-10 w-10")}>
+          <Sparkle size={slim ? 17 : 19} weight="fill" />
         </div>
         {!slim && (
           <div className="min-w-0 flex-1 animate-fade-up">
@@ -170,6 +171,7 @@ export function Sidebar({
             </h1>
             <p className="truncate text-[10px] text-sidebar-mute">
               ERP · {settings.currency_symbol}
+              {openShift ? " · وردية مفتوحة" : ""}
             </p>
           </div>
         )}
@@ -177,7 +179,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onClose}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sidebar-mute transition hover:bg-white/10 hover:text-sidebar-text"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sidebar-mute transition hover:bg-white/10 hover:text-sidebar-text"
             aria-label="إغلاق القائمة"
           >
             <X size={18} weight="bold" />
@@ -185,9 +187,25 @@ export function Sidebar({
         )}
       </div>
 
+      {!slim && currentTab !== "pos" && (
+        <div className="shrink-0 px-3 pt-2">
+          <button
+            type="button"
+            onClick={() => go("pos")}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-highlight/90 px-3 py-2.5 text-xs font-bold text-white shadow-soft transition duration-200 ease-spring hover:bg-highlight active:scale-[0.98]"
+          >
+            <Storefront size={16} weight="duotone" />
+            فتح نقطة البيع
+            {heldCartsCount > 0 && (
+              <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px]">{heldCartsCount}</span>
+            )}
+          </button>
+        </div>
+      )}
+
       {!slim && (
         <div className="shrink-0 px-3 py-2">
-          <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 backdrop-blur-sm">
             <MagnifyingGlass size={15} className="shrink-0 text-sidebar-mute" />
             <input
               value={filter}
@@ -203,7 +221,7 @@ export function Sidebar({
         {groups.map((group) => (
           <div key={group.title}>
             {!slim && (
-              <p className="mb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-sidebar-mute/80">
+              <p className="mb-1.5 px-2 text-[10px] font-bold tracking-wide text-sidebar-mute/90">
                 {group.title}
               </p>
             )}
@@ -243,28 +261,35 @@ export function Sidebar({
 
       <div className="shrink-0 space-y-2 border-t border-white/10 p-2">
         {!slim && (
-          <div className="rounded-xl bg-white/5 p-2.5">
+          <div className="sidebar-status-card">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold text-sidebar-text">المزامنة</p>
-              {pendingSync > 0 && (
-                <span className="rounded-full bg-highlight px-1.5 py-0.5 text-[9px] font-bold text-white">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-sidebar-text">
+                <CloudArrowUp size={13} weight="duotone" />
+                المزامنة
+              </span>
+              {pendingSync > 0 ? (
+                <span className="rounded-full bg-highlight px-2 py-0.5 text-[9px] font-bold text-white">
                   {pendingSync}
+                </span>
+              ) : (
+                <span className="text-[9px] font-semibold text-success">
+                  {settings.cloud_sync_enabled ? "جاهز" : "محلي"}
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-[10px] text-sidebar-mute">
+            <p className="mt-1 text-[10px] leading-relaxed text-sidebar-mute">
               {pendingSync > 0
-                ? "عمليات بانتظار الرفع"
+                ? "عمليات بانتظار الرفع للسحابة"
                 : settings.cloud_sync_enabled
-                  ? "متزامن"
-                  : "متوقف"}
+                  ? "البيانات متزامنة"
+                  : "العمل دون اتصال محفوظ محلياً"}
             </p>
           </div>
         )}
 
         {!slim && session && (
-          <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-highlight/30 text-[11px] font-bold text-white">
+          <div className="flex items-center gap-2.5 rounded-xl px-2 py-1.5">
+            <div className="sidebar-brand-mark grid h-9 w-9 shrink-0 place-items-center text-[11px] font-bold">
               {session.cashier_name.slice(0, 1)}
             </div>
             <div className="min-w-0 flex-1">
@@ -272,7 +297,7 @@ export function Sidebar({
                 {session.cashier_name}
               </p>
               <p className="truncate text-[9px] text-sidebar-mute">
-                {openShift ? "وردية مفتوحة" : "بدون وردية"}
+                {openShift ? "وردية مفتوحة · جاهز للبيع" : "بدون وردية نشطة"}
               </p>
             </div>
           </div>
@@ -283,13 +308,15 @@ export function Sidebar({
             type="button"
             onClick={() => setCollapsed((v) => !v)}
             className={cn(
-              "flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-sidebar-mute transition hover:bg-white/5 hover:text-sidebar-text",
-              slim && "justify-center"
+              "sidebar-nav-item sidebar-nav-item-idle",
+              slim && "justify-center px-2"
             )}
             title={slim ? "توسيع" : "طي"}
           >
-            <SidebarSimple size={16} weight="duotone" />
-            {!slim && <span>طي القائمة</span>}
+            <span className={cn("sidebar-nav-icon sidebar-nav-icon-idle", slim ? "h-8 w-8" : "h-8 w-8")}>
+              <SidebarSimple size={16} weight="duotone" />
+            </span>
+            {!slim && <span className="text-xs">طي القائمة</span>}
           </button>
         )}
       </div>
@@ -317,20 +344,18 @@ function SidebarExternalItem({
       target="_blank"
       rel="noopener noreferrer"
       title={collapsed ? label : undefined}
-      className={cn(
-        "group relative flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition duration-150",
-        "text-sidebar-mute hover:bg-white/[0.06] hover:text-sidebar-text",
-        collapsed && "min-h-10 justify-center px-2"
-      )}
+      className={cn("sidebar-nav-item sidebar-nav-item-idle group", collapsed && "justify-center px-2")}
     >
-      <span className="shrink-0">{icon}</span>
+      <span className={cn("sidebar-nav-icon sidebar-nav-icon-idle", collapsed ? "h-9 w-9" : "h-8 w-8")}>
+        {icon}
+      </span>
       {!collapsed && (
         <>
-          <span className="truncate">{label}</span>
+          <span className="min-w-0 flex-1 truncate">{label}</span>
           <DownloadSimple
             size={14}
             weight="duotone"
-            className="ms-auto shrink-0 opacity-60 group-hover:opacity-100"
+            className="shrink-0 opacity-50 transition group-hover:opacity-100"
           />
         </>
       )}
@@ -360,15 +385,21 @@ function SidebarItem({
       aria-current={active ? "page" : undefined}
       title={collapsed ? label : undefined}
       className={cn(
-        "group relative flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition duration-150",
-        active
-          ? "bg-sidebar-active/20 text-white before:absolute before:inset-y-1 before:start-0 before:w-0.5 before:rounded-full before:bg-sidebar-active"
-          : "text-sidebar-mute hover:bg-white/[0.06] hover:text-sidebar-text",
-        collapsed && "min-h-10 justify-center px-2"
+        "sidebar-nav-item",
+        active ? "sidebar-nav-item-active" : "sidebar-nav-item-idle",
+        collapsed && "justify-center px-2"
       )}
     >
-      <span className="shrink-0">{icon}</span>
-      {!collapsed && <span className="truncate">{label}</span>}
+      <span
+        className={cn(
+          "sidebar-nav-icon",
+          active ? "sidebar-nav-icon-active" : "sidebar-nav-icon-idle",
+          collapsed ? "h-9 w-9" : "h-8 w-8"
+        )}
+      >
+        {icon}
+      </span>
+      {!collapsed && <span className="min-w-0 flex-1 truncate text-start">{label}</span>}
       {badge !== undefined && (
         <span
           className={cn(
@@ -376,7 +407,7 @@ function SidebarItem({
             active ? "bg-white/20 text-white" : "bg-highlight text-white",
             collapsed
               ? "absolute -top-0.5 end-0.5 min-w-[1rem] px-1 text-center"
-              : "ms-auto"
+              : "ms-auto shrink-0"
           )}
         >
           {badge}
