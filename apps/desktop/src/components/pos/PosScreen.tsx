@@ -724,12 +724,14 @@ export function PosScreen({
             syncing={syncing}
             onSync={onSync ? handleSyncNow : undefined}
           />
-          <PosLiveStats
-            orders={orders}
-            returns={returns}
-            openShift={openShiftState}
-            currencySymbol={settings.currency_symbol}
-          />
+          {mobileTab === "products" && (
+            <PosLiveStats
+              orders={orders}
+              returns={returns}
+              openShift={openShiftState}
+              currencySymbol={settings.currency_symbol}
+            />
+          )}
 
           {mobileTab === "products" ? (
             productsPane

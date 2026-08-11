@@ -178,66 +178,31 @@ export function PosCartPanel({
         </div>
       )}
 
-      <div className="flex-1 space-y-2 overflow-y-auto overscroll-contain px-3 py-3">
+      <div className="pos-cart-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 py-2.5">
         {lines.map((line, lineIdx) => (
-          <div
+          <CartLineItem
             key={`${line.product_id}-${line.imei || ""}-${line.serial || ""}-${lineIdx}`}
-            className={cn(
-              "rounded-xl border border-paper-line/70 bg-paper-raised shadow-soft",
-              compact ? "px-2.5 py-2" : "px-3 py-3"
-            )}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-ink">{line.name}</p>
-                {(line.imei || line.serial) && (
-                  <p className="mt-0.5 font-mono text-[10px] text-ink-mute">
-                    {line.imei ? `IMEI ${line.imei}` : ""}
-                    {line.imei && line.serial ? " · " : ""}
-                    {line.serial ? `S/N ${line.serial}` : ""}
-                  </p>
-                )}
-                <p className="mt-0.5 text-[10px] text-ink-mute">
-                  {formatMoney(line.unit_price, settings.currency_symbol)} / وحدة
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label="حذف"
-                onClick={() =>
-                  onRemoveLine(
-                    line.product_id,
-                    `${line.product_id}|${line.imei || ""}|${line.serial || ""}`
-                  )
-                }
-                className="rounded-lg p-1.5 text-ink-mute hover:bg-danger/10 hover:text-danger"
-              >
-                <Trash size={16} />
-              </button>
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <div className="inline-flex items-center gap-2">
-                <QtyButton onClick={() => onSetQty(line.product_id, line.quantity - 1)}>
-                  <Minus size={14} weight="bold" />
-                </QtyButton>
-                <span className="money-big min-w-8 text-center text-sm font-bold">
-                  {line.quantity}
-                </span>
-                <QtyButton onClick={() => onSetQty(line.product_id, line.quantity + 1)}>
-                  <Plus size={14} weight="bold" />
-                </QtyButton>
-              </div>
-              <p className="money-big text-sm font-bold text-ink">
-                {formatMoney(line.unit_price * line.quantity, settings.currency_symbol)}
-              </p>
-            </div>
-          </div>
+            line={line}
+            settings={settings}
+            compact={compact}
+            isMobile={isMobile}
+            onRemove={() =>
+              onRemoveLine(
+                line.product_id,
+                `${line.product_id}|${line.imei || ""}|${line.serial || ""}`
+              )
+            }
+            onSetQty={(qty) => onSetQty(line.product_id, qty)}
+          />
         ))}
 
         {!lines.length && (
-          <div className="rounded-2xl border border-dashed border-paper-line px-4 py-16 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-paper-line/80 bg-paper/40 px-4 py-12 text-center">
+            <div className="mb-3 grid size-14 place-items-center rounded-2xl bg-highlight/10 text-highlight">
+              <Storefront size={28} weight="duotone" />
+            </div>
             <p className="text-sm font-bold text-ink">السلة فارغة</p>
-            <p className="mt-1 text-xs text-ink-mute">
+            <p className="mt-1 max-w-[14rem] text-xs leading-relaxed text-ink-mute">
               {isMobile
                 ? "انتقل لتبويب المنتجات وأضف أصنافاً أو امسح باركوداً"
                 : "اضغط أو امسح باركود أي صنف للإضافة"}
@@ -246,7 +211,13 @@ export function PosCartPanel({
         )}
       </div>
 
-      <div className="shrink-0 space-y-3 border-t border-paper-line/70 bg-paper-raised p-3">
+      <div className="flex min-h-0 shrink-0 flex-col border-t border-paper-line/70 bg-paper-raised">
+        <div
+          className={cn(
+            "pos-cart-checkout-scroll space-y-2.5 p-3",
+            isMobile && lines.length > 0 && "max-h-[min(40dvh,20rem)] overflow-y-auto overscroll-contain"
+          )}
+        >
         <ModeToggle
           saleMode={saleMode}
           priceMode={priceMode}
@@ -382,19 +353,19 @@ export function PosCartPanel({
 
         {showNumpad && (
           <div className="space-y-2">
-            <div className="rounded-xl border border-paper-line bg-paper px-3 py-2.5 text-center">
+            <div className="rounded-xl border border-paper-line bg-paper px-3 py-2 text-center">
               <p className="text-[10px] font-semibold text-ink-mute">المبلغ النقدي</p>
-              <p className="money-big text-xl font-bold text-ink">{cash || "0"}</p>
+              <p className="money-pos-xl text-ink">{cash || "0"}</p>
             </div>
             <PosNumpad value={cash} onChange={onCashChange} />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               {[grandTotal, Math.ceil(grandTotal / 5) * 5, Math.ceil(grandTotal / 10) * 10].map(
                 (amount, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => onCashChange(String(amount))}
-                    className="rounded-xl border border-paper-line bg-paper py-2 text-xs font-bold text-ink"
+                    className="rounded-xl border border-paper-line bg-paper py-1.5 text-[11px] font-bold text-ink transition active:scale-[0.97]"
                   >
                     {formatMoney(amount, settings.currency_symbol)}
                   </button>
@@ -403,7 +374,9 @@ export function PosCartPanel({
             </div>
           </div>
         )}
+        </div>
 
+        <div className="pos-cart-pay-strip space-y-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <TotalsBlock
           settings={settings}
           totals={totals}
@@ -419,7 +392,7 @@ export function PosCartPanel({
 
         <button
           type="button"
-          className="btn-primary flex h-14 w-full items-center justify-center gap-2 text-base font-bold"
+          className="btn-primary flex h-12 w-full items-center justify-center gap-2 text-sm font-bold shadow-soft transition duration-200 ease-spring active:scale-[0.98]"
           disabled={busy || !lines.length || needsShift || stockIssues.length > 0}
           onClick={onCheckout}
         >
@@ -432,17 +405,91 @@ export function PosCartPanel({
                 : "إتمام البيع"}
           {!isMobile && <span className="pos-key-badge border-white/20 bg-white/10 text-accent-invert">F9</span>}
         </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function QtyButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+function CartLineItem({
+  line,
+  settings,
+  compact,
+  isMobile,
+  onRemove,
+  onSetQty,
+}: {
+  line: CartLine;
+  settings: BranchSettings;
+  compact: boolean;
+  isMobile: boolean;
+  onRemove: () => void;
+  onSetQty: (qty: number) => void;
+}) {
+  const dense = compact || isMobile;
+  const lineTotal = line.unit_price * line.quantity;
+
+  return (
+    <article className={cn("pos-cart-line animate-fade-up", dense ? "p-2" : "p-2.5")}>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-ink">{line.name}</p>
+          {(line.imei || line.serial) && (
+            <p className="mt-0.5 truncate font-mono text-[9px] text-ink-mute">
+              {line.imei ? `IMEI ${line.imei}` : ""}
+              {line.imei && line.serial ? " · " : ""}
+              {line.serial ? `S/N ${line.serial}` : ""}
+            </p>
+          )}
+          <p className="mt-0.5 text-[9px] text-ink-mute">
+            {formatMoney(line.unit_price, settings.currency_symbol)} / وحدة
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="حذف"
+          onClick={onRemove}
+          className="grid size-7 shrink-0 place-items-center rounded-lg text-ink-mute transition hover:bg-danger/10 hover:text-danger"
+        >
+          <Trash size={14} />
+        </button>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-paper-line/50 pt-2">
+        <div className="pos-cart-qty">
+          <QtyButton dense={dense} onClick={() => onSetQty(line.quantity - 1)}>
+            <Minus size={dense ? 12 : 13} weight="bold" />
+          </QtyButton>
+          <span className="money-pos min-w-[1.75rem] px-1.5 text-center">{line.quantity}</span>
+          <QtyButton dense={dense} onClick={() => onSetQty(line.quantity + 1)}>
+            <Plus size={dense ? 12 : 13} weight="bold" />
+          </QtyButton>
+        </div>
+        <p className="money-pos-lg shrink-0 text-ink">
+          {formatMoney(lineTotal, settings.currency_symbol)}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function QtyButton({
+  onClick,
+  children,
+  dense = false,
+}: {
+  onClick: () => void;
+  children: ReactNode;
+  dense?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="grid size-10 place-items-center rounded-xl border border-paper-line bg-paper text-ink transition active:scale-[0.95]"
+      className={cn(
+        "grid place-items-center rounded-full bg-paper-raised text-ink shadow-sm transition duration-150 ease-spring active:scale-[0.92] hover:bg-highlight/8",
+        dense ? "size-7" : "size-8"
+      )}
     >
       {children}
     </button>
@@ -540,7 +587,7 @@ function TotalsBlock({
   grandTotal: number;
 }) {
   return (
-    <div className="space-y-1 rounded-xl border border-paper-line/70 bg-paper p-3 text-xs">
+    <div className="space-y-0.5 rounded-xl border border-paper-line/70 bg-paper p-2.5 text-[11px]">
       <Row label="الفرعي" value={formatMoney(totals.subtotal, settings.currency_symbol)} />
       {promoPreview && promoPreview.amount > 0 && (
         <Row
@@ -569,9 +616,9 @@ function TotalsBlock({
           className="text-highlight font-semibold"
         />
       )}
-      <div className="flex justify-between border-t border-paper-line/70 pt-2 text-sm font-bold text-ink">
-        <span>الإجمالي</span>
-        <span className="money-big text-base">{formatMoney(grandTotal, settings.currency_symbol)}</span>
+      <div className="flex justify-between border-t border-paper-line/70 pt-1.5 text-ink">
+        <span className="text-xs font-bold">الإجمالي</span>
+        <span className="money-pos-xl text-highlight">{formatMoney(grandTotal, settings.currency_symbol)}</span>
       </div>
     </div>
   );
@@ -579,9 +626,9 @@ function TotalsBlock({
 
 function Row({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
-    <div className={cn("flex justify-between text-ink-mute", className)}>
-      <span>{label}</span>
-      <span className="money-big">{value}</span>
+    <div className={cn("flex justify-between gap-2 text-ink-mute", className)}>
+      <span className="truncate">{label}</span>
+      <span className="money-pos shrink-0">{value}</span>
     </div>
   );
 }

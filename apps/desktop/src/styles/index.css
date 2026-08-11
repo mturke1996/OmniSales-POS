@@ -235,6 +235,34 @@ body {
   letter-spacing: -0.02em;
 }
 
+/* POS cart — slightly tighter numerals for clarity on small panels */
+.money-pos {
+  font-family: var(--font-outfit);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.money-pos-lg {
+  font-family: var(--font-outfit);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.money-pos-xl {
+  font-family: var(--font-outfit);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition duration-200 ease-spring active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none;
@@ -285,6 +313,28 @@ body {
   .pos-chrome {
     background: rgb(var(--paper-raised));
     border-bottom: 1px solid rgb(var(--paper-line) / 0.7);
+  }
+  .pos-cart-scroll {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+  .pos-cart-line {
+    @apply relative overflow-hidden rounded-2xl border border-paper-line/60 bg-paper-raised shadow-soft transition duration-200 ease-spring;
+  }
+  .pos-cart-line:hover {
+    border-color: rgb(var(--highlight) / 0.22);
+    box-shadow: var(--shadow-lift);
+  }
+  .pos-cart-qty {
+    @apply inline-flex items-center rounded-full border border-paper-line/80 bg-paper p-0.5;
+  }
+  .pos-cart-checkout-scroll {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pos-cart-pay-strip {
+    @apply shrink-0 border-t border-paper-line/60 bg-paper-raised/95 pt-2.5 backdrop-blur-md;
   }
   .pos-kpi-pill {
     @apply flex flex-col gap-0.5 rounded-2xl px-3 py-1.5;
