@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   APK_PUBLIC_PATH,
   GITHUB_APK_URL,
@@ -7,16 +7,13 @@ import {
   shouldOfferApkDownload,
 } from "./app-download";
 
-const originalUa = globalThis.navigator?.userAgent;
-
 afterEach(() => {
-  if (originalUa !== undefined) {
-    Object.defineProperty(globalThis.navigator, "userAgent", {
-      value: originalUa,
-      configurable: true,
-    });
-  }
+  vi.unstubAllGlobals();
 });
+
+function stubUserAgent(ua: string) {
+  vi.stubGlobal("navigator", { userAgent: ua });
+}
 
 describe("app-download", () => {
   it("uses stable public APK path", () => {
@@ -29,21 +26,14 @@ describe("app-download", () => {
   });
 
   it("offers APK on web/desktop but not inside Android APK shell", () => {
-    Object.defineProperty(globalThis.navigator, "userAgent", {
-      value: "Mozilla/5.0 (Windows NT 10.0)",
-      configurable: true,
-    });
+    stubUserAgent("Mozilla/5.0 (Windows NT 10.0)");
     expect(shouldOfferApkDownload("pwa")).toBe(true);
     expect(shouldOfferApkDownload("tauri")).toBe(true);
     expect(shouldOfferApkDownload("capacitor")).toBe(false);
   });
 
   it("detects Android user agent", () => {
-    const ua = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36";
-    Object.defineProperty(globalThis.navigator, "userAgent", {
-      value: ua,
-      configurable: true,
-    });
+    stubUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36");
     expect(isAndroidBrowser()).toBe(true);
     expect(shouldOfferApkDownload("pwa")).toBe(true);
   });
