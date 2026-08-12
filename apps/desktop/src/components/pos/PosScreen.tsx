@@ -7,7 +7,7 @@ import {
   MagnifyingGlass,
   Lock,
 } from "@phosphor-icons/react";
-import { checkout, addHeldCart, removeHeldCart, addCustomer } from "../../lib/api";
+import { checkout, addHeldCart, removeHeldCart, addCustomer, addProduct } from "../../lib/api";
 import { applyBestPromotion, calcTotals } from "../../lib/offline-store";
 import { formatMoney } from "../../lib/format";
 import { cn } from "../../lib/cn";
@@ -45,6 +45,7 @@ import { PosLiveStats } from "./PosLiveStats";
 import { PosSyncBar } from "./PosSyncBar";
 import { PosPrinterSheet } from "./PosPrinterSheet";
 import { PosSearchBar } from "./PosSearchBar";
+import { ProductFormModal } from "../inventory/ProductFormModal";
 import { usePhoneLayout, usePosSplitLayout } from "../../hooks/use-media-query";
 import { usePrinter } from "../../hooks/use-printer";
 import { useOnline } from "../../hooks/use-online";
@@ -85,6 +86,7 @@ export function PosScreen({
   onOpenCommand,
   initialOpenHeld = false,
   onHeldOpened,
+  canAddProducts = true,
 }: {
   settings: BranchSettings;
   products: Product[];
@@ -108,6 +110,7 @@ export function PosScreen({
   onOpenCommand?: () => void;
   initialOpenHeld?: boolean;
   onHeldOpened?: () => void;
+  canAddProducts?: boolean;
 }) {
   const {
     lines,
@@ -193,7 +196,8 @@ export function PosScreen({
     }
     if (soft.length === 0) {
       feedbackScan(false);
-      setMessage("لا يوجد صنف مطابق للباركود/البحث");
+      setQuickAddBarcode(code);
+      setMessage("لا يوجد صنف مطابق — يمكنك إضافته الآن");
       return;
     }
     setMessage("نتائج متعددة — اختر الصنف من الشبكة أو امسح باركوداً دقيقاً");
@@ -236,6 +240,8 @@ export function PosScreen({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const printer = usePrinter();
   const [showScanner, setShowScanner] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddBarcode, setQuickAddBarcode] = useState<string | undefined>();
   /** "auto" | "none" | promotion id */
   const [promoChoice, setPromoChoice] = useState<string>("auto");
 
@@ -660,6 +666,19 @@ export function PosScreen({
               .map((i) => `«${i.name}»: المطلوب ${i.requested} · المتاح ${i.available}`)
               .join(" · ")}
           </p>
+        </div>
+      )}
+
+      {quickAddBarcode && canAddProducts && (
+        <div className="mb-2 shrink-0 rounded-2xl border border-highlight/25 bg-highlight/10 px-3 py-2.5">
+          <p className="text-xs font-bold text-ink">باركود غير معروف: {quickAddBarcode}</p>
+          <button
+            type="button"
+            onClick={() => setQuickAddOpen(true)}
+            className="touch-chip mt-2 bg-highlight text-white"
+          >
+            إضافة صنف بهذا الباركود
+          </button>
         </div>
       )}
 
@@ -1091,6 +1110,25 @@ export function PosScreen({
         <ShortcutsModal onClose={() => setShowShortcutsModal(false)} />
       )}
 
+      {quickAddOpen && canAddProducts && (
+        <ProductFormModal
+          product={null}
+          categories={categories}
+          existingBarcodes={products.map((p) => p.barcode)}
+          initialBarcode={quickAddBarcode}
+          onClose={() => setQuickAddOpen(false)}
+          onSave={async (data) => {
+            const created = await addProduct(data);
+            setQuickAddOpen(false);
+            setQuickAddBarcode(undefined);
+            setQuery("");
+            setMessage(`أُضيف «${created.name}»`);
+            onRefreshData();
+            addProductToCart(created);
+          }}
+        />
+      )}
+
       {showScanner && (
         <BarcodeScannerModal
           continuous={isPhone}
@@ -1104,6 +1142,7 @@ export function PosScreen({
             } else {
               feedbackScan(false);
               setQuery(code);
+              setQuickAddBarcode(code);
               setMessage(`باركود غير معروف: ${code}`);
             }
           }}

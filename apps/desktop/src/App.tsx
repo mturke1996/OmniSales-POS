@@ -457,6 +457,7 @@ export default function App() {
             onOpenCommand={() => setCommandOpen(true)}
             initialOpenHeld={posOpenHeld}
             onHeldOpened={() => setPosOpenHeld(false)}
+            canAddProducts={can(session, "products.edit")}
           />
         </div>
       ) : (

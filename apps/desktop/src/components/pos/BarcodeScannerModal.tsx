@@ -1,34 +1,38 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Camera, X, Barcode } from "@phosphor-icons/react";
+import { Camera, X, Barcode, Lightning } from "@phosphor-icons/react";
+import { decodeBarcodeFromVideo, SCAN_CONSTRAINTS } from "../../lib/barcode-scan";
 
 /**
- * Camera barcode scanner supporting Chrome BarcodeDetector API,
- * with canvas frame analysis and quick manual barcode entry fallback
- * for Android WebView and Capacitor mobile environments.
+ * Camera barcode scanner: BarcodeDetector when available, ZXing on Android WebView.
  */
 export function BarcodeScannerModal({
   onDetect,
   onClose,
   continuous = false,
+  title = "مسح الباركود بالكاميرا",
 }: {
   onDetect: (code: string) => void;
   onClose: () => void;
-  /** Keep camera open after each scan (mobile POS flow) */
   continuous?: boolean;
+  title?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState("");
   const [lastScan, setLastScan] = useState<string | null>(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchAvailable, setTorchAvailable] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef(0);
   const pausedRef = useRef(false);
 
   const handleDetect = useCallback(
     (code: string) => {
-      setLastScan(code);
-      onDetect(code);
+      const clean = code.trim();
+      if (!clean) return;
+      setLastScan(clean);
+      onDetect(clean);
       if (!continuous) onClose();
       else {
         pausedRef.current = true;
@@ -49,20 +53,30 @@ export function BarcodeScannerModal({
     }
   };
 
+  async function toggleTorch() {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      await track.applyConstraints({
+        advanced: [{ torch: !torchOn } as MediaTrackConstraintSet],
+      });
+      setTorchOn((v) => !v);
+    } catch {
+      setTorchAvailable(false);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function start() {
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
-          setError("الكاميرا غير مدعومة في هذا الجهاز — يمكنك إدخال الباركود يدوياً أدناه");
+          setError("الكاميرا غير مدعومة في هذا الجهاز — أدخل الباركود يدوياً");
           return;
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        });
+        const stream = await navigator.mediaDevices.getUserMedia(SCAN_CONSTRAINTS);
 
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
@@ -70,57 +84,43 @@ export function BarcodeScannerModal({
         }
 
         streamRef.current = stream;
+        const track = stream.getVideoTracks()[0];
+        const caps = track?.getCapabilities?.() as MediaTrackCapabilities & { torch?: boolean };
+        setTorchAvailable(Boolean(caps?.torch));
+
         const video = videoRef.current;
         if (!video) return;
         video.srcObject = stream;
         await video.play();
 
-        let detector: any = null;
-        if (window.BarcodeDetector) {
-          try {
-            detector = new window.BarcodeDetector({
-              formats: [
-                "ean_13",
-                "ean_8",
-                "code_128",
-                "code_39",
-                "qr_code",
-                "upc_a",
-                "upc_e",
-              ],
-            });
-          } catch {
-            detector = null;
-          }
-        }
-
         const tick = async () => {
-          if (cancelled || !videoRef.current || pausedRef.current) {
-            if (!cancelled) rafRef.current = window.setTimeout(() => void tick(), 200) as unknown as number;
+          if (cancelled) return;
+          if (pausedRef.current) {
+            rafRef.current = window.setTimeout(() => void tick(), 180) as unknown as number;
             return;
           }
           try {
-            if (video.readyState >= 2) {
-              if (detector) {
-                const codes = await detector.detect(video);
-                if (codes[0]?.rawValue) {
-                  handleDetect(codes[0].rawValue);
-                  if (!continuous) return;
-                }
+            const videoEl = videoRef.current;
+            const canvasEl = canvasRef.current;
+            if (videoEl && canvasEl) {
+              const value = await decodeBarcodeFromVideo(videoEl, canvasEl);
+              if (value) {
+                handleDetect(value);
+                if (!continuous) return;
               }
             }
           } catch {
             /* keep scanning */
           }
-          rafRef.current = window.setTimeout(() => void tick(), 200) as unknown as number;
+          rafRef.current = window.setTimeout(() => void tick(), 180) as unknown as number;
         };
 
         void tick();
       } catch (e) {
         setError(
           e instanceof Error
-            ? `${e.message} — تأكد من منح إذن الكاميرا من إعدادات الجهاز`
-            : "تعذر فتح الكاميرا — يرجى كتابة الباركود يدوياً"
+            ? `${e.message} — امنح إذن الكاميرا من إعدادات الجهاز`
+            : "تعذر فتح الكاميرا — اكتب الباركود يدوياً"
         );
       }
     }
@@ -138,8 +138,8 @@ export function BarcodeScannerModal({
     <div className="app-modal-backdrop">
       <div className="app-modal-panel !max-w-md space-y-4">
         <div className="flex items-center justify-between border-b border-paper-line pb-3">
-          <h3 className="inline-flex items-center gap-2 font-bold text-ink text-sm sm:text-base">
-            <Camera size={20} className="text-highlight" /> مسح الباركود للكاميرا
+          <h3 className="inline-flex items-center gap-2 text-sm font-bold text-ink sm:text-base">
+            <Camera size={20} className="text-highlight" /> {title}
           </h3>
           <button
             type="button"
@@ -157,19 +157,30 @@ export function BarcodeScannerModal({
           </p>
         )}
 
-        <div className="relative overflow-hidden rounded-2xl bg-ink min-h-[180px] flex items-center justify-center">
+        <div className="relative flex min-h-[180px] items-center justify-center overflow-hidden rounded-2xl bg-ink">
           <video
             ref={videoRef}
             className="aspect-[4/3] w-full object-cover"
             muted
             playsInline
+            autoPlay
           />
           <canvas ref={canvasRef} className="hidden" />
-          <div className="pointer-events-none absolute inset-0 border-2 border-dashed border-highlight/60 rounded-2xl m-6" />
+          <div className="pointer-events-none absolute inset-0 m-6 rounded-2xl border-2 border-dashed border-highlight/60" />
+          {torchAvailable && (
+            <button
+              type="button"
+              onClick={() => void toggleTorch()}
+              className="absolute bottom-3 start-3 inline-flex items-center gap-1 rounded-full bg-ink/70 px-3 py-1.5 text-[11px] font-bold text-white"
+            >
+              <Lightning size={14} weight={torchOn ? "fill" : "regular"} />
+              {torchOn ? "إطفاء الفلاش" : "فلاش"}
+            </button>
+          )}
         </div>
 
         <p className="text-center text-[11px] text-ink-mute">
-          وجّه الكاميرا لباركود المنتج — سيتم التعرف والبرمجة تلقائياً
+          قرّب الباركود داخل الإطار — القراءة عالية الدقة وتعمل دون إنترنت
         </p>
 
         {error && (
@@ -186,15 +197,16 @@ export function BarcodeScannerModal({
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
               placeholder="أو أدخل رقم الباركود يدوياً..."
-              className="input w-full ps-9 text-xs font-mono"
+              className="input w-full ps-9 font-mono text-xs"
+              inputMode="numeric"
             />
           </div>
           <button
             type="submit"
             disabled={!manualCode.trim()}
-            className="btn-primary text-xs font-bold px-4"
+            className="btn-primary px-4 text-xs font-bold"
           >
-            إضافة
+            اعتماد
           </button>
         </form>
 
