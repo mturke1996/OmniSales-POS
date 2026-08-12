@@ -2149,7 +2149,7 @@ export async function applyCloudPull(input: {
   );
   touched += remoteAudit.length;
 
-  const localOpen = await get<Shift | null>(KEYS.shift);
+  const localOpen = (await get<Shift | null>(KEYS.shift)) ?? null;
   const remoteOpens = input.open_shifts.map(mapRemoteShift);
   const mergedShift = mergeOpenShift(localOpen, remoteOpens);
   await set(KEYS.shift_conflict, mergedShift.extraRemote);
