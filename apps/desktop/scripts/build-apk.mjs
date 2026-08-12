@@ -83,9 +83,9 @@ const env = {
 
 console.log(`JAVA_HOME=${javaHome}`);
 console.log(`ANDROID_HOME=${androidHome}`);
-console.log("Building debug APK...");
+console.log("Building release APK...");
 
-const result = spawnSync(gradlew, ["assembleDebug", "--stacktrace"], {
+const result = spawnSync(gradlew, ["assembleRelease", "--stacktrace"], {
   cwd: androidDir,
   env,
   stdio: "inherit",
@@ -96,18 +96,14 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
-const apk = path.join(
-  androidDir,
-  "app",
-  "build",
-  "outputs",
-  "apk",
-  "debug",
-  "app-debug.apk"
-);
+const apk = firstExisting([
+  path.join(androidDir, "app", "build", "outputs", "apk", "release", "app-release.apk"),
+  path.join(androidDir, "app", "build", "outputs", "apk", "release", "app-release-unsigned.apk"),
+  path.join(androidDir, "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
+]);
 
-if (fs.existsSync(apk)) {
-  const out = path.join(root, "OmniSales-debug.apk");
+if (apk && fs.existsSync(apk)) {
+  const out = path.join(root, "OmniSales-release.apk");
   const publicApk = path.join(root, "public", "downloads", "OmniSales.apk");
   fs.mkdirSync(path.dirname(publicApk), { recursive: true });
   fs.copyFileSync(apk, out);
