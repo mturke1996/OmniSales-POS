@@ -37,6 +37,8 @@ import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
 import { ChartSkeleton } from "../ui/ChartSkeleton";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { SidebarTab } from "../Sidebar";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
 
 const SalesTrendChart = lazy(() =>
   import("../charts/SalesTrendChart").then((m) => ({ default: m.SalesTrendChart }))
@@ -65,6 +67,8 @@ export function ReportsScreen({
   suppliers = [],
   settings,
   openShift,
+  pendingSync = 0,
+  onSync,
   onNavigate,
   onOpenInventory,
   onOpenReturn,
@@ -78,10 +82,13 @@ export function ReportsScreen({
   suppliers?: Supplier[];
   settings: BranchSettings;
   openShift: Shift | null;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
   onNavigate?: (tab: SidebarTab) => void;
   onOpenInventory?: (search: string) => void;
   onOpenReturn?: (orderId: string) => void;
 }) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const [period, setPeriod] = useState<PeriodKey>("7d");
 
   const snap = useMemo(
@@ -140,6 +147,14 @@ export function ReportsScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="التحليلات والتقارير"
         description={`صافي المبيعات = الإجمالي − المرتجعات · ${snap.range.label}`}

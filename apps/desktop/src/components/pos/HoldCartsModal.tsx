@@ -1,9 +1,11 @@
-import { ArrowClockwise, Trash, Clock } from "@phosphor-icons/react";
-import type { HeldCart } from "../../lib/types";
+import { ArrowClockwise, Trash, Clock, WarningCircle } from "@phosphor-icons/react";
+import type { HeldCart, Product } from "../../lib/types";
 import { BottomSheet } from "../ui/BottomSheet";
+import { findStockIssues, heldDemandByProduct } from "../../lib/stock";
 
 interface HoldCartsModalProps {
   carts: HeldCart[];
+  products?: Product[];
   currencySymbol: string;
   onClose: () => void;
   onRecall: (cart: HeldCart) => void;
@@ -13,6 +15,7 @@ interface HoldCartsModalProps {
 
 export function HoldCartsModal({
   carts,
+  products = [],
   currencySymbol,
   onClose,
   onRecall,
@@ -26,6 +29,9 @@ export function HoldCartsModal({
       ) : (
         carts.map((cart) => {
           const totalPrice = cart.items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+          const issues = products.length
+            ? findStockIssues(cart.items, products, heldDemandByProduct(carts, cart.id))
+            : [];
 
           return (
             <div
@@ -40,6 +46,7 @@ export function HoldCartsModal({
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
+                    {cart.cashier_name ? ` · ${cart.cashier_name}` : ""}
                   </span>
                 </div>
                 <div className="text-sm font-bold text-ink">
@@ -54,6 +61,12 @@ export function HoldCartsModal({
               <div className="text-xs text-ink-mute">
                 {cart.items.map((i) => `${i.name} (${i.quantity})`).join(" ، ")}
               </div>
+              {issues.length > 0 && (
+                <p className="inline-flex items-center gap-1 text-[11px] font-semibold text-danger">
+                  <WarningCircle size={13} />
+                  المخزون لم يعد يكفي: {issues.map((i) => i.name).join("، ")}
+                </p>
+              )}
 
               <div className="flex items-center justify-end gap-2 border-t border-paper-line pt-2">
                 <button

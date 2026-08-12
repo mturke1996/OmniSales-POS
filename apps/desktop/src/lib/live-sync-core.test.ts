@@ -79,5 +79,6 @@ describe("LIVE_TABLES", () => {
     expect(LIVE_TABLES).toContain("customer_ledger");
     expect(LIVE_TABLES).toContain("cash_movements");
     expect(LIVE_TABLES).toContain("audit_log");
+    expect(LIVE_TABLES).toContain("held_carts");
   });
 });

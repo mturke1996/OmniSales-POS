@@ -23,6 +23,7 @@ export interface SyncResult {
 }
 
 const OUTBOX_KEY = "omni.outbox";
+const DEAD_OUTBOX_KEY = "omni.outbox_dead";
 const LAST_SYNC_KEY = "omni.last_sync_at";
 
 export async function readLastSyncAt(): Promise<string | null> {
@@ -35,6 +36,22 @@ async function writeLastSyncAt() {
 
 export async function readOutbox(): Promise<OutboxEntry[]> {
   return ((await get<OutboxEntry[]>(OUTBOX_KEY)) ?? []) as OutboxEntry[];
+}
+
+export async function readDeadOutbox(): Promise<OutboxEntry[]> {
+  return ((await get<OutboxEntry[]>(DEAD_OUTBOX_KEY)) ?? []) as OutboxEntry[];
+}
+
+export async function retryDeadOutbox(): Promise<number> {
+  const dead = await readDeadOutbox();
+  if (!dead.length) return 0;
+  const live = await readOutbox();
+  await set(OUTBOX_KEY, [
+    ...live,
+    ...dead.map((e) => ({ ...e, attempts: 0, last_error: null })),
+  ]);
+  await set(DEAD_OUTBOX_KEY, []);
+  return dead.length;
 }
 
 export async function pendingOutboxCount(): Promise<number> {
@@ -194,6 +211,9 @@ async function flushOutboxWithClient(client: SupabaseClient): Promise<{
       // Drop poison pills after many failures so the queue cannot stall forever
       if (attempts >= 12) {
         lastError = `تم إسقاط عملية بعد فشل متكرر: ${entry.action} — ${lastError}`;
+        const dead = await readDeadOutbox();
+        dead.push({ ...entry, attempts, last_error: lastError });
+        await set(DEAD_OUTBOX_KEY, dead.slice(-50));
         continue;
       }
       kept.push({
@@ -322,6 +342,26 @@ async function pushEntry(client: SupabaseClient, entry: OutboxEntry) {
       if (error) throw error;
       return;
     }
+    case "held_cart.upsert": {
+      const { error } = await client.from("held_carts").upsert(mapHeldCart(payload));
+      if (error) throw error;
+      return;
+    }
+    case "held_cart.delete": {
+      const id = String(payload.id || "");
+      if (!id) return;
+      const { error } = await client
+        .from("held_carts")
+        .upsert({
+          id,
+          branch_id: payload.branch_id || "branch-1",
+          status: "recalled",
+          items: [],
+          updated_at: new Date().toISOString(),
+        });
+      if (error) throw error;
+      return;
+    }
     default:
       throw new Error(`عملية مزامنة غير معروفة: ${entry.action}`);
   }
@@ -348,6 +388,7 @@ async function pullAndMerge(
     stockRes,
     categoriesRes,
     supplierPaymentsRes,
+    heldCartsRes,
   ] = await Promise.all([
     client.from("settings").select("*"),
     client.from("products").select("*"),
@@ -373,6 +414,12 @@ async function pullAndMerge(
       .select("*")
       .order("created_at", { ascending: false })
       .limit(2000),
+    client
+      .from("held_carts")
+      .select("*")
+      .eq("status", "held")
+      .order("updated_at", { ascending: false })
+      .limit(200),
   ]);
 
   // Optional tables may be missing until migrations 010/011 — soft-fail
@@ -380,6 +427,7 @@ async function pullAndMerge(
     "stock_movements",
     "categories",
     "supplier_payments",
+    "held_carts",
   ]);
   const firstError = [
     settingsRes,
@@ -402,6 +450,7 @@ async function pullAndMerge(
   const stockOk = !stockRes.error;
   const catsOk = !categoriesRes.error;
   const payOk = !supplierPaymentsRes.error;
+  const heldOk = !heldCartsRes.error;
   if (stockRes.error && !softOptional.has("stock_movements")) throw stockRes.error;
   if (categoriesRes.error && !softOptional.has("categories")) throw categoriesRes.error;
   if (supplierPaymentsRes.error && !softOptional.has("supplier_payments")) {
@@ -432,6 +481,7 @@ async function pullAndMerge(
     supplier_payments: payOk
       ? ((supplierPaymentsRes.data || []) as Record<string, unknown>[])
       : [],
+    held_carts: heldOk ? ((heldCartsRes.data || []) as Record<string, unknown>[]) : undefined,
   });
 }
 
@@ -690,6 +740,22 @@ function mapAudit(payload: Record<string, unknown>) {
     action: payload.action,
     summary: payload.summary,
     meta: payload.meta ?? null,
+  };
+}
+
+function mapHeldCart(payload: Record<string, unknown>) {
+  return {
+    id: payload.id,
+    branch_id: payload.branch_id || "branch-1",
+    device_id: payload.device_id ?? null,
+    cashier_id: payload.cashier_id ?? null,
+    cashier_name: payload.cashier_name ?? null,
+    customer_name: payload.customer_name ?? null,
+    items: payload.items ?? [],
+    note: payload.note ?? null,
+    status: payload.status || "held",
+    created_at: payload.created_at,
+    updated_at: payload.updated_at || new Date().toISOString(),
   };
 }
 

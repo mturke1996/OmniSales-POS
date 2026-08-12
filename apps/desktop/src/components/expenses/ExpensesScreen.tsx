@@ -8,6 +8,8 @@ import { PageContent } from "../layout/PageContent";
 import { SearchField } from "../ui/SearchField";
 import { DataTable } from "../ui/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
 
 interface ExpensesScreenProps {
   expenses: Expense[];
@@ -15,6 +17,8 @@ interface ExpensesScreenProps {
   onRefreshData: () => void;
   hasOpenShift?: boolean;
   cashierId?: string;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }
 
 export function ExpensesScreen({
@@ -23,7 +27,10 @@ export function ExpensesScreen({
   onRefreshData,
   hasOpenShift = false,
   cashierId,
+  pendingSync = 0,
+  onSync,
 }: ExpensesScreenProps) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const [query, setQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -68,6 +75,14 @@ export function ExpensesScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="المصروفات"
         description="تسجيل المصروفات التشغيلية اليومية وتتبع التكاليف"

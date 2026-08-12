@@ -20,6 +20,7 @@ import { initialFocusFromUrl, parseAppUrl, writeAppUrl } from "./lib/app-url";
 import { useLiveSync } from "./hooks/use-live-sync";
 import { LiveToastHost } from "./components/sync/LiveToast";
 import { computeShopHealth, type ShopAlert } from "./lib/shop-health";
+import { idleLockDue } from "./lib/idle-lock";
 
 const SetupWizard = lazy(() =>
   import("./components/setup/SetupWizard").then((m) => ({ default: m.SetupWizard }))
@@ -204,6 +205,27 @@ export default function App() {
     if (session) void loadData();
   }, [session, loadData]);
 
+  useEffect(() => {
+    if (!session) return;
+    const minutes = draft?.auto_lock_minutes ?? 5;
+    if (!minutes) return;
+    let last = Date.now();
+    const bump = () => {
+      last = Date.now();
+    };
+    const events: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart"];
+    for (const event of events) window.addEventListener(event, bump, { passive: true });
+    const id = window.setInterval(() => {
+      if (idleLockDue(last, minutes)) {
+        void lockSession().then(() => setSession(null));
+      }
+    }, 4000);
+    return () => {
+      for (const event of events) window.removeEventListener(event, bump);
+      window.clearInterval(id);
+    };
+  }, [session, draft?.auto_lock_minutes]);
+
   if (!session) {
     return (
       <>
@@ -277,6 +299,7 @@ export default function App() {
     pendingSync,
     workMode: draft.work_mode,
     currencySymbol: draft.currency_symbol,
+    heldCarts: data.held_carts,
   });
 
   const openShopAlert = (alert: ShopAlert) => {
@@ -421,6 +444,7 @@ export default function App() {
                 expenses={data.expenses}
                 purchases={data.purchases}
                 suppliers={data.suppliers}
+                heldCarts={data.held_carts}
                 settings={draft}
                 openShift={shift}
                 pendingSync={pendingSync}
@@ -590,6 +614,8 @@ export default function App() {
                   settings={draft}
                   onRefreshData={loadData}
                   onOpenProfile={setProfileCustomerId}
+                  pendingSync={pendingSync}
+                  onSync={() => void handleCloudSync()}
                 />
               ))}
 
@@ -600,6 +626,8 @@ export default function App() {
                 onRefreshData={loadData}
                 hasOpenShift={shift?.status === "open"}
                 cashierId={session.cashier_id}
+                pendingSync={pendingSync}
+                onSync={() => void handleCloudSync()}
               />
             )}
 
@@ -642,6 +670,8 @@ export default function App() {
                 suppliers={data.suppliers}
                 settings={draft}
                 openShift={shift}
+                pendingSync={pendingSync}
+                onSync={() => void handleCloudSync()}
                 onNavigate={navigate}
                 onOpenInventory={(search) => {
                   setInventorySearchQuery(search);

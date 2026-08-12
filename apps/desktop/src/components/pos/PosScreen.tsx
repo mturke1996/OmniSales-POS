@@ -14,7 +14,7 @@ import { cn } from "../../lib/cn";
 import { useCart } from "../../stores/cart";
 import { industryCaps, promptSerialMeta } from "../../lib/industry";
 import { filterCatalog, findExactCatalogMatch } from "../../lib/catalog";
-import { availableForProduct, findStockIssues } from "../../lib/stock";
+import { availableForProduct, findStockIssues, heldDemandByProduct } from "../../lib/stock";
 import { acceptScan, feedbackScan } from "../../lib/scan-feedback";
 import type {
   BranchSettings,
@@ -144,9 +144,9 @@ export function PosScreen({
       return;
     }
     if (p.track_stock) {
-      const avail = availableForProduct(p, lines);
+      const avail = availableForProduct(p, lines, undefined, heldDemandByProduct(heldCarts));
       if (avail < 1) {
-        setMessage(`لا يتوفر مخزون لـ «${p.name}» (المتوفر ${p.stock_quantity})`);
+        setMessage(`لا يتوفر مخزون لـ «${p.name}» (محجوز في سلال معلّقة أو نفد)`);
         return;
       }
     }
@@ -249,9 +249,11 @@ export function PosScreen({
     [products, query]
   );
 
+  const reservedStock = useMemo(() => heldDemandByProduct(heldCarts), [heldCarts]);
+
   const stockIssues = useMemo(
-    () => findStockIssues(lines, products),
-    [lines, products]
+    () => findStockIssues(lines, products, reservedStock),
+    [lines, products, reservedStock]
   );
 
   const activePromos = useMemo(
@@ -392,6 +394,19 @@ export function PosScreen({
   }
 
   async function handleRecallCart(cart: HeldCart) {
+    const issues = findStockIssues(
+      cart.items,
+      products,
+      heldDemandByProduct(heldCarts, cart.id),
+    );
+    if (issues.length) {
+      setMessage(
+        `تعذر الاسترجاع — المخزون لم يعد يكفي: ${issues
+          .map((i) => i.name)
+          .join("، ")}`,
+      );
+      return;
+    }
     clear();
     cart.items.forEach((item) => {
       const p = products.find((prod) => prod.id === item.product_id);
@@ -1008,6 +1023,7 @@ export function PosScreen({
       {showHoldModal && (
         <HoldCartsModal
           carts={heldCarts}
+          products={products}
           currencySymbol={settings.currency_symbol}
           onClose={() => setShowHoldModal(false)}
           onRecall={handleRecallCart}

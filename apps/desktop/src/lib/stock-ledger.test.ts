@@ -90,4 +90,10 @@ describe("mergeProductInventory", () => {
     expect(merged.stock_quantity).toBe(4);
     expect(merged.stock_version).toBe(6);
   });
+
+  it("prefers the lower qty when versions tie (anti-oversell)", () => {
+    const local = base({ stock_quantity: 8, stock_version: 3 });
+    const remote = base({ stock_quantity: 5, stock_version: 3 });
+    expect(mergeProductInventory(local, remote).stock_quantity).toBe(5);
+  });
 });

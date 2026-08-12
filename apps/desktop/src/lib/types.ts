@@ -169,6 +169,12 @@ export interface HeldCart {
   customer_name?: string;
   items: CartLine[];
   note?: string;
+  branch_id?: string;
+  device_id?: string;
+  cashier_id?: string;
+  cashier_name?: string;
+  status?: "held" | "recalled" | "deleted";
+  updated_at?: string;
 }
 
 export type OrderStatus =
@@ -312,6 +318,8 @@ export interface BranchSettings {
   auto_print_kitchen?: boolean;
   /** Auto-pin top sellers (7d) into POS favorites strip */
   auto_pin_top_sellers?: boolean;
+  /** Idle minutes before locking the cashier session. 0 = off */
+  auto_lock_minutes?: number;
   /** Setup wizard completed */
   setup_complete?: boolean;
 }
@@ -483,6 +491,7 @@ export function defaultSettings(): BranchSettings {
     auto_print_thermal: true,
     auto_print_kitchen: true,
     auto_pin_top_sellers: true,
+    auto_lock_minutes: 5,
     setup_complete: false,
   };
 }

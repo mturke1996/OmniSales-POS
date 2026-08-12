@@ -39,6 +39,7 @@ import { useLiveState } from "../../hooks/use-live-sync";
 import { listCloudDevices } from "../../lib/live-sync";
 import { liveStatusLabel } from "../../lib/live-sync-core";
 import { navTabLabel } from "../../lib/nav-config";
+import { readDeadOutbox, retryDeadOutbox } from "../../lib/sync-outbox";
 import {
   getStoredBaudRate,
   setStoredBaudRate,
@@ -83,6 +84,7 @@ export function SettingsPanel({
   const [printerMsg, setPrinterMsg] = useState<string | null>(null);
   const printer = usePrinter();
   const live = useLiveState();
+  const [deadCount, setDeadCount] = useState(0);
   const [devices, setDevices] = useState<
     Array<{
       id: string;
@@ -115,6 +117,10 @@ export function SettingsPanel({
     live.lastSyncAt,
     live.status,
   ]);
+
+  useEffect(() => {
+    void readDeadOutbox().then((rows) => setDeadCount(rows.length));
+  }, [live.lastSyncAt, pendingSync]);
 
   useEffect(() => {
     if (printer.lastError) setPrinterMsg(printer.lastError);
@@ -489,6 +495,26 @@ export function SettingsPanel({
             {live.lastError && (
               <p className="text-[11px] font-semibold text-danger">{live.lastError}</p>
             )}
+            {deadCount > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-danger/20 bg-danger/8 px-3 py-2">
+                <p className="text-[11px] font-semibold text-danger">
+                  {deadCount} عملية فشلت بعد إعادة المحاولة
+                </p>
+                <button
+                  type="button"
+                  className="rounded-full bg-ink px-3 py-1 text-[10px] font-bold text-paper"
+                  onClick={() => {
+                    void retryDeadOutbox().then((n) => {
+                      setDeadCount(0);
+                      setCloudMsg(`أُعيدت ${n} عملية إلى طابور المزامنة`);
+                      onSync?.();
+                    });
+                  }}
+                >
+                  إعادة المحاولة
+                </button>
+              </div>
+            )}
             <p className="text-[11px] text-ink-mute">
               الأجهزة المتصلة الآن: {live.peers.length} · المسجّلة في القاعدة: {devices.length}
             </p>
@@ -831,6 +857,27 @@ export function SettingsPanel({
                 تُطبع الفاتورة فوراً (حرارياً أو عبر المتصفح/AirPrint على الموبايل)
               </span>
             </span>
+          </label>
+          <label className="flex flex-col gap-2 rounded-xl border border-paper-line bg-paper px-3 py-2.5 sm:col-span-2">
+            <span className="text-xs leading-relaxed">
+              <span className="font-bold text-ink">قفل تلقائي عند الخمول</span>
+              <span className="mt-0.5 block text-[11px] text-ink-mute">
+                يقفل الكاشير إذا لم يُلمس الجهاز — ضروري عند ترك الصندوق
+              </span>
+            </span>
+            <select
+              className="w-full rounded-xl border border-paper-line bg-paper-raised px-3 py-2 text-xs font-bold"
+              value={settings.auto_lock_minutes ?? 5}
+              onChange={(e) =>
+                onChange({ ...settings, auto_lock_minutes: Number(e.target.value) })
+              }
+            >
+              <option value={0}>إيقاف</option>
+              <option value={2}>دقيقتان</option>
+              <option value={5}>5 دقائق</option>
+              <option value={10}>10 دقائق</option>
+              <option value={15}>15 دقيقة</option>
+            </select>
           </label>
         </div>
         <div className="space-y-3">

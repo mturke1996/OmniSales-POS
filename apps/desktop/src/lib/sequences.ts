@@ -39,3 +39,29 @@ export async function formatNextDoc(
 export async function peekSequences(): Promise<SequenceMap> {
   return load();
 }
+
+/** Highest trailing integer in document numbers like ORD-1007 / RET-1002. */
+export function highestDocSequence(docs: Array<string | null | undefined>): number {
+  let max = 0;
+  for (const doc of docs) {
+    if (!doc) continue;
+    const match = String(doc).match(/(\d+)\s*$/);
+    if (!match) continue;
+    const n = Number(match[1]);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max;
+}
+
+/** Raise local counters so the next allocate cannot collide with cloud docs. */
+export async function raiseSequencesToAtLeast(
+  kind: SequenceKind,
+  atLeast: number
+): Promise<void> {
+  if (!Number.isFinite(atLeast) || atLeast <= 0) return;
+  const map = await load();
+  if (atLeast > (map[kind] ?? 0)) {
+    map[kind] = atLeast;
+    await set(KEY, map);
+  }
+}

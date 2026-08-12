@@ -115,10 +115,10 @@ export function mergeProductInventory(
       updated_at: local.updated_at || base.updated_at,
     };
   }
-  // Same version — keep local qty (device may have pending outbox)
+  // Same version — keep the lower qty so two registers cannot oversell
   return {
     ...base,
-    stock_quantity: local.stock_quantity,
+    stock_quantity: Math.min(local.stock_quantity, remote.stock_quantity),
     stock_version: localVer,
     updated_at: local.updated_at || remote.updated_at || base.updated_at,
   };

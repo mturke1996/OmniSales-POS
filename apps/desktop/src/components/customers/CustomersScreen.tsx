@@ -16,12 +16,16 @@ import { SearchField } from "../ui/SearchField";
 import { DataTable } from "../ui/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { BranchSettings, Customer } from "../../lib/types";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
 
 interface CustomersScreenProps {
   customers: Customer[];
   settings: BranchSettings;
   onRefreshData: () => void;
   onOpenProfile: (customerId: string) => void;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }
 
 export function CustomersScreen({
@@ -29,7 +33,10 @@ export function CustomersScreen({
   settings,
   onRefreshData,
   onOpenProfile,
+  pendingSync = 0,
+  onSync,
 }: CustomersScreenProps) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const [query, setQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
@@ -108,6 +115,14 @@ export function CustomersScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="العملاء والديون"
         description="ملف لكل عميل · كشف حساب · مبيعات · واتساب · تحصيل"

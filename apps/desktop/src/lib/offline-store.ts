@@ -27,8 +27,8 @@ import {
   defaultSettings,
 } from "./types";
 import { remainingReturnQty } from "./analytics";
-import { formatNextDoc } from "./sequences";
-import { assertStockAvailable } from "./stock";
+import { formatNextDoc, highestDocSequence, raiseSequencesToAtLeast } from "./sequences";
+import { assertStockAvailable, heldDemandByProduct } from "./stock";
 import { unitNetRefund } from "./returns-math";
 import {
   applyStockDelta,
@@ -36,6 +36,8 @@ import {
   mergeProductInventory,
 } from "./stock-ledger";
 import { notifyOutboxQueued } from "./sync-bus";
+import { getDeviceId } from "./device-id";
+import type { CashierSession } from "./session";
 
 const KEYS = {
   settings: "omni.settings",
@@ -777,7 +779,8 @@ export async function checkoutPwa(input: {
 
   // Stock gate before mutating balances / shift
   const products = (await get<Product[]>(KEYS.products)) ?? [];
-  assertStockAvailable(lines, products);
+  const heldCarts = (await get<HeldCart[]>(KEYS.held_carts)) ?? [];
+  assertStockAvailable(lines, products, heldDemandByProduct(heldCarts));
 
   const orderNum = await formatNextDoc("order", settings.order_prefix || "ORD");
   const invoiceRef = await formatNextDoc(
@@ -1132,23 +1135,44 @@ export async function listReturnsPwa() {
 }
 
 export async function addHeldCartPwa(items: CartLine[], customer_name?: string, note?: string) {
+  if (!items.length) throw new Error("لا يمكن تعليق سلة فارغة");
+  const products = (await get<Product[]>(KEYS.products)) ?? [];
   const carts = (await get<HeldCart[]>(KEYS.held_carts)) ?? [];
+  assertStockAvailable(items, products, heldDemandByProduct(carts));
+
+  const settings = (await get<BranchSettings>(KEYS.settings)) ?? defaultSettings();
+  const session = (await get<CashierSession | null>("omni.session")) ?? null;
+  const now = new Date().toISOString();
   const newCart: HeldCart = {
     id: crypto.randomUUID(),
-    created_at: new Date().toISOString(),
+    created_at: now,
+    updated_at: now,
     customer_name,
     items,
     note,
+    branch_id: settings.branch_id,
+    device_id: getDeviceId(),
+    cashier_id: session?.cashier_id,
+    cashier_name: session?.cashier_name,
+    status: "held",
   };
   carts.push(newCart);
   await set(KEYS.held_carts, carts);
+  await enqueue("held_cart.upsert", newCart);
   return carts;
 }
 
 export async function removeHeldCartPwa(id: string) {
   const carts = (await get<HeldCart[]>(KEYS.held_carts)) ?? [];
+  const removed = carts.find((c) => c.id === id);
   const filtered = carts.filter((c) => c.id !== id);
   await set(KEYS.held_carts, filtered);
+  if (removed) {
+    await enqueue("held_cart.delete", {
+      id: removed.id,
+      branch_id: removed.branch_id,
+    });
+  }
   return filtered;
 }
 
@@ -1729,6 +1753,7 @@ export async function applyCloudPull(input: {
   stock_movements?: Record<string, unknown>[];
   categories?: Record<string, unknown>[];
   supplier_payments?: Record<string, unknown>[];
+  held_carts?: Record<string, unknown>[];
 }): Promise<number> {
   await ensurePwaSeed();
   let touched = 0;
@@ -1781,6 +1806,7 @@ export async function applyCloudPull(input: {
       cloud_sync_enabled: input.localSettings.cloud_sync_enabled,
       auto_print_thermal: input.localSettings.auto_print_thermal,
       auto_pin_top_sellers: input.localSettings.auto_pin_top_sellers,
+      auto_lock_minutes: input.localSettings.auto_lock_minutes,
       setup_complete: input.localSettings.setup_complete,
       branch_id: String(remote.branch_id ?? input.localSettings.branch_id),
     };
@@ -1931,6 +1957,14 @@ export async function applyCloudPull(input: {
     mergeById(localOrders, remoteOrders, (o) => asTime(o.created_at))
   );
   touched += remoteOrders.length;
+  await raiseSequencesToAtLeast(
+    "order",
+    highestDocSequence(remoteOrders.map((o) => o.order_number))
+  );
+  await raiseSequencesToAtLeast(
+    "invoice",
+    highestDocSequence(remoteOrders.map((o) => o.order_number))
+  );
 
   const localExpenses = (await get<Expense[]>(KEYS.expenses)) ?? [];
   const remoteExpenses = input.expenses.map(
@@ -1973,6 +2007,10 @@ export async function applyCloudPull(input: {
     mergeById(localReturns, remoteReturns, (r) => asTime(r.created_at))
   );
   touched += remoteReturns.length;
+  await raiseSequencesToAtLeast(
+    "return",
+    highestDocSequence(remoteReturns.map((r) => r.return_number))
+  );
 
   const localSuppliers = (await get<Supplier[]>(KEYS.suppliers)) ?? [];
   const remoteSuppliers = input.suppliers.map(
@@ -2045,6 +2083,10 @@ export async function applyCloudPull(input: {
     mergeById(localPurchases, remotePurchases, (p) => asTime(p.created_at))
   );
   touched += remotePurchases.length;
+  await raiseSequencesToAtLeast(
+    "purchase",
+    highestDocSequence(remotePurchases.map((p) => p.purchase_number))
+  );
 
   const localPromos = (await get<Promotion[]>(KEYS.promotions)) ?? [];
   const remotePromos = input.promotions.map(
@@ -2125,6 +2167,41 @@ export async function applyCloudPull(input: {
     };
     await set(KEYS.shift, shift);
     touched += 1;
+  }
+
+  if (input.held_carts) {
+    const localHeld = (await get<HeldCart[]>(KEYS.held_carts)) ?? [];
+    const remoteHeld = input.held_carts
+      .filter((c) => String(c.status || "held") === "held")
+      .map(
+        (c) =>
+          ({
+            id: String(c.id),
+            created_at: String(c.created_at || new Date().toISOString()),
+            updated_at: String(c.updated_at || c.created_at || new Date().toISOString()),
+            customer_name: (c.customer_name as string) || undefined,
+            items: (Array.isArray(c.items) ? c.items : []) as CartLine[],
+            note: (c.note as string) || undefined,
+            branch_id: (c.branch_id as string) || undefined,
+            device_id: (c.device_id as string) || undefined,
+            cashier_id: (c.cashier_id as string) || undefined,
+            cashier_name: (c.cashier_name as string) || undefined,
+            status: "held",
+          }) as HeldCart
+      );
+    const pendingDelete = new Set(
+      (((await get<Array<{ action?: string; payload?: { id?: string } }>>(KEYS.outbox)) ?? [])
+        .filter((e) => e.action === "held_cart.delete")
+        .map((e) => e.payload?.id)
+        .filter(Boolean) as string[])
+    );
+    const merged = mergeById(
+      localHeld,
+      remoteHeld,
+      (c) => asTime(c.updated_at || c.created_at)
+    ).filter((c) => !pendingDelete.has(c.id) && (!c.status || c.status === "held"));
+    await set(KEYS.held_carts, merged);
+    touched += remoteHeld.length;
   }
 
   return touched;

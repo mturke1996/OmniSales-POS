@@ -49,6 +49,7 @@ export interface ShopHealthInput {
   expenses: Expense[];
   purchases?: Purchase[];
   suppliers?: Supplier[];
+  heldCarts?: { id: string; items: { name: string }[] }[];
   openShift?: Shift | null;
   pendingSync?: number;
   workMode?: WorkMode;
@@ -160,6 +161,16 @@ export function buildShopAlerts(input: ShopHealthInput): ShopAlert[] {
       detail: formatMoney(today.supplierPayables, sym),
       tab: "purchases",
       supplierId: firstUnpaid?.id,
+    });
+  }
+
+  if ((input.heldCarts ?? []).length > 0) {
+    alerts.push({
+      id: "held-carts",
+      severity: "info",
+      title: `${input.heldCarts!.length} سلة معلّقة`,
+      detail: "السلال المعلّقة تحجز المخزون على كل الأجهزة",
+      tab: "pos",
     });
   }
 

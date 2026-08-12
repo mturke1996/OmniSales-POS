@@ -29,6 +29,7 @@ import type {
   ReturnRecord,
   Shift,
   Supplier,
+  HeldCart,
 } from "../../lib/types";
 import type { SidebarTab } from "../Sidebar";
 import { cn } from "../../lib/cn";
@@ -59,6 +60,7 @@ interface DashboardScreenProps {
   expenses: Expense[];
   purchases?: Purchase[];
   suppliers?: Supplier[];
+  heldCarts?: HeldCart[];
   settings: BranchSettings;
   openShift: Shift | null;
   pendingSync?: number;
@@ -81,6 +83,7 @@ export function DashboardScreen({
   expenses,
   purchases = [],
   suppliers = [],
+  heldCarts = [],
   settings,
   openShift,
   pendingSync = 0,
@@ -110,6 +113,7 @@ export function DashboardScreen({
         pendingSync,
         workMode: settings.work_mode,
         currencySymbol: settings.currency_symbol,
+        heldCarts,
       }),
     [
       orders,
@@ -119,6 +123,7 @@ export function DashboardScreen({
       expenses,
       purchases,
       suppliers,
+      heldCarts,
       openShift,
       pendingSync,
       settings.work_mode,

@@ -15,6 +15,7 @@ export const LIVE_TABLES = [
   "promotions",
   "categories",
   "devices",
+  "held_carts",
   "cash_movements",
   "audit_log",
 ] as const;
@@ -35,6 +36,7 @@ const TABLE_AR: Record<string, string> = {
   promotions: "عرض",
   categories: "تصنيف",
   devices: "جهاز",
+  held_carts: "سلة معلّقة",
   customer_ledger: "كشف عميل",
   cash_movements: "حركة نقدية",
   audit_log: "تدقيق",

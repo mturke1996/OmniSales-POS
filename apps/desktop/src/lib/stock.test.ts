@@ -3,8 +3,9 @@ import {
   assertStockAvailable,
   cartDemandByProduct,
   findStockIssues,
+  heldDemandByProduct,
 } from "./stock";
-import type { CartLine, Product } from "./types";
+import type { CartLine, HeldCart, Product } from "./types";
 
 const product = (partial: Partial<Product> & Pick<Product, "id" | "name">): Product => ({
   branch_id: "b1",
@@ -75,5 +76,39 @@ describe("stock guards", () => {
         product({ id: "a", name: "A", track_stock: false, stock_quantity: 0 }),
       ])
     ).toHaveLength(0);
+  });
+
+  it("subtracts quantities reserved on other held carts", () => {
+    const lines: CartLine[] = [
+      {
+        product_id: "a",
+        name: "A",
+        unit_price: 1,
+        quantity: 3,
+        unit_type: "piece",
+      },
+    ];
+    const reserved = new Map([["a", 3]]);
+    const issues = findStockIssues(
+      lines,
+      [product({ id: "a", name: "A", stock_quantity: 5 })],
+      reserved
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0].available).toBe(2);
+  });
+
+  it("aggregates held-cart reservations", () => {
+    const carts: HeldCart[] = [
+      {
+        id: "h1",
+        created_at: "2026-01-01",
+        items: [
+          { product_id: "a", name: "A", unit_price: 1, quantity: 2, unit_type: "piece" },
+        ],
+      },
+    ];
+    expect(heldDemandByProduct(carts).get("a")).toBe(2);
+    expect(heldDemandByProduct(carts, "h1").get("a")).toBeUndefined();
   });
 });
