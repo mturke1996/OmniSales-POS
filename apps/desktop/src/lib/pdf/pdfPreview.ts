@@ -3,6 +3,8 @@ export type PdfPreviewPayload = {
   title: string;
   filename: string;
   blob: Blob;
+  /** Blob object URLs must be revoked; Capacitor file URLs must not. */
+  revokeOnClose?: boolean;
 };
 
 type PdfPreviewHandler = (payload: PdfPreviewPayload) => void;

@@ -12,6 +12,8 @@ import { CashierGate } from "./components/auth/CashierGate";
 import { PwaInstallBanner } from "./components/pwa/PwaInstallBanner";
 import { PwaUpdateToast } from "./components/pwa/PwaUpdateToast";
 import { PdfPreviewHost } from "./components/pdf/PdfPreviewHost";
+import { HtmlPreviewHost } from "./components/print/HtmlPreviewHost";
+import { MobileNavMenu } from "./components/MobileNavMenu";
 import { AppShell } from "./components/layout/AppShell";
 import { CommandPalette } from "./components/layout/CommandPalette";
 import { ScreenLoader } from "./components/ui/ScreenLoader";
@@ -21,6 +23,8 @@ import { useLiveSync } from "./hooks/use-live-sync";
 import { LiveToastHost } from "./components/sync/LiveToast";
 import { computeShopHealth, type ShopAlert } from "./lib/shop-health";
 import { hiddenTabLockDelayMs, idleLockDue } from "./lib/idle-lock";
+import { closeTopOverlay } from "./lib/overlay-back";
+import { detectRuntime } from "./lib/native";
 
 const SetupWizard = lazy(() =>
   import("./components/setup/SetupWizard").then((m) => ({ default: m.SetupWizard }))
@@ -114,6 +118,7 @@ export default function App() {
     urlFocus.inventoryQuery
   );
   const [commandOpen, setCommandOpen] = useState(false);
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
 
   const navigate = useCallback((next: SidebarTab) => {
     setTab(next);
@@ -244,12 +249,40 @@ export default function App() {
     };
   }, [session, draft?.auto_lock_minutes]);
 
+  useEffect(() => {
+    if (detectRuntime() !== "capacitor") return;
+    let cancelled = false;
+    let handle: { remove: () => Promise<void> } | undefined;
+    void import("@capacitor/app").then(({ App }) => {
+      if (cancelled) return;
+      return App.addListener("backButton", ({ canGoBack }) => {
+        if (closeTopOverlay()) return;
+        if (canGoBack) {
+          window.history.back();
+          return;
+        }
+        void App.minimizeApp();
+      }).then((listener) => {
+        if (cancelled) {
+          void listener.remove();
+          return;
+        }
+        handle = listener;
+      });
+    });
+    return () => {
+      cancelled = true;
+      void handle?.remove();
+    };
+  }, []);
+
   if (!session) {
     return (
       <>
         <CashierGate onSession={setSession} />
         <PwaInstallBanner />
         <PdfPreviewHost />
+        <HtmlPreviewHost />
         <PwaUpdateToast />
         <LiveToastHost />
       </>
@@ -416,12 +449,11 @@ export default function App() {
             />
             <MobileNavDrawer
               open={mobileMenuOpen}
-              onClose={() => setMobileMenuOpen(false)}
+              onClose={closeMobileMenu}
             >
-              <Sidebar
+              <MobileNavMenu
                 {...sidebarProps}
-                onClose={() => setMobileMenuOpen(false)}
-                className="w-full"
+                onClose={closeMobileMenu}
               />
             </MobileNavDrawer>
           </>
@@ -782,6 +814,7 @@ export default function App() {
 
       <PwaInstallBanner />
       <PdfPreviewHost />
+      <HtmlPreviewHost />
       <PwaUpdateToast />
       <LiveToastHost />
       <CommandPalette

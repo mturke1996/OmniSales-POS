@@ -29,6 +29,7 @@ import { usePhoneLayout } from "../../hooks/use-media-query";
 import { ReceiptModal } from "../pos/ReceiptModal";
 import { PosSyncBar } from "../pos/PosSyncBar";
 import { usePageSync } from "../../hooks/use-page-sync";
+import { pushOverlayCloser } from "../../lib/overlay-back";
 import {
   isKitchenTicketOrder,
   printKitchenTicketSmart,
@@ -66,6 +67,14 @@ export function InvoicesScreen({
     const hit = orders.find((o) => o.id === initialOrderId);
     if (hit) setSelected(hit);
   }, [initialOrderId, orders]);
+
+  useEffect(() => {
+    if (!isPhone || !selected || showReceipt) return;
+    return pushOverlayCloser(() => {
+      setSelected(null);
+      return true;
+    });
+  }, [isPhone, selected, showReceipt]);
 
   const sorted = useMemo(
     () =>
@@ -305,13 +314,20 @@ export function InvoicesScreen({
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="grid h-10 w-10 place-items-center rounded-xl bg-paper text-ink-mute"
+                className="grid h-12 w-12 place-items-center rounded-2xl bg-paper text-ink-mute"
                 aria-label="إغلاق"
               >
                 <X size={20} />
               </button>
             </div>
             <InvoiceDetailBody {...detailProps} />
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="btn-ghost min-h-12 w-full text-sm font-bold"
+            >
+              إغلاق
+            </button>
           </div>
         </div>
       )}

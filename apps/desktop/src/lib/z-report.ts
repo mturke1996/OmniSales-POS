@@ -16,6 +16,7 @@ import { isBluetoothConnected } from "./print/bluetooth-printer";
 import { isNetworkConnected } from "./print/network-printer";
 import { isUsbOtgConnected } from "./print/usb-otg-printer";
 import { writeToPrinter } from "./print/printer-hub";
+import { openHtmlDocument } from "./print/open-print";
 
 export function buildZReportTextLines(input: {
   settings: BranchSettings;
@@ -161,13 +162,7 @@ export function buildZReportHtml(input: {
 
 export function printZReport(input: Parameters<typeof buildZReportHtml>[0]) {
   const html = buildZReportHtml(input);
-  const w = window.open("", "_blank", "noopener,noreferrer,width=480,height=720");
-  if (!w) {
-    throw new Error("تعذر فتح المطبعة — اسمح بالنوافذ المنبثقة");
-  }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  openHtmlDocument(html, "تقرير Z");
 }
 
 export async function printZReportSmart(

@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { Camera, X, Barcode, MagicWand } from "@phosphor-icons/react";
 import type { Product, ProductCategory } from "../../lib/types";
 import { generateEan13 } from "../../lib/barcode-label";
+import { decimalFieldValue, parseDecimal } from "../../lib/decimal";
 import { BarcodeScannerModal } from "../pos/BarcodeScannerModal";
 import { BarcodeLabelCard } from "./BarcodeLabelCard";
+import { DecimalInput } from "../ui/DecimalInput";
 
 export function ProductFormModal({
   product,
@@ -31,15 +33,21 @@ export function ProductFormModal({
   const [categoryId, setCategoryId] = useState(
     product?.category_id || defaultCat
   );
-  const [costPrice, setCostPrice] = useState(product?.cost_price || 0);
-  const [retailPrice, setRetailPrice] = useState(product?.retail_price || 0);
+  const [costPrice, setCostPrice] = useState(
+    decimalFieldValue(product?.cost_price ?? 0)
+  );
+  const [retailPrice, setRetailPrice] = useState(
+    decimalFieldValue(product?.retail_price ?? 0)
+  );
   const [wholesalePrice, setWholesalePrice] = useState(
-    product?.wholesale_price || 0
+    decimalFieldValue(product?.wholesale_price ?? 0)
   );
   const [stockQuantity, setStockQuantity] = useState(
-    product ? product.stock_quantity : 0
+    decimalFieldValue(product ? product.stock_quantity : 0)
   );
-  const [minStock, setMinStock] = useState(product?.min_stock || 5);
+  const [minStock, setMinStock] = useState(
+    decimalFieldValue(product?.min_stock ?? 5)
+  );
   const [unitType, setUnitType] = useState(product?.unit_type || "piece");
   const [oemCode, setOemCode] = useState(product?.oem_code || "");
   const [saving, setSaving] = useState(false);
@@ -60,6 +68,13 @@ export function ProductFormModal({
       alert("هذا الباركود مستخدم لصنف آخر");
       return;
     }
+    const retail = parseDecimal(retailPrice, 0);
+    if (retail <= 0) {
+      alert("أدخل سعر التجزئة — يمكن استخدام الفاصلة العشرية مثل 12.5");
+      return;
+    }
+    const cost = parseDecimal(costPrice, 0);
+    const wholesale = parseDecimal(wholesalePrice, 0);
     setSaving(true);
     try {
       await onSave({
@@ -67,12 +82,13 @@ export function ProductFormModal({
         name: name.trim(),
         barcode: barcode.trim(),
         sku: sku.trim() || `SKU-${barcode.trim().slice(-6)}`,
-        cost_price: Number(costPrice),
-        retail_price: Number(retailPrice),
-        wholesale_price:
-          Number(wholesalePrice) || Number(retailPrice) * 0.85,
-        stock_quantity: product ? product.stock_quantity : Number(stockQuantity),
-        min_stock: Number(minStock),
+        cost_price: cost,
+        retail_price: retail,
+        wholesale_price: wholesale || Number((retail * 0.85).toFixed(2)),
+        stock_quantity: product
+          ? product.stock_quantity
+          : parseDecimal(stockQuantity, 0),
+        min_stock: parseDecimal(minStock, 0),
         unit_type: unitType,
         track_stock: true,
         is_active: true,
@@ -196,34 +212,20 @@ export function ProductFormModal({
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-xs font-semibold text-ink">تكلفة</label>
-              <input
-                type="number"
-                step="0.01"
-                value={costPrice}
-                onChange={(e) => setCostPrice(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
-              />
+              <DecimalInput value={costPrice} onChange={setCostPrice} />
             </div>
             <div>
               <label className="text-xs font-semibold text-ink">تجزئة *</label>
-              <input
-                type="number"
-                step="0.01"
+              <DecimalInput
                 required
                 value={retailPrice}
-                onChange={(e) => setRetailPrice(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs font-bold"
+                onChange={setRetailPrice}
+                className="font-bold"
               />
             </div>
             <div>
               <label className="text-xs font-semibold text-ink">جملة</label>
-              <input
-                type="number"
-                step="0.01"
-                value={wholesalePrice}
-                onChange={(e) => setWholesalePrice(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
-              />
+              <DecimalInput value={wholesalePrice} onChange={setWholesalePrice} />
             </div>
           </div>
 
@@ -233,22 +235,12 @@ export function ProductFormModal({
                 <label className="text-xs font-semibold text-ink">
                   رصيد افتتاح
                 </label>
-                <input
-                  type="number"
-                  value={stockQuantity}
-                  onChange={(e) => setStockQuantity(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
-                />
+                <DecimalInput value={stockQuantity} onChange={setStockQuantity} />
               </div>
             )}
             <div>
               <label className="text-xs font-semibold text-ink">حد أدنى</label>
-              <input
-                type="number"
-                value={minStock}
-                onChange={(e) => setMinStock(Number(e.target.value))}
-                className="mt-1 w-full rounded-xl border border-paper-line bg-paper px-3 py-2 font-mono text-xs"
-              />
+              <DecimalInput value={minStock} onChange={setMinStock} />
             </div>
             <div>
               <label className="text-xs font-semibold text-ink">الوحدة</label>

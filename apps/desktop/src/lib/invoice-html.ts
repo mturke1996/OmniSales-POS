@@ -1,5 +1,6 @@
 import type { BranchSettings, Order } from "./types";
 import { PAYMENT_AR } from "./pdf/pdfBrand";
+import { openHtmlDocument } from "./print/open-print";
 
 /** Browser HTML thermal fallback (system print dialog). */
 export function printThermalReceiptHtml(
@@ -109,11 +110,7 @@ export function printThermalReceiptHtml(
 </body>
 </html>`;
 
-  const win = window.open("", "_blank", "width=420,height=720");
-  if (!win) throw new Error("تعذر فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة");
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  openHtmlDocument(html, `فاتورة ${order.order_number}`);
 }
 
 function escapeHtml(s: string) {

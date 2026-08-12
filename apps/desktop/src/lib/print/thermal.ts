@@ -92,8 +92,8 @@ export function buildReceiptTextLines(
 
 /**
  * Print thermal receipt:
- * 1) ESC/POS via Web Serial when connected / preferred
- * 2) HTML window.print fallback (always available)
+ * 1) ESC/POS when a printer is connected
+ * 2) HTML fallback — in-app preview on Capacitor, popup on desktop
  */
 export async function printThermalReceiptSmart(
   order: Order,

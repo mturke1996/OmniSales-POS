@@ -17,6 +17,7 @@ import { isBluetoothConnected } from "./print/bluetooth-printer";
 import { isNetworkConnected } from "./print/network-printer";
 import { isUsbOtgConnected } from "./print/usb-otg-printer";
 import { writeToPrinter } from "./print/printer-hub";
+import { openHtmlDocument } from "./print/open-print";
 
 export interface DailySummaryInput {
   settings: BranchSettings;
@@ -163,11 +164,7 @@ export function buildDailySummaryHtml(input: DailySummaryInput): string {
 
 export function printDailySummaryHtml(input: DailySummaryInput) {
   const html = buildDailySummaryHtml(input);
-  const w = window.open("", "_blank", "noopener,noreferrer,width=480,height=720");
-  if (!w) throw new Error("تعذر فتح المطبعة — اسمح بالنوافذ المنبثقة");
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+  openHtmlDocument(html, "ملخص يومي");
 }
 
 export async function printDailySummarySmart(

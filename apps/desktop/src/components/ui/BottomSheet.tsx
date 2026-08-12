@@ -1,7 +1,9 @@
 import { Drawer } from "vaul";
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { X } from "@phosphor-icons/react";
 import { cn } from "../../lib/cn";
+import { pushOverlayCloser } from "../../lib/overlay-back";
 
 /** Mobile bottom sheet — Vaul drawer with safe areas (RTL) */
 export function BottomSheet({
@@ -17,6 +19,14 @@ export function BottomSheet({
   children: ReactNode;
   className?: string;
 }) {
+  useEffect(() => {
+    if (!open) return;
+    return pushOverlayCloser(() => {
+      onOpenChange(false);
+      return true;
+    });
+  }, [open, onOpenChange]);
+
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange}>
       <Drawer.Portal>
@@ -35,7 +45,7 @@ export function BottomSheet({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="grid h-9 w-9 place-items-center rounded-xl text-ink-mute hover:bg-paper"
+              className="grid h-12 w-12 place-items-center rounded-2xl bg-paper text-ink-mute hover:bg-paper-line hover:text-ink"
               aria-label="إغلاق"
             >
               <X size={18} />

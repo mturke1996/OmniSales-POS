@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { detectRuntime } from "../native";
 import { ensurePdfFontsLoaded } from "./pdfFonts";
-import { downloadPdfNative } from "./pdfNative";
+import { downloadPdfNative, nativePdfPreviewUrl, sharePdfNative } from "./pdfNative";
 import { showPdfPreview } from "./pdfPreview";
 
 export async function generatePdfBlob(component: ReactElement): Promise<Blob> {
@@ -42,15 +42,41 @@ export async function openPdf(
   const blob = await generatePdfBlob(component);
   const filename = (opts?.filename ?? "invoice").replace(/\.pdf$/i, "") + ".pdf";
   const title = opts?.title ?? "معاينة فاتورة PDF";
-  const url = URL.createObjectURL(blob);
 
-  if (showPdfPreview({ url, title, filename, blob })) return;
+  if (detectRuntime() === "capacitor") {
+    try {
+      const url = await nativePdfPreviewUrl(blob, filename);
+      if (showPdfPreview({ url, title, filename, blob, revokeOnClose: false })) {
+        return;
+      }
+    } catch {
+      // Share sheet is the reliable native fallback when preview host is missing.
+    }
+    await sharePdfNative(blob, filename, title);
+    return;
+  }
+
+  const url = URL.createObjectURL(blob);
+  if (showPdfPreview({ url, title, filename, blob, revokeOnClose: true })) return;
 
   try {
     const tab = window.open(url, "_blank", "noopener,noreferrer");
-    if (!tab) window.location.href = url;
+    if (!tab) {
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.rel = "noopener";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }
   } catch {
-    window.location.href = url;
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   }
   setTimeout(() => URL.revokeObjectURL(url), 120_000);
 }

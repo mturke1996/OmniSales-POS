@@ -8,6 +8,7 @@ import { canShareReceipt, isIosBrowser, shareTextReceipt } from "../../lib/share
 import { BottomSheet } from "../ui/BottomSheet";
 import { cn } from "../../lib/cn";
 import { formatMoney } from "../../lib/format";
+import { detectRuntime } from "../../lib/native";
 
 const REFUND_AR: Record<string, string> = {
   cash: "نقداً",
@@ -65,6 +66,7 @@ export function ReturnReceiptModal({
   useEffect(() => {
     if (!autoPrint || autoTried) return;
     setAutoTried(true);
+    if (detectRuntime() === "capacitor" && !printer.connected) return;
     void runThermal("auto");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on open when autoPrint
   }, [autoPrint, autoTried]);

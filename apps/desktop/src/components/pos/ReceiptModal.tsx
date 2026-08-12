@@ -13,6 +13,7 @@ import { BottomSheet } from "../ui/BottomSheet";
 import { cn } from "../../lib/cn";
 import { formatMoney } from "../../lib/format";
 import { canShareReceipt, isIosBrowser, shareTextReceipt } from "../../lib/share-receipt";
+import { detectRuntime } from "../../lib/native";
 
 interface ReceiptModalProps {
   order: Order;
@@ -41,12 +42,15 @@ export function ReceiptModal({
   useEffect(() => {
     if (!autoPrint || autoTried) return;
     setAutoTried(true);
+    // APK: HTML window.open replaces the WebView. Only auto-print when a
+    // live ESC/POS printer is already connected.
+    if (detectRuntime() === "capacitor" && !printer.connected) return;
     setBusy("thermal");
     void printThermalReceiptSmart(order, settings, resolvedChange, "auto")
       .then((mode) => {
         setPrintMode(mode);
         if (mode === "html" && !printer.connected && isIosBrowser()) {
-          setError("فُتحت طباعة المتصفح — Share → Print (AirPrint) على iPhone");
+          setError("فُتحت معاينة الطباعة — يمكنك الطباعة أو المشاركة ثم الإغلاق");
         }
       })
       .catch((e) =>
@@ -67,7 +71,11 @@ export function ReceiptModal({
       const mode = await printThermalReceiptSmart(order, settings, resolvedChange, force);
       setPrintMode(mode);
       if (mode === "html") {
-        setError("فُتحت طباعة المتصفح — اربط الطابعة الحرارية من الإعدادات.");
+        setError(
+          detectRuntime() === "capacitor"
+            ? "فُتحت معاينة الإيصال — اطبع أو شارك ثم اضغط إغلاق"
+            : "فُتحت طباعة المتصفح — اربط الطابعة الحرارية من الإعدادات."
+        );
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "فشلت الطباعة");
@@ -209,7 +217,7 @@ export function ReceiptModal({
 
       {printMode && (
         <p className="my-2 text-center text-[11px] font-semibold text-success">
-          {printMode === "escpos" ? "طُبعت حرارياً" : "فُتحت طباعة المتصفح"}
+          {printMode === "escpos" ? "طُبعت حرارياً" : "فُتحت معاينة الطباعة"}
         </p>
       )}
       {error && (

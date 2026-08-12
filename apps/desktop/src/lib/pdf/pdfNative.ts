@@ -17,6 +17,11 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+export async function nativePdfPreviewUrl(blob: Blob, filename: string): Promise<string> {
+  const uri = await savePdfNative(blob, filename);
+  return Capacitor.convertFileSrc(uri);
+}
+
 export async function savePdfNative(blob: Blob, filename: string): Promise<string> {
   const { Filesystem, Directory } = await import("@capacitor/filesystem");
   const safeName = filename.replace(/[^\w\u0600-\u06FF.-]+/g, "_").replace(/\.pdf$/i, "") + ".pdf";

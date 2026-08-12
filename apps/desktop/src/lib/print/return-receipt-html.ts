@@ -1,4 +1,5 @@
 import type { BranchSettings, Order, ReturnRecord } from "../types";
+import { openHtmlDocument } from "./open-print";
 
 const REFUND_AR: Record<string, string> = {
   cash: "نقداً",
@@ -78,11 +79,7 @@ export function printReturnReceiptHtml(
 </body>
 </html>`;
 
-  const win = window.open("", "_blank", "width=420,height=720");
-  if (!win) throw new Error("تعذر فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة");
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  openHtmlDocument(html, `مرتجع ${record.return_number}`);
 }
 
 function escapeHtml(s: string) {

@@ -1,5 +1,6 @@
 import type { BranchSettings, Order } from "../types";
 import { STATUS_AR } from "../pdf/pdfBrand";
+import { openHtmlDocument } from "./open-print";
 
 function escapeHtml(s: string) {
   return s
@@ -79,9 +80,5 @@ export function printKitchenTicketHtml(order: Order, settings: BranchSettings) {
 </body>
 </html>`;
 
-  const win = window.open("", "_blank", "width=420,height=720");
-  if (!win) throw new Error("تعذر فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة");
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  openHtmlDocument(html, `مطبخ ${order.order_number}`);
 }
