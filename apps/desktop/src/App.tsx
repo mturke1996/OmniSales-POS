@@ -19,6 +19,7 @@ import { can } from "./lib/permissions";
 import { initialFocusFromUrl, parseAppUrl, writeAppUrl } from "./lib/app-url";
 import { useLiveSync } from "./hooks/use-live-sync";
 import { LiveToastHost } from "./components/sync/LiveToast";
+import { computeShopHealth, type ShopAlert } from "./lib/shop-health";
 
 const SetupWizard = lazy(() =>
   import("./components/setup/SetupWizard").then((m) => ({ default: m.SetupWizard }))
@@ -104,7 +105,9 @@ export default function App() {
   const [focusSupplierId, setFocusSupplierId] = useState<string | null>(
     urlFocus.supplierId
   );
-  const [posSearchQuery, setPosSearchQuery] = useState<string | null>(null);
+  const [posSearchQuery, setPosSearchQuery] = useState<string | null>(
+    urlFocus.posQuery
+  );
   const [inventorySearchQuery, setInventorySearchQuery] = useState<string | null>(
     urlFocus.inventoryQuery
   );
@@ -136,6 +139,7 @@ export default function App() {
       purchaseId: focusPurchaseId,
       supplierId: focusSupplierId,
       inventoryQuery: inventorySearchQuery,
+      posQuery: posSearchQuery,
     });
   }, [
     tab,
@@ -146,6 +150,7 @@ export default function App() {
     focusPurchaseId,
     focusSupplierId,
     inventorySearchQuery,
+    posSearchQuery,
     session,
     data,
   ]);
@@ -260,6 +265,44 @@ export default function App() {
 
   const isPos = tab === "pos";
 
+  const health = computeShopHealth({
+    orders: data.orders,
+    returns: data.returns,
+    products: data.products,
+    customers: data.customers,
+    expenses: data.expenses,
+    purchases: data.purchases,
+    suppliers: data.suppliers,
+    openShift: shift,
+    pendingSync,
+    workMode: draft.work_mode,
+    currencySymbol: draft.currency_symbol,
+  });
+
+  const openShopAlert = (alert: ShopAlert) => {
+    if (alert.customerId) {
+      setProfileCustomerId(alert.customerId);
+      navigate("customers");
+      return;
+    }
+    if (alert.purchaseId) {
+      setFocusPurchaseId(alert.purchaseId);
+      navigate("purchases");
+      return;
+    }
+    if (alert.supplierId) {
+      setFocusSupplierId(alert.supplierId);
+      navigate("purchases");
+      return;
+    }
+    if (alert.search && alert.tab === "inventory") {
+      setInventorySearchQuery(alert.search);
+      navigate("inventory");
+      return;
+    }
+    navigate(alert.tab);
+  };
+
   const deliveryOpen = data.orders.filter(
     (o) =>
       (o.type === "delivery" || o.type === "special_event") &&
@@ -284,6 +327,8 @@ export default function App() {
       void lockSession().then(() => setSession(null));
     },
     onOpenCommand: () => setCommandOpen(true),
+    alerts: health.alerts,
+    onOpenAlert: openShopAlert,
   };
 
   return (
@@ -296,6 +341,10 @@ export default function App() {
             branchName={draft.name}
             cashierName={session.cashier_name}
             pendingSync={pendingSync}
+            topAlert={health.alerts[0] ?? null}
+            onOpenAlert={
+              health.alerts[0] ? () => openShopAlert(health.alerts[0]) : undefined
+            }
             onMenuOpen={() => setMobileMenuOpen(true)}
             onOpenCommand={() => setCommandOpen(true)}
             onOpenShortcuts={() => setShowShortcutsModal(true)}
@@ -355,6 +404,10 @@ export default function App() {
             onOpenShifts={() => navigate("shifts")}
             pendingSync={pendingSync}
             onSync={() => void handleCloudSync()}
+            onLock={() => {
+              void lockSession().then(() => setSession(null));
+            }}
+            onOpenCommand={() => setCommandOpen(true)}
           />
         </div>
       ) : (
@@ -371,6 +424,7 @@ export default function App() {
                 settings={draft}
                 openShift={shift}
                 pendingSync={pendingSync}
+                onSync={() => void handleCloudSync()}
                 onNavigate={navigate}
                 onOpenCustomer={(customerId) => {
                   setProfileCustomerId(customerId);
@@ -476,6 +530,8 @@ export default function App() {
                 onRefreshData={loadData}
                 canManage={can(session, "products.edit")}
                 actorId={session.cashier_id}
+                pendingSync={pendingSync}
+                onSync={() => void handleCloudSync()}
               />
             )}
 
@@ -490,6 +546,8 @@ export default function App() {
                   onRefreshData={loadData}
                   initialPurchaseId={focusPurchaseId}
                   initialSupplierId={focusSupplierId}
+                  pendingSync={pendingSync}
+                  onSync={() => void handleCloudSync()}
                 />
               ) : (
                 <div className="mx-auto max-w-lg px-4 py-16 text-center">

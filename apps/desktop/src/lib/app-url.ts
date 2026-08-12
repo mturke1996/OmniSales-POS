@@ -25,12 +25,14 @@ export type AppUrlState = {
   purchaseId: string | null;
   supplierId: string | null;
   inventoryQuery: string | null;
+  posQuery: string | null;
 };
 
 export function parseAppUrl(search = window.location.search): AppUrlState {
   const q = new URLSearchParams(search);
   const tabParam = q.get("tab") as SidebarTab | null;
   const tab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "dashboard";
+  const query = q.get("q");
 
   return {
     tab,
@@ -40,7 +42,8 @@ export function parseAppUrl(search = window.location.search): AppUrlState {
     returnOrderId: q.get("return"),
     purchaseId: q.get("purchase"),
     supplierId: q.get("supplier"),
-    inventoryQuery: q.get("q"),
+    inventoryQuery: tab === "inventory" ? query : null,
+    posQuery: tab === "pos" ? query : null,
   };
 }
 
@@ -54,6 +57,7 @@ export function writeAppUrl(state: AppUrlState): void {
   if (state.tab === "purchases" && state.purchaseId) q.set("purchase", state.purchaseId);
   if (state.tab === "purchases" && state.supplierId) q.set("supplier", state.supplierId);
   if (state.tab === "inventory" && state.inventoryQuery) q.set("q", state.inventoryQuery);
+  if (state.tab === "pos" && state.posQuery) q.set("q", state.posQuery);
 
   const next = q.toString();
   const path = `${window.location.pathname}${next ? `?${next}` : ""}`;
@@ -71,6 +75,7 @@ export function initialFocusFromUrl(): Pick<
   | "purchaseId"
   | "supplierId"
   | "inventoryQuery"
+  | "posQuery"
 > {
   const {
     invoiceId,
@@ -80,6 +85,7 @@ export function initialFocusFromUrl(): Pick<
     purchaseId,
     supplierId,
     inventoryQuery,
+    posQuery,
   } = parseAppUrl();
   return {
     invoiceId,
@@ -89,5 +95,6 @@ export function initialFocusFromUrl(): Pick<
     purchaseId,
     supplierId,
     inventoryQuery,
+    posQuery,
   };
 }

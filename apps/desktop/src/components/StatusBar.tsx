@@ -20,12 +20,15 @@ import { usePwaInstall } from "../hooks/use-pwa-install";
 import { APK_FILENAME, mainMenuApkDownloadUrl, shouldOfferApkDownload } from "../lib/app-download";
 import { useLiveState } from "../hooks/use-live-sync";
 import { liveStatusLabel } from "../lib/live-sync-core";
+import type { ShopAlert } from "../lib/shop-health";
 
 export function StatusBar({
   runtime,
   branchName,
   cashierName,
   pendingSync = 0,
+  topAlert,
+  onOpenAlert,
   onOpenShortcuts,
   onOpenCommand,
   onLock,
@@ -35,6 +38,8 @@ export function StatusBar({
   branchName: string;
   cashierName?: string;
   pendingSync?: number;
+  topAlert?: ShopAlert | null;
+  onOpenAlert?: () => void;
   onOpenShortcuts?: () => void;
   onOpenCommand?: () => void;
   onLock?: () => void;
@@ -102,6 +107,23 @@ export function StatusBar({
           )}
 
           <div className="flex shrink-0 items-center gap-1">
+            {topAlert && onOpenAlert && (
+              <button
+                type="button"
+                onClick={onOpenAlert}
+                className={cn(
+                  "inline-flex h-9 max-w-[9.5rem] items-center gap-1 rounded-xl border px-2 text-[11px] font-semibold",
+                  topAlert.severity === "critical"
+                    ? "border-danger/25 bg-danger/10 text-danger"
+                    : "border-warning/25 bg-warning/10 text-warning"
+                )}
+                title={topAlert.detail}
+              >
+                <WarningCircle size={14} weight="bold" />
+                <span className="hidden truncate sm:inline">{topAlert.title}</span>
+              </button>
+            )}
+
             {pendingSync > 0 && (
               <span
                 className="inline-flex h-9 items-center gap-1 rounded-xl border border-highlight/20 bg-highlight/10 px-2 text-[11px] font-semibold text-highlight"
@@ -119,8 +141,8 @@ export function StatusBar({
                   ? "border-success/20 bg-success/10 text-success"
                   : live.status === "syncing" || live.status === "connecting"
                     ? "border-highlight/20 bg-highlight/10 text-highlight"
-                    : live.status === "error"
-                      ? "border-danger/25 bg-danger/10 text-danger"
+                    : live.status === "error" || live.status === "offline"
+                      ? "border-warning/25 bg-warning/10 text-warning"
                       : isOnline
                         ? "border-success/20 bg-success/10 text-success"
                         : "border-warning/25 bg-warning/10 text-warning"
@@ -137,10 +159,10 @@ export function StatusBar({
             >
               {live.status === "live" ? (
                 <Broadcast size={15} weight="fill" className="animate-pulse" />
-              ) : isOnline ? (
-                <WifiHigh size={15} weight="bold" />
-              ) : (
+              ) : live.status === "offline" || !isOnline ? (
                 <WarningCircle size={15} weight="bold" />
+              ) : (
+                <WifiHigh size={15} weight="bold" />
               )}
               {live.status === "live" && (
                 <span className="hidden text-[10px] font-bold sm:inline">مباشر</span>

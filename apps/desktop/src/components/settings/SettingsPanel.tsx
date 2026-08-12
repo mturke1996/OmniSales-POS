@@ -38,6 +38,7 @@ import { UsersPanel } from "./UsersPanel";
 import { useLiveState } from "../../hooks/use-live-sync";
 import { listCloudDevices } from "../../lib/live-sync";
 import { liveStatusLabel } from "../../lib/live-sync-core";
+import { navTabLabel } from "../../lib/nav-config";
 import {
   getStoredBaudRate,
   setStoredBaudRate,
@@ -496,10 +497,13 @@ export function SettingsPanel({
                 {live.peers.map((p) => (
                   <li
                     key={p.deviceId}
-                    className="flex items-center justify-between rounded-xl bg-paper-raised px-3 py-2 text-[11px]"
+                    className="flex items-center justify-between gap-2 rounded-xl bg-paper-raised px-3 py-2 text-[11px]"
                   >
-                    <span className="font-bold text-ink">{p.cashierName}</span>
-                    <span className="text-success">مباشر · {p.runtime}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-bold text-ink">{p.cashierName}</span>
+                      <span className="text-ink-mute">{navTabLabel(p.tab || "")}</span>
+                    </span>
+                    <span className="shrink-0 text-success">مباشر · {p.runtime}</span>
                   </li>
                 ))}
                 {devices
@@ -508,12 +512,17 @@ export function SettingsPanel({
                   .map((d) => (
                     <li
                       key={d.id}
-                      className="flex items-center justify-between rounded-xl bg-paper-raised px-3 py-2 text-[11px]"
+                      className="flex items-center justify-between gap-2 rounded-xl bg-paper-raised px-3 py-2 text-[11px]"
                     >
-                      <span className="font-semibold text-ink">
-                        {d.cashier_name || "جهاز"}
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-ink">
+                          {d.cashier_name || "جهاز"}
+                        </span>
+                        <span className="text-ink-mute">
+                          {navTabLabel(d.current_tab || "")}
+                        </span>
                       </span>
-                      <span className="text-ink-mute">
+                      <span className="shrink-0 text-ink-mute">
                         {d.runtime} ·{" "}
                         {new Date(d.last_seen_at).toLocaleString("ar-LY")}
                       </span>

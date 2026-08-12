@@ -23,6 +23,31 @@ describe("nextNavNudge", () => {
   it("returns null when nothing needs attention", () => {
     expect(nextNavNudge(clear, "dashboard")).toBeNull();
   });
+
+  it("prefers held carts, then shop-health alerts", () => {
+    const fromAlert = nextNavNudge(clear, "dashboard", [
+      {
+        id: "out-of-stock",
+        severity: "critical",
+        title: "صنف نافد",
+        detail: "زيت",
+        tab: "inventory",
+      },
+    ]);
+    expect(fromAlert?.tab).toBe("inventory");
+    expect(fromAlert?.alert?.id).toBe("out-of-stock");
+
+    const held = nextNavNudge({ ...clear, heldCarts: 1 }, "dashboard", [
+      {
+        id: "out-of-stock",
+        severity: "critical",
+        title: "صنف نافد",
+        detail: "زيت",
+        tab: "inventory",
+      },
+    ]);
+    expect(held?.tab).toBe("pos");
+  });
 });
 
 describe("formatShiftElapsed", () => {

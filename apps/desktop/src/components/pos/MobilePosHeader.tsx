@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ArrowLeft,
   Receipt,
@@ -6,6 +7,10 @@ import {
   Camera,
   Printer,
   ShoppingCart,
+  DotsThreeOutline,
+  MagnifyingGlass,
+  Lock,
+  Keyboard,
 } from "@phosphor-icons/react";
 import { cn } from "../../lib/cn";
 
@@ -23,6 +28,9 @@ export function MobilePosHeader({
   onScan,
   onOpenCart,
   onPrinterClick,
+  onOpenCommand,
+  onLock,
+  onOpenShortcuts,
 }: {
   branchName: string;
   shiftOpen: boolean;
@@ -37,7 +45,12 @@ export function MobilePosHeader({
   onScan?: () => void;
   onOpenCart?: () => void;
   onPrinterClick?: () => void;
+  onOpenCommand?: () => void;
+  onLock?: () => void;
+  onOpenShortcuts?: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const hasMenu = Boolean(onOpenCommand || onLock || onOpenShortcuts);
   return (
     <header className="flex shrink-0 items-center gap-2 border-b border-paper-line/70 bg-paper-raised/95 px-3 py-2.5 safe-top backdrop-blur-md">
       {onExit && (
@@ -147,6 +160,70 @@ export function MobilePosHeader({
             </span>
           )}
         </button>
+        {hasMenu && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="grid h-10 w-10 place-items-center rounded-xl border border-paper-line/70 bg-paper text-ink transition active:scale-[0.97]"
+              aria-label="المزيد"
+              aria-expanded={menuOpen}
+            >
+              <DotsThreeOutline size={18} weight="fill" />
+            </button>
+            {menuOpen && (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-40"
+                  aria-label="إغلاق"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="absolute end-0 top-[calc(100%+0.35rem)] z-50 min-w-[11rem] overflow-hidden rounded-2xl border border-paper-line/70 bg-paper-raised p-1.5 shadow-lift">
+                  {onOpenCommand && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-ink hover:bg-paper"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenCommand();
+                      }}
+                    >
+                      <MagnifyingGlass size={16} />
+                      بحث سريع
+                    </button>
+                  )}
+                  {onLock && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-ink hover:bg-paper"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onLock();
+                      }}
+                    >
+                      <Lock size={16} />
+                      قفل الجلسة
+                    </button>
+                  )}
+                  {onOpenShortcuts && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold text-ink hover:bg-paper"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenShortcuts();
+                      }}
+                    >
+                      <Keyboard size={16} />
+                      اختصارات
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

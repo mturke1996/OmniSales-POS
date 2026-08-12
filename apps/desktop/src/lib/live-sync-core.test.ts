@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractRecordId,
   isOwnEcho,
+  LIVE_TABLES,
   liveEventLabel,
   liveStatusLabel,
   liveTableLabel,
@@ -14,6 +15,7 @@ describe("liveTableLabel", () => {
   it("maps POS tables to Arabic", () => {
     expect(liveTableLabel("orders")).toBe("فاتورة");
     expect(liveTableLabel("stock_movements")).toBe("حركة مخزون");
+    expect(liveTableLabel("customer_ledger")).toBe("كشف عميل");
   });
 });
 
@@ -69,5 +71,13 @@ describe("liveStatusLabel", () => {
   it("labels live", () => {
     expect(liveStatusLabel("live")).toBe("مباشر");
     expect(liveStatusLabel("disabled")).toBe("محلي");
+  });
+});
+
+describe("LIVE_TABLES", () => {
+  it("includes ledger, cash, and audit from migration 012", () => {
+    expect(LIVE_TABLES).toContain("customer_ledger");
+    expect(LIVE_TABLES).toContain("cash_movements");
+    expect(LIVE_TABLES).toContain("audit_log");
   });
 });

@@ -32,6 +32,8 @@ import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import { BarcodeScannerModal } from "../pos/BarcodeScannerModal";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
 
 type TabKey = "catalog" | "count" | "movements" | "categories";
 
@@ -44,6 +46,8 @@ interface InventoryScreenProps {
   initialSearch?: string;
   canManage?: boolean;
   actorId?: string;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }
 
 export function InventoryScreen({
@@ -55,7 +59,10 @@ export function InventoryScreen({
   initialSearch,
   canManage = true,
   actorId,
+  pendingSync = 0,
+  onSync,
 }: InventoryScreenProps) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const [tab, setTab] = useState<TabKey>("catalog");
   const [query, setQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -256,6 +263,14 @@ export function InventoryScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="المخزون والجرد"
         description="أصناف · جرد فعلي · تسوية · دفتر حركات · تصنيفات"

@@ -5,6 +5,7 @@ export const LIVE_TABLES = [
   "products",
   "returns",
   "customers",
+  "customer_ledger",
   "purchases",
   "stock_movements",
   "shifts",
@@ -14,6 +15,8 @@ export const LIVE_TABLES = [
   "promotions",
   "categories",
   "devices",
+  "cash_movements",
+  "audit_log",
 ] as const;
 
 export type LiveTable = (typeof LIVE_TABLES)[number];
@@ -32,6 +35,7 @@ const TABLE_AR: Record<string, string> = {
   promotions: "عرض",
   categories: "تصنيف",
   devices: "جهاز",
+  customer_ledger: "كشف عميل",
   cash_movements: "حركة نقدية",
   audit_log: "تدقيق",
 };

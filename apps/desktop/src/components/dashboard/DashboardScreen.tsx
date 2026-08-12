@@ -44,6 +44,8 @@ import { DataTable } from "../ui/DataTable";
 import { ChartSkeleton } from "../ui/ChartSkeleton";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useLiveState } from "../../hooks/use-live-sync";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
 
 const SalesTrendChart = lazy(() =>
   import("../charts/SalesTrendChart").then((m) => ({ default: m.SalesTrendChart }))
@@ -60,6 +62,7 @@ interface DashboardScreenProps {
   settings: BranchSettings;
   openShift: Shift | null;
   pendingSync?: number;
+  onSync?: () => void | Promise<void>;
   onNavigate: (tab: SidebarTab) => void;
   onOpenCustomer?: (customerId: string) => void;
   onOpenInvoice?: (orderId: string) => void;
@@ -81,6 +84,7 @@ export function DashboardScreen({
   settings,
   openShift,
   pendingSync = 0,
+  onSync,
   onNavigate,
   onOpenCustomer,
   onOpenInvoice,
@@ -91,6 +95,7 @@ export function DashboardScreen({
   onOpenInventory,
 }: DashboardScreenProps) {
   const live = useLiveState();
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const health = useMemo(
     () =>
       computeShopHealth({
@@ -274,17 +279,37 @@ export function DashboardScreen({
             </button>
             <button
               type="button"
-              onClick={() => onNavigate("reports")}
-              className="grid h-10 w-10 place-items-center rounded-full border border-paper-line/70 bg-paper-raised text-ink-mute transition hover:text-ink"
-              aria-label="التقارير"
+              onClick={() => {
+                const el = document.getElementById("shop-alerts");
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  return;
+                }
+                onNavigate("reports");
+              }}
+              className="relative grid h-10 w-10 place-items-center rounded-full border border-paper-line/70 bg-paper-raised text-ink-mute transition hover:text-ink"
+              aria-label={health.alerts.length ? "التنبيهات" : "التقارير"}
             >
               <Bell size={18} />
+              {health.alerts.length > 0 && (
+                <span className="absolute -end-0.5 -top-0.5 min-w-[1rem] rounded-full bg-danger px-1 text-center text-[8px] font-bold leading-4 text-white">
+                  {health.alerts.length > 9 ? "9+" : health.alerts.length}
+                </span>
+              )}
             </button>
           </>
         }
       />
 
       <PageContent size="wide" className="space-y-5">
+        <PosSyncBar
+          online={online}
+          pendingSync={pendingSync}
+          cloudEnabled={settings.cloud_sync_enabled}
+          syncing={syncing}
+          onSync={onSync ? handleSyncNow : undefined}
+          compact
+        />
         {live.status === "live" && (
           <div className="flex items-center justify-between gap-2 rounded-2xl border border-success/20 bg-success/8 px-3 py-2 text-xs">
             <span className="inline-flex items-center gap-1.5 font-bold text-success">
@@ -299,7 +324,7 @@ export function DashboardScreen({
           </div>
         )}
         {health.alerts.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div id="shop-alerts" className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
             {health.alerts.map((alert) => (
               <button
                 key={alert.id}

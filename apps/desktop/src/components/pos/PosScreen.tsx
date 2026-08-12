@@ -4,6 +4,8 @@ import {
   ArrowLeft,
   Keyboard,
   Printer,
+  MagnifyingGlass,
+  Lock,
 } from "@phosphor-icons/react";
 import { checkout, addHeldCart, removeHeldCart, addCustomer } from "../../lib/api";
 import { applyBestPromotion, calcTotals } from "../../lib/offline-store";
@@ -78,6 +80,8 @@ export function PosScreen({
   onOpenShifts,
   pendingSync = 0,
   onSync,
+  onLock,
+  onOpenCommand,
 }: {
   settings: BranchSettings;
   products: Product[];
@@ -97,6 +101,8 @@ export function PosScreen({
   onOpenShifts?: () => void;
   pendingSync?: number;
   onSync?: () => void | Promise<void>;
+  onLock?: () => void;
+  onOpenCommand?: () => void;
 }) {
   const {
     lines,
@@ -669,6 +675,9 @@ export function PosScreen({
               onOpenHeld={() => setShowHoldModal(true)}
               onScan={() => setShowScanner(true)}
               onPrinterClick={() => setShowPrinterSheet(true)}
+              onOpenCommand={onOpenCommand}
+              onLock={onLock}
+              onOpenShortcuts={() => setShowShortcutsModal(true)}
             />
             <PosSyncBar
               online={online}
@@ -677,6 +686,7 @@ export function PosScreen({
               syncing={syncing}
               onSync={onSync ? handleSyncNow : undefined}
               compact
+              alwaysShowLive
             />
             <PosLiveStats
               orders={orders}
@@ -715,6 +725,9 @@ export function PosScreen({
             onScan={() => setShowScanner(true)}
             onOpenCart={mobileTab === "products" ? () => setMobileTab("cart") : undefined}
             onPrinterClick={() => setShowPrinterSheet(true)}
+            onOpenCommand={onOpenCommand}
+            onLock={onLock}
+            onOpenShortcuts={() => setShowShortcutsModal(true)}
           />
           <PosSyncBar
             online={online}
@@ -722,6 +735,7 @@ export function PosScreen({
             cloudEnabled={settings.cloud_sync_enabled}
             syncing={syncing}
             onSync={onSync ? handleSyncNow : undefined}
+            alwaysShowLive
           />
           {mobileTab === "products" && (
             <PosLiveStats
@@ -776,6 +790,7 @@ export function PosScreen({
         syncing={syncing}
         onSync={onSync ? handleSyncNow : undefined}
         compact
+        alwaysShowLive
       />
       <header className="pos-toolbar-strip">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -828,6 +843,28 @@ export function PosScreen({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {onOpenCommand && (
+            <button
+              type="button"
+              onClick={onOpenCommand}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-paper-line/60 bg-paper px-3 text-sm font-semibold text-ink transition hover:border-highlight/30"
+              title="بحث سريع"
+            >
+              <MagnifyingGlass size={16} />
+              <span className="hidden sm:inline">بحث</span>
+            </button>
+          )}
+          {onLock && (
+            <button
+              type="button"
+              onClick={onLock}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-paper-line/60 bg-paper px-3 text-sm font-semibold text-ink transition hover:border-highlight/30"
+              title="قفل الجلسة"
+            >
+              <Lock size={16} />
+              <span className="hidden sm:inline">قفل</span>
+            </button>
+          )}
           {onOpenCompletedSales && (
             <button
               type="button"

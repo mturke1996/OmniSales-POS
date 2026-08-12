@@ -20,6 +20,8 @@ import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import { cn } from "../../lib/cn";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
 
 const PAY_AR: Record<string, string> = {
   unpaid: "غير مدفوع",
@@ -36,6 +38,8 @@ export function PurchasesScreen({
   onRefreshData,
   initialPurchaseId,
   initialSupplierId,
+  pendingSync = 0,
+  onSync,
 }: {
   suppliers: Supplier[];
   purchases: Purchase[];
@@ -45,7 +49,10 @@ export function PurchasesScreen({
   onRefreshData: () => void;
   initialPurchaseId?: string | null;
   initialSupplierId?: string | null;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const [tab, setTab] = useState<"purchases" | "suppliers" | "payables">(
     initialSupplierId ? "suppliers" : "purchases"
   );
@@ -237,6 +244,14 @@ export function PurchasesScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title="المشتريات والموردون"
         description="استلام بضاعة يحدّث المخزون والتكلفة وذمم الموردين"

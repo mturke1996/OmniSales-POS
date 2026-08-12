@@ -10,6 +10,7 @@ export function PosSyncBar({
   syncing,
   onSync,
   compact = false,
+  alwaysShowLive = false,
   className,
 }: {
   online: boolean;
@@ -18,6 +19,7 @@ export function PosSyncBar({
   syncing?: boolean;
   onSync?: () => void;
   compact?: boolean;
+  alwaysShowLive?: boolean;
   className?: string;
 }) {
   const live = useLiveState();
@@ -25,7 +27,9 @@ export function PosSyncBar({
   const showLiveWork =
     Boolean(cloudEnabled) &&
     (live.status === "syncing" || live.status === "error" || live.status === "connecting");
-  if (online && !showPending && !showLiveWork) return null;
+  const showLiveIdle =
+    alwaysShowLive && Boolean(cloudEnabled) && live.status === "live" && !showPending;
+  if (online && !showPending && !showLiveWork && !showLiveIdle) return null;
 
   const busy = syncing || live.status === "syncing";
 
@@ -38,7 +42,9 @@ export function PosSyncBar({
           ? "border-warning/20 bg-warning/8 text-warning"
           : live.status === "error"
             ? "border-danger/20 bg-danger/8 text-danger"
-            : "border-highlight/15 bg-highlight/6 text-highlight",
+            : showLiveIdle
+              ? "border-success/20 bg-success/8 text-success"
+              : "border-highlight/15 bg-highlight/6 text-highlight",
         className
       )}
     >
@@ -58,7 +64,11 @@ export function PosSyncBar({
             ? `${pendingSync} عملية بانتظار الرفع للسحابة`
             : live.status === "error"
               ? live.lastError || "تعذر البث الفوري"
-              : liveStatusLabel(live.status)}
+              : showLiveIdle
+                ? live.peers.length
+                  ? `مباشر · ${live.peers.length} جهاز آخر`
+                  : "مباشر — التحديثات تصل فوراً"
+                : liveStatusLabel(live.status)}
       </span>
 
       {online && cloudEnabled && onSync && (showPending || live.status === "error") && (

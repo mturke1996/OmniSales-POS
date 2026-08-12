@@ -32,6 +32,12 @@ describe("parseAppUrl", () => {
     const inv = parseAppUrl("?tab=inventory&q=زيت");
     expect(inv.tab).toBe("inventory");
     expect(inv.inventoryQuery).toBe("زيت");
+    expect(inv.posQuery).toBeNull();
+
+    const pos = parseAppUrl("?tab=pos&q=خبز");
+    expect(pos.tab).toBe("pos");
+    expect(pos.posQuery).toBe("خبز");
+    expect(pos.inventoryQuery).toBeNull();
   });
 
   it("ignores invalid tab", () => {

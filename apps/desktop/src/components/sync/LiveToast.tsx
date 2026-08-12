@@ -21,7 +21,7 @@ export function LiveToastHost() {
   if (!show || !latest) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--topbar-inner,3.5rem)+0.75rem)] z-[70] flex justify-center px-3 safe-top">
+    <div className="pointer-events-none fixed inset-x-0 top-[max(0.5rem,calc(env(safe-area-inset-top)+0.4rem))] z-[70] flex justify-center px-3">
       <div className="pointer-events-auto flex max-w-md items-start gap-2 rounded-2xl border border-highlight/25 bg-paper-raised px-3 py-2.5 shadow-lift">
         <Broadcast size={16} className="mt-0.5 shrink-0 text-highlight" weight="fill" />
         <div className="min-w-0 flex-1">

@@ -1,4 +1,5 @@
 import type { SidebarTab } from "../components/Sidebar";
+import type { ShopAlert } from "./shop-health";
 
 export type NavSignals = {
   heldCarts: number;
@@ -12,23 +13,37 @@ export type NavNudge = {
   tab: SidebarTab;
   title: string;
   hint: string;
+  alert?: ShopAlert;
 };
 
 /** Highest-priority next action that is not the current screen. */
-export function nextNavNudge(signals: NavSignals, current: SidebarTab): NavNudge | null {
+export function nextNavNudge(
+  signals: NavSignals,
+  current: SidebarTab,
+  alerts: ShopAlert[] = [],
+): NavNudge | null {
+  if (signals.heldCarts > 0 && current !== "pos") {
+    return {
+      tab: "pos",
+      title: "سلال معلّقة",
+      hint: `${signals.heldCarts} سلة بانتظار الإكمال`,
+    };
+  }
+  const alert = alerts.find((item) => item.tab !== current);
+  if (alert) {
+    return {
+      tab: alert.tab,
+      title: alert.title,
+      hint: alert.detail,
+      alert,
+    };
+  }
   const queue: NavNudge[] = [];
   if (!signals.shiftOpen) {
     queue.push({
       tab: "shifts",
       title: "افتح وردية",
       hint: "البيع يحتاج وردية مفتوحة",
-    });
-  }
-  if (signals.heldCarts > 0) {
-    queue.push({
-      tab: "pos",
-      title: "سلال معلّقة",
-      hint: `${signals.heldCarts} سلة بانتظار الإكمال`,
     });
   }
   if (signals.deliveryOpen > 0) {

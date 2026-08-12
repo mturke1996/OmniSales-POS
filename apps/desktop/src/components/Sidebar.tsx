@@ -39,6 +39,7 @@ import {
   togglePinnedTab,
 } from "../lib/nav-pins";
 import { formatShiftElapsed, nextNavNudge } from "../lib/nav-nudge";
+import type { ShopAlert } from "../lib/shop-health";
 
 export type SidebarTab =
   | "dashboard"
@@ -61,6 +62,7 @@ export interface SidebarBadges {
   lowStock: number;
   pendingSync: number;
   shiftOpen: boolean;
+  criticalCount: number;
 }
 
 interface SidebarProps {
@@ -77,9 +79,12 @@ interface SidebarProps {
   onClose?: () => void;
   onLock?: () => void;
   onOpenCommand?: () => void;
+  alerts?: ShopAlert[];
+  onOpenAlert?: (alert: ShopAlert) => void;
 }
 
 function badgeFor(id: SidebarTab, b: SidebarBadges): string | number | undefined {
+  if (id === "dashboard" && b.criticalCount > 0) return b.criticalCount;
   if (id === "pos" && b.heldCarts > 0) return b.heldCarts;
   if (id === "shifts" && b.shiftOpen) return "●";
   if (id === "orders" && b.deliveryOpen > 0) return b.deliveryOpen;
@@ -102,6 +107,8 @@ export function Sidebar({
   onClose,
   onLock,
   onOpenCommand,
+  alerts = [],
+  onOpenAlert,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [filter, setFilter] = useState("");
@@ -119,6 +126,7 @@ export function Sidebar({
     lowStock: lowStockCount,
     pendingSync,
     shiftOpen: openShift?.status === "open",
+    criticalCount: alerts.filter((a) => a.severity === "critical").length,
   };
 
   useEffect(() => {
@@ -173,7 +181,7 @@ export function Sidebar({
     ),
   })).filter((g) => g.items.length > 0);
 
-  const nudge = !q && !slim ? nextNavNudge(badges, currentTab) : null;
+  const nudge = !q && !slim ? nextNavNudge(badges, currentTab, alerts) : null;
   const elapsed =
     openShift?.status === "open" ? formatShiftElapsed(openShift.opened_at, now) : "";
 
@@ -293,7 +301,15 @@ export function Sidebar({
         <div className="shrink-0 px-3 pb-1">
           <button
             type="button"
-            onClick={() => go(nudge.tab)}
+            onClick={() => {
+              if (nudge.alert && onOpenAlert) {
+                tapHaptic(8);
+                onOpenAlert(nudge.alert);
+                onClose?.();
+                return;
+              }
+              go(nudge.tab);
+            }}
             className="sidebar-nudge flex w-full items-center gap-2.5 rounded-2xl px-3 py-2.5 text-start transition active:scale-[0.98]"
           >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-highlight/25 text-white">

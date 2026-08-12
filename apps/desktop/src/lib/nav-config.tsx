@@ -41,3 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export const NAV_GROUPS = [...new Set(NAV_ITEMS.map((i) => i.group))];
+
+export function navTabLabel(id: string): string {
+  return NAV_ITEMS.find((item) => item.id === id)?.label ?? "شاشة";
+}
