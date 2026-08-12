@@ -260,6 +260,13 @@ export default function App() {
 
   const isPos = tab === "pos";
 
+  const deliveryOpen = data.orders.filter(
+    (o) => o.status === "open" && (o.kind === "delivery" || o.kind === "special_event"),
+  ).length;
+  const lowStockCount = data.products.filter(
+    (p) => p.active && p.track_stock && p.qty <= p.min_stock,
+  ).length;
+
   const sidebarProps = {
     currentTab: tab,
     onTabChange: navigate,
@@ -268,6 +275,12 @@ export default function App() {
     heldCartsCount: data.held_carts.length,
     session,
     pendingSync,
+    deliveryOpen,
+    lowStockCount,
+    onLock: () => {
+      void lockSession().then(() => setSession(null));
+    },
+    onOpenCommand: () => setCommandOpen(true),
   };
 
   return (
@@ -299,6 +312,8 @@ export default function App() {
               currentTab={tab}
               onNavigate={navigate}
               onOpenMenu={() => setMobileMenuOpen(true)}
+              deliveryOpen={deliveryOpen}
+              heldCartsCount={data.held_carts.length}
             />
             <MobileNavDrawer
               open={mobileMenuOpen}

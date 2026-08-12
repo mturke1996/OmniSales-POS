@@ -26,15 +26,19 @@ export function Sheet({
           <Drawer.Content
             aria-label={title}
             className={cn(
-              "mobile-drawer-panel fixed inset-y-0 z-[61] flex w-[min(21.5rem,94vw)] flex-col outline-none",
+              "mobile-drawer-panel fixed inset-y-0 z-[61] flex w-[min(22rem,92vw)] flex-col overflow-hidden outline-none",
               "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
-              isStart ? "end-0" : "start-0"
+              isStart ? "end-0 rounded-s-3xl" : "start-0 rounded-e-3xl"
             )}
           >
             <Drawer.Title className="sr-only">{title}</Drawer.Title>
-            <div className="flex shrink-0 justify-center py-2.5">
-              <div className="h-1 w-10 rounded-full bg-white/20" aria-hidden />
-            </div>
+            <div
+              className={cn(
+                "absolute top-1/2 h-14 w-1.5 -translate-y-1/2 rounded-full bg-white/25",
+                isStart ? "start-1.5" : "end-1.5"
+              )}
+              aria-hidden
+            />
             {children}
           </Drawer.Content>
         </Drawer.Portal>
