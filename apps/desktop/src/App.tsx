@@ -261,10 +261,13 @@ export default function App() {
   const isPos = tab === "pos";
 
   const deliveryOpen = data.orders.filter(
-    (o) => o.status === "open" && (o.kind === "delivery" || o.kind === "special_event"),
+    (o) =>
+      (o.type === "delivery" || o.type === "special_event") &&
+      o.status !== "completed" &&
+      o.status !== "cancelled",
   ).length;
   const lowStockCount = data.products.filter(
-    (p) => p.active && p.track_stock && p.qty <= p.min_stock,
+    (p) => p.is_active && p.track_stock && p.stock_quantity <= p.min_stock,
   ).length;
 
   const sidebarProps = {

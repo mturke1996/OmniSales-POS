@@ -10,8 +10,23 @@ import {
   togglePinnedTab,
 } from "./nav-pins";
 
+const memory = new Map<string, string>();
+
 beforeEach(() => {
-  localStorage.clear();
+  memory.clear();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (k: string) => memory.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        memory.set(k, v);
+      },
+      removeItem: (k: string) => {
+        memory.delete(k);
+      },
+      clear: () => memory.clear(),
+    },
+  });
 });
 
 describe("nav pins", () => {
