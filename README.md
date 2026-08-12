@@ -69,10 +69,11 @@ pnpm android:apk
 ```bash
 cp .env.example .env.local
 # املأ URL + Anon Key لمشروع OmniSales مخصص
-# طبّق الهجرات supabase/migrations بالترتيب 001→011
+# طبّق الهجرات supabase/migrations بالترتيب 001→012
 # (009 يغلق الكتابة بمفتاح anon — استخدم حساب authenticated للمزامنة)
 # (010 يضيف stock_movements + categories + stock_version)
 # (011 يضيف ذمم الموردين + supplier_payments + paid_amount على المشتريات)
+# (012 يفعّل البث الفوري Realtime + جدول الأجهزة devices)
 ```
 
 ## الهيكل

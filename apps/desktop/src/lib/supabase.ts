@@ -37,6 +37,15 @@ export function getSupabaseClient(
   const fp = fingerprint(envUrl, key);
   if (supabaseClient && clientFingerprint === fp) return supabaseClient;
 
+  if (supabaseClient && clientFingerprint !== fp) {
+    try {
+      void supabaseClient.removeAllChannels();
+    } catch {
+      // ignore
+    }
+    supabaseClient = null;
+  }
+
   if (envUrl && key) {
     try {
       supabaseClient = createClient(envUrl, key, {
@@ -44,6 +53,9 @@ export function getSupabaseClient(
           persistSession: true,
           autoRefreshToken: true,
           storageKey: "omni.supabase.auth",
+        },
+        realtime: {
+          params: { eventsPerSecond: 8 },
         },
       });
       clientFingerprint = fp;
@@ -84,7 +96,7 @@ export async function testSupabaseConnection(
       return {
         ok: false,
         message:
-          "الاتصال يعمل لكن جدول settings غير موجود. أنشئ مشروع OmniSales جديد وطبق الهجرات 001→008",
+          "الاتصال يعمل لكن جدول settings غير موجود. أنشئ مشروع OmniSales جديد وطبق الهجرات 001→012",
       };
     }
     return { ok: false, message: `فشل الاختبار: ${msg}` };

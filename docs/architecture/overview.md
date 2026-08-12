@@ -23,7 +23,7 @@
 - Migration `010` adds `stock_movements`, `categories`, `products.stock_version`.
 - Expenses can deduct from open cash drawer; Z-report printable on shift close.
 - Empty-shop bootstrap (optional demo seed from Settings).
-- Inventory UI: physical count, adjust, movement history, categories.
+- Migration `012` enables Supabase Realtime on POS tables and adds `devices` presence.
 
 ## Settings-driven POS
 

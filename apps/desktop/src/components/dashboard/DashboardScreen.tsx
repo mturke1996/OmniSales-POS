@@ -17,6 +17,7 @@ import {
   Receipt,
   ClockAfternoon,
   CloudArrowUp,
+  Broadcast,
 } from "@phosphor-icons/react";
 import type {
   BranchSettings,
@@ -42,6 +43,7 @@ import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
 import { ChartSkeleton } from "../ui/ChartSkeleton";
 import type { ColumnDef } from "@tanstack/react-table";
+import { useLiveState } from "../../hooks/use-live-sync";
 
 const SalesTrendChart = lazy(() =>
   import("../charts/SalesTrendChart").then((m) => ({ default: m.SalesTrendChart }))
@@ -88,6 +90,7 @@ export function DashboardScreen({
   onOpenSupplier,
   onOpenInventory,
 }: DashboardScreenProps) {
+  const live = useLiveState();
   const health = useMemo(
     () =>
       computeShopHealth({
@@ -282,6 +285,19 @@ export function DashboardScreen({
       />
 
       <PageContent size="wide" className="space-y-5">
+        {live.status === "live" && (
+          <div className="flex items-center justify-between gap-2 rounded-2xl border border-success/20 bg-success/8 px-3 py-2 text-xs">
+            <span className="inline-flex items-center gap-1.5 font-bold text-success">
+              <Broadcast size={14} weight="fill" className="animate-pulse" />
+              متصل بالقاعدة مباشرة
+            </span>
+            <span className="text-ink-mute">
+              {live.peers.length
+                ? `${live.peers.length} جهاز آخر: ${live.peers.map((p) => p.cashierName).join("، ")}`
+                : "هذا الجهاز وحده على الفرع"}
+            </span>
+          </div>
+        )}
         {health.alerts.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
             {health.alerts.map((alert) => (

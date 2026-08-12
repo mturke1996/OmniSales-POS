@@ -17,6 +17,8 @@ import { CommandPalette } from "./components/layout/CommandPalette";
 import { ScreenLoader } from "./components/ui/ScreenLoader";
 import { can } from "./lib/permissions";
 import { initialFocusFromUrl, parseAppUrl, writeAppUrl } from "./lib/app-url";
+import { useLiveSync } from "./hooks/use-live-sync";
+import { LiveToastHost } from "./components/sync/LiveToast";
 
 const SetupWizard = lazy(() =>
   import("./components/setup/SetupWizard").then((m) => ({ default: m.SetupWizard }))
@@ -164,9 +166,6 @@ export default function App() {
         setShift(b.open_shift);
         applyTheme(theme_key);
         refreshPending();
-        if (settings.cloud_sync_enabled) {
-          void syncCloud(settings).then(refreshPending);
-        }
       })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : "تعذر تحميل منظومة OmniSales");
@@ -182,6 +181,20 @@ export default function App() {
     });
   }, [draft, refreshPending, loadData]);
 
+  useLiveSync(
+    session && draft?.cloud_sync_enabled
+      ? {
+          settings: draft,
+          session,
+          tab,
+          onRemoteChange: () => {
+            refreshPending();
+            return loadData();
+          },
+        }
+      : null
+  );
+
   useEffect(() => {
     if (session) void loadData();
   }, [session, loadData]);
@@ -193,6 +206,7 @@ export default function App() {
         <PwaInstallBanner />
         <PdfPreviewHost />
         <PwaUpdateToast />
+        <LiveToastHost />
       </>
     );
   }
@@ -634,6 +648,7 @@ export default function App() {
       <PwaInstallBanner />
       <PdfPreviewHost />
       <PwaUpdateToast />
+      <LiveToastHost />
       <CommandPalette
         open={commandOpen}
         onOpenChange={setCommandOpen}

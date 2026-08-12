@@ -11,12 +11,15 @@ import {
   DotsThreeOutline,
   DownloadSimple,
   DeviceMobile,
+  Broadcast,
 } from "@phosphor-icons/react";
 import { useOnline } from "../hooks/use-online";
 import { cn } from "../lib/cn";
 import { PwaInstallButton } from "./pwa/PwaInstallBanner";
 import { usePwaInstall } from "../hooks/use-pwa-install";
 import { APK_FILENAME, mainMenuApkDownloadUrl, shouldOfferApkDownload } from "../lib/app-download";
+import { useLiveState } from "../hooks/use-live-sync";
+import { liveStatusLabel } from "../lib/live-sync-core";
 
 export function StatusBar({
   runtime,
@@ -41,6 +44,7 @@ export function StatusBar({
   const [menuOpen, setMenuOpen] = useState(false);
   const pwa = usePwaInstall();
   const showApk = shouldOfferApkDownload(runtime);
+  const live = useLiveState();
 
   return (
     <header className="mobile-top-bar sticky top-0 z-30 shrink-0 safe-top">
@@ -111,16 +115,35 @@ export function StatusBar({
             <div
               className={cn(
                 "inline-flex h-9 items-center justify-center gap-1 rounded-xl border px-2",
-                isOnline
+                live.status === "live"
                   ? "border-success/20 bg-success/10 text-success"
-                  : "border-warning/25 bg-warning/10 text-warning"
+                  : live.status === "syncing" || live.status === "connecting"
+                    ? "border-highlight/20 bg-highlight/10 text-highlight"
+                    : live.status === "error"
+                      ? "border-danger/25 bg-danger/10 text-danger"
+                      : isOnline
+                        ? "border-success/20 bg-success/10 text-success"
+                        : "border-warning/25 bg-warning/10 text-warning"
               )}
-              title={isOnline ? "متصل" : "دون اتصال"}
+              title={
+                live.status === "disabled"
+                  ? isOnline
+                    ? "متصل محلياً"
+                    : "دون اتصال"
+                  : `${liveStatusLabel(live.status)}${
+                      live.peers.length ? ` · ${live.peers.length} جهاز آخر` : ""
+                    }`
+              }
             >
-              {isOnline ? (
+              {live.status === "live" ? (
+                <Broadcast size={15} weight="fill" className="animate-pulse" />
+              ) : isOnline ? (
                 <WifiHigh size={15} weight="bold" />
               ) : (
                 <WarningCircle size={15} weight="bold" />
+              )}
+              {live.status === "live" && (
+                <span className="hidden text-[10px] font-bold sm:inline">مباشر</span>
               )}
             </div>
 

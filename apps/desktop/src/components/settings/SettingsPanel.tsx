@@ -11,6 +11,7 @@ import {
   DownloadSimple,
   UploadSimple,
   DeviceMobile,
+  Broadcast,
 } from "@phosphor-icons/react";
 import { PwaInstallButton } from "../pwa/PwaInstallBanner";
 import { usePwaInstall } from "../../hooks/use-pwa-install";
@@ -34,6 +35,9 @@ import {
 import { cn } from "../../lib/cn";
 import type { BranchSettings, PosLayout, WorkMode } from "../../lib/types";
 import { UsersPanel } from "./UsersPanel";
+import { useLiveState } from "../../hooks/use-live-sync";
+import { listCloudDevices } from "../../lib/live-sync";
+import { liveStatusLabel } from "../../lib/live-sync-core";
 import {
   getStoredBaudRate,
   setStoredBaudRate,
@@ -77,6 +81,17 @@ export function SettingsPanel({
   const [printerBaud, setPrinterBaud] = useState(getStoredBaudRate);
   const [printerMsg, setPrinterMsg] = useState<string | null>(null);
   const printer = usePrinter();
+  const live = useLiveState();
+  const [devices, setDevices] = useState<
+    Array<{
+      id: string;
+      cashier_name: string | null;
+      runtime: string;
+      current_tab: string | null;
+      status: string;
+      last_seen_at: string;
+    }>
+  >([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const pwa = usePwaInstall();
   const runtime = detectRuntime();
@@ -84,6 +99,21 @@ export function SettingsPanel({
   useEffect(() => {
     void getCloudSession().then((s) => setCloudUser(s?.user.email ?? null));
   }, [settings.supabase_url, settings.supabase_anon_key]);
+
+  useEffect(() => {
+    if (!settings.cloud_sync_enabled || !settings.supabase_url) {
+      setDevices([]);
+      return;
+    }
+    void listCloudDevices(settings).then(setDevices);
+  }, [
+    settings.cloud_sync_enabled,
+    settings.supabase_url,
+    settings.supabase_anon_key,
+    settings.branch_id,
+    live.lastSyncAt,
+    live.status,
+  ]);
 
   useEffect(() => {
     if (printer.lastError) setPrinterMsg(printer.lastError);
@@ -337,9 +367,9 @@ export function SettingsPanel({
 
         <p className="text-[11px] leading-relaxed text-ink-mute">
           أنشئ مشروعاً <strong>جديداً</strong> في Supabase خاص بـ OmniSales، ثم نفّذ
-          ملفات الهجرات بالترتيب <code className="font-mono">001→008</code> من مجلد
+          ملفات الهجرات بالترتيب <code className="font-mono">001→012</code> من مجلد
           <code className="font-mono"> supabase/migrations</code>. لا تستخدم مشروع تطبيق آخر.
-          المزامنة ترفع التغييرات المحلية ثم تسحب بيانات الأجهزة الأخرى.
+          بعد تسجيل الدخول السحابي يعمل البث الفوري تلقائياً: رفع محلي فوري + سحب عند تغيّر القاعدة.
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -433,6 +463,66 @@ export function SettingsPanel({
           </div>
           {cloudMsg && <span className="w-full text-xs font-bold text-ink">{cloudMsg}</span>}
         </div>
+
+        {settings.cloud_sync_enabled && (
+          <div className="space-y-3 rounded-2xl border border-paper-line bg-paper/50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-1.5 text-xs font-bold text-ink">
+                <Broadcast
+                  size={14}
+                  weight="fill"
+                  className={live.status === "live" ? "text-success" : "text-ink-mute"}
+                />
+                البث الفوري: {liveStatusLabel(live.status)}
+              </p>
+              {live.lastSyncAt && (
+                <span className="text-[10px] text-ink-mute">
+                  آخر مزامنة{" "}
+                  {new Date(live.lastSyncAt).toLocaleTimeString("ar-LY", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </div>
+            {live.lastError && (
+              <p className="text-[11px] font-semibold text-danger">{live.lastError}</p>
+            )}
+            <p className="text-[11px] text-ink-mute">
+              الأجهزة المتصلة الآن: {live.peers.length} · المسجّلة في القاعدة: {devices.length}
+            </p>
+            {(live.peers.length > 0 || devices.length > 0) && (
+              <ul className="space-y-1.5">
+                {live.peers.map((p) => (
+                  <li
+                    key={p.deviceId}
+                    className="flex items-center justify-between rounded-xl bg-paper-raised px-3 py-2 text-[11px]"
+                  >
+                    <span className="font-bold text-ink">{p.cashierName}</span>
+                    <span className="text-success">مباشر · {p.runtime}</span>
+                  </li>
+                ))}
+                {devices
+                  .filter((d) => !live.peers.some((p) => p.deviceId === d.id))
+                  .slice(0, 8)
+                  .map((d) => (
+                    <li
+                      key={d.id}
+                      className="flex items-center justify-between rounded-xl bg-paper-raised px-3 py-2 text-[11px]"
+                    >
+                      <span className="font-semibold text-ink">
+                        {d.cashier_name || "جهاز"}
+                      </span>
+                      <span className="text-ink-mute">
+                        {d.runtime} ·{" "}
+                        {new Date(d.last_seen_at).toLocaleString("ar-LY")}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Store Profile Settings */}

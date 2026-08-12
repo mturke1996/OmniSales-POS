@@ -35,6 +35,7 @@ import {
   countDelta,
   mergeProductInventory,
 } from "./stock-ledger";
+import { notifyOutboxQueued } from "./sync-bus";
 
 const KEYS = {
   settings: "omni.settings",
@@ -1347,6 +1348,7 @@ async function enqueue(action: string, payload: unknown) {
     payload,
   });
   await set(KEYS.outbox, outbox);
+  notifyOutboxQueued();
 }
 
 export async function addSupplierPwa(

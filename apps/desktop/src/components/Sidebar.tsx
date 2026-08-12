@@ -20,6 +20,7 @@ import {
   DeviceMobile,
   DownloadSimple,
   CloudArrowUp,
+  Broadcast,
 } from "@phosphor-icons/react";
 import type { BranchSettings, Shift } from "../lib/types";
 import type { CashierSession } from "../lib/session";
@@ -30,6 +31,8 @@ import {
   shouldOfferApkDownload,
 } from "../lib/app-download";
 import { detectRuntime } from "../lib/native";
+import { useLiveState } from "../hooks/use-live-sync";
+import { liveStatusLabel } from "../lib/live-sync-core";
 
 export type SidebarTab =
   | "dashboard"
@@ -130,6 +133,7 @@ export function Sidebar({
   const [filter, setFilter] = useState("");
   const isDrawer = Boolean(onClose);
   const slim = !isDrawer && collapsed;
+  const live = useLiveState();
 
   const go = (tab: SidebarTab) => {
     onTabChange(tab);
@@ -265,7 +269,11 @@ export function Sidebar({
           <div className="sidebar-status-card">
             <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-sidebar-text">
-                <CloudArrowUp size={13} weight="duotone" />
+                {live.status === "live" ? (
+                  <Broadcast size={13} weight="fill" />
+                ) : (
+                  <CloudArrowUp size={13} weight="duotone" />
+                )}
                 المزامنة
               </span>
               {pendingSync > 0 ? (
@@ -273,17 +281,28 @@ export function Sidebar({
                   {pendingSync}
                 </span>
               ) : (
-                <span className="text-[9px] font-semibold text-success">
-                  {settings.cloud_sync_enabled ? "جاهز" : "محلي"}
+                <span
+                  className={cn(
+                    "text-[9px] font-semibold",
+                    live.status === "live" ? "text-success" : "text-sidebar-mute"
+                  )}
+                >
+                  {settings.cloud_sync_enabled
+                    ? liveStatusLabel(live.status)
+                    : "محلي"}
                 </span>
               )}
             </div>
             <p className="mt-1 text-[10px] leading-relaxed text-sidebar-mute">
               {pendingSync > 0
                 ? "عمليات بانتظار الرفع للسحابة"
-                : settings.cloud_sync_enabled
-                  ? "البيانات متزامنة"
-                  : "العمل دون اتصال محفوظ محلياً"}
+                : live.status === "live"
+                  ? live.peers.length
+                    ? `${live.peers.length} جهاز آخر متصل الآن`
+                    : "بث فوري مع القاعدة — لا أجهزة أخرى"
+                  : settings.cloud_sync_enabled
+                    ? "البيانات جاهزة للمزامنة"
+                    : "العمل دون اتصال محفوظ محلياً"}
             </p>
           </div>
         )}

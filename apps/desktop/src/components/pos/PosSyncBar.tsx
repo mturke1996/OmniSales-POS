@@ -1,5 +1,7 @@
-import { CloudArrowUp, WifiHigh, WifiSlash } from "@phosphor-icons/react";
+import { CloudArrowUp, WifiHigh, WifiSlash, Broadcast } from "@phosphor-icons/react";
 import { cn } from "../../lib/cn";
+import { useLiveState } from "../../hooks/use-live-sync";
+import { liveStatusLabel } from "../../lib/live-sync-core";
 
 export function PosSyncBar({
   online,
@@ -18,45 +20,55 @@ export function PosSyncBar({
   compact?: boolean;
   className?: string;
 }) {
+  const live = useLiveState();
   const showPending = pendingSync > 0;
-  if (online && !showPending) return null;
+  const showLiveWork =
+    Boolean(cloudEnabled) &&
+    (live.status === "syncing" || live.status === "error" || live.status === "connecting");
+  if (online && !showPending && !showLiveWork) return null;
+
+  const busy = syncing || live.status === "syncing";
 
   return (
     <div
       className={cn(
         "flex shrink-0 items-center justify-between gap-2 border-b font-semibold backdrop-blur-sm",
         compact ? "px-2 py-1 text-[10px]" : "px-3 py-2 text-xs",
-        online
-          ? "border-highlight/15 bg-highlight/6 text-highlight"
-          : "border-warning/20 bg-warning/8 text-warning",
+        !online
+          ? "border-warning/20 bg-warning/8 text-warning"
+          : live.status === "error"
+            ? "border-danger/20 bg-danger/8 text-danger"
+            : "border-highlight/15 bg-highlight/6 text-highlight",
         className
       )}
     >
       <span className="inline-flex items-center gap-1.5">
-        {online ? (
-          showPending ? (
-            <CloudArrowUp size={14} weight="duotone" />
-          ) : (
-            <WifiHigh size={14} weight="duotone" />
-          )
-        ) : (
+        {!online ? (
           <WifiSlash size={14} weight="duotone" />
+        ) : showPending ? (
+          <CloudArrowUp size={14} weight="duotone" />
+        ) : live.status === "live" || live.status === "syncing" ? (
+          <Broadcast size={14} weight="fill" />
+        ) : (
+          <WifiHigh size={14} weight="duotone" />
         )}
         {!online
           ? "دون اتصال — البيع والتخزين محلي يعملان"
           : showPending
             ? `${pendingSync} عملية بانتظار الرفع للسحابة`
-            : "متصل"}
+            : live.status === "error"
+              ? live.lastError || "تعذر البث الفوري"
+              : liveStatusLabel(live.status)}
       </span>
 
-      {online && showPending && cloudEnabled && onSync && (
+      {online && cloudEnabled && onSync && (showPending || live.status === "error") && (
         <button
           type="button"
           onClick={onSync}
-          disabled={syncing}
+          disabled={busy}
           className="rounded-full bg-highlight px-3 py-1 text-[10px] font-bold text-white transition active:scale-[0.97] disabled:opacity-50"
         >
-          {syncing ? "جاري…" : "مزامنة الآن"}
+          {busy ? "جاري…" : "مزامنة الآن"}
         </button>
       )}
 

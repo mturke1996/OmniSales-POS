@@ -1,8 +1,9 @@
 import { get, set } from "idb-keyval";
-import { getSupabaseClient, resetSupabaseClient } from "./supabase";
+import { getSupabaseClient } from "./supabase";
 import { applyCloudPull } from "./offline-store";
 import type { BranchSettings } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { payloadId } from "./live-sync-core";
 
 export interface OutboxEntry {
   id: string;
@@ -18,9 +19,19 @@ export interface SyncResult {
   remaining: number;
   pulled: number;
   error?: string;
+  flushedIds?: string[];
 }
 
 const OUTBOX_KEY = "omni.outbox";
+const LAST_SYNC_KEY = "omni.last_sync_at";
+
+export async function readLastSyncAt(): Promise<string | null> {
+  return (await get<string>(LAST_SYNC_KEY)) ?? null;
+}
+
+async function writeLastSyncAt() {
+  await set(LAST_SYNC_KEY, new Date().toISOString());
+}
 
 export async function readOutbox(): Promise<OutboxEntry[]> {
   return ((await get<OutboxEntry[]>(OUTBOX_KEY)) ?? []) as OutboxEntry[];
@@ -32,52 +43,96 @@ export async function pendingOutboxCount(): Promise<number> {
 
 /**
  * Full cloud sync: push local outbox, then pull remote snapshot and merge.
+ * Reuses the shared Supabase client so Realtime websockets stay alive.
  */
 export async function syncCloudFull(settings: BranchSettings): Promise<SyncResult> {
-  if (!settings.cloud_sync_enabled) {
+  const ready = await prepareClient(settings);
+  if ("errorResult" in ready) return ready.errorResult;
+
+  const push = await flushOutboxWithClient(ready.client);
+  let pulled = 0;
+  let pullError: string | undefined;
+  try {
+    pulled = await pullAndMerge(ready.client, settings);
+    await writeLastSyncAt();
+  } catch (err) {
+    pullError = err instanceof Error ? err.message : String(err);
+  }
+
+  return {
+    flushed: push.flushed,
+    remaining: push.remaining,
+    pulled,
+    error: push.error || pullError,
+    flushedIds: push.flushedIds,
+  };
+}
+
+/** Push local outbox only — used after a local write while Realtime is live. */
+export async function pushOutboxOnly(settings: BranchSettings): Promise<SyncResult> {
+  const ready = await prepareClient(settings);
+  if ("errorResult" in ready) return ready.errorResult;
+  const push = await flushOutboxWithClient(ready.client);
+  if (!push.error && push.flushed > 0) await writeLastSyncAt();
+  return {
+    flushed: push.flushed,
+    remaining: push.remaining,
+    pulled: 0,
+    error: push.error,
+    flushedIds: push.flushedIds,
+  };
+}
+
+/** Pull remote snapshot only — used when another device changes data. */
+export async function pullCloudOnly(settings: BranchSettings): Promise<SyncResult> {
+  const ready = await prepareClient(settings);
+  if ("errorResult" in ready) return ready.errorResult;
+  try {
+    const pulled = await pullAndMerge(ready.client, settings);
+    await writeLastSyncAt();
+    return { flushed: 0, remaining: await pendingOutboxCount(), pulled };
+  } catch (err) {
     return {
       flushed: 0,
       remaining: await pendingOutboxCount(),
       pulled: 0,
-      error: "المزامنة السحابية غير مفعّلة",
+      error: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+async function prepareClient(
+  settings: BranchSettings
+): Promise<{ client: SupabaseClient } | { errorResult: SyncResult }> {
+  const fail = async (error: string): Promise<{ errorResult: SyncResult }> => ({
+    errorResult: {
+      flushed: 0,
+      remaining: await pendingOutboxCount(),
+      pulled: 0,
+      error,
+    },
+  });
+
+  if (!settings.cloud_sync_enabled) {
+    return fail("المزامنة السحابية غير مفعّلة");
   }
 
   const url = settings.supabase_url?.trim();
   const key = settings.supabase_anon_key?.trim();
   if (!url || !key) {
-    return {
-      flushed: 0,
-      remaining: await pendingOutboxCount(),
-      pulled: 0,
-      error: "أدخل رابط Supabase ومفتاح anon من الإعدادات",
-    };
+    return fail("أدخل رابط Supabase ومفتاح anon من الإعدادات");
   }
 
-  resetSupabaseClient();
   const client = getSupabaseClient(url, key);
-  if (!client) {
-    return {
-      flushed: 0,
-      remaining: await pendingOutboxCount(),
-      pulled: 0,
-      error: "عميل Supabase غير مهيأ",
-    };
-  }
+  if (!client) return fail("عميل Supabase غير مهيأ");
 
-  // After migration 009, anon can no longer read/write — require signed-in user
   const session = await client.auth.getSession();
   if (!session.data.session) {
-    return {
-      flushed: 0,
-      remaining: await pendingOutboxCount(),
-      pulled: 0,
-      error:
-        "المزامنة تتطلب تسجيل دخول سحابي (بريد/كلمة مرور) من الإعدادات — مفتاح anon لم يعد يكتب في القاعدة",
-    };
+    return fail(
+      "المزامنة تتطلب تسجيل دخول سحابي (بريد/كلمة مرور) من الإعدادات — مفتاح anon لم يعد يكتب في القاعدة"
+    );
   }
 
-  // Verify OmniSales schema exists (not a foreign project)
   const probe = await client.from("settings").select("branch_id").limit(1);
   if (probe.error) {
     const msg = probe.error.message || "";
@@ -91,33 +146,16 @@ export async function syncCloudFull(settings: BranchSettings): Promise<SyncResul
       msg.toLowerCase().includes("permission") ||
       msg.toLowerCase().includes("rls") ||
       msg.toLowerCase().includes("row-level");
-    return {
-      flushed: 0,
-      remaining: await pendingOutboxCount(),
-      pulled: 0,
-      error: missing
-        ? "هذا المشروع ليس مخطط OmniSales — أنشئ مشروعاً جديداً وطبق الهجرات 001→009"
+    return fail(
+      missing
+        ? "هذا المشروع ليس مخطط OmniSales — أنشئ مشروعاً جديداً وطبق الهجرات 001→012"
         : denied
           ? "رفض الصلاحيات — سجّل دخول مستخدم authenticated وطبق الهجرة 009"
-          : `فشل الاتصال: ${msg}`,
-    };
+          : `فشل الاتصال: ${msg}`
+    );
   }
 
-  const push = await flushOutboxWithClient(client);
-  let pulled = 0;
-  let pullError: string | undefined;
-  try {
-    pulled = await pullAndMerge(client, settings);
-  } catch (err) {
-    pullError = err instanceof Error ? err.message : String(err);
-  }
-
-  return {
-    flushed: push.flushed,
-    remaining: push.remaining,
-    pulled,
-    error: push.error || pullError,
-  };
+  return { client };
 }
 
 /** @deprecated prefer syncCloudFull — kept for call sites */
@@ -134,11 +172,13 @@ async function flushOutboxWithClient(client: SupabaseClient): Promise<{
   flushed: number;
   remaining: number;
   error?: string;
+  flushedIds: string[];
 }> {
   const outbox = await readOutbox();
-  if (!outbox.length) return { flushed: 0, remaining: 0 };
+  if (!outbox.length) return { flushed: 0, remaining: 0, flushedIds: [] };
 
   const kept: OutboxEntry[] = [];
+  const flushedIds: string[] = [];
   let flushed = 0;
   let lastError: string | undefined;
 
@@ -146,6 +186,8 @@ async function flushOutboxWithClient(client: SupabaseClient): Promise<{
     try {
       await pushEntry(client, entry);
       flushed += 1;
+      const id = payloadId(entry.payload);
+      if (id) flushedIds.push(id);
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
       const attempts = (entry.attempts ?? 0) + 1;
@@ -163,7 +205,7 @@ async function flushOutboxWithClient(client: SupabaseClient): Promise<{
   }
 
   await set(OUTBOX_KEY, kept);
-  return { flushed, remaining: kept.length, error: lastError };
+  return { flushed, remaining: kept.length, error: lastError, flushedIds };
 }
 
 async function pushEntry(client: SupabaseClient, entry: OutboxEntry) {
