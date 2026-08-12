@@ -147,4 +147,17 @@ describe("searchCommandResults", () => {
     expect(flat.some((r) => r.kind === "invoice")).toBe(true);
     expect(flat.some((r) => r.kind === "customer")).toBe(true);
   });
+
+  it("surfaces lock, sync, and held-cart actions", () => {
+    const groups = searchCommandResults("قفل", NAV_ITEMS, orders, customers, products, returns);
+    expect(groups.actions.some((a) => a.action === "lock")).toBe(true);
+  });
+
+  it("lists register actions before navigation when the query is empty", () => {
+    const groups = searchCommandResults("", NAV_ITEMS, orders, customers, products, returns, [], [], 2, 4);
+    expect(groups.actions.map((a) => a.action)).toEqual(["lock", "sync", "held"]);
+    expect(groups.actions.find((a) => a.action === "held")?.subtitle).toContain("2");
+    const flat = flattenCommandResults(groups);
+    expect(flat[0]?.kind).toBe("action");
+  });
 });

@@ -47,6 +47,7 @@ describe("nextNavNudge", () => {
       },
     ]);
     expect(held?.tab).toBe("pos");
+    expect(held?.alert?.id).toBe("held-carts");
   });
 });
 

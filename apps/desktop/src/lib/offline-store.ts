@@ -38,6 +38,7 @@ import {
 import { notifyOutboxQueued } from "./sync-bus";
 import { getDeviceId } from "./device-id";
 import type { CashierSession } from "./session";
+import { mergeOpenShift, mapRemoteShift } from "./shift-merge";
 
 const KEYS = {
   settings: "omni.settings",
@@ -45,6 +46,7 @@ const KEYS = {
   categories: "omni.categories",
   stock_movements: "omni.stock_movements",
   shift: "omni.open_shift",
+  shift_conflict: "omni.shift_conflict",
   shift_history: "omni.shift_history",
   customers: "omni.customers",
   ledger: "omni.customer_ledger",
@@ -392,6 +394,7 @@ export async function loadPwaBootstrap() {
   const purchases = (await get<Purchase[]>(KEYS.purchases)) ?? [];
   const promotions = (await get<Promotion[]>(KEYS.promotions)) ?? [];
   const audit_log = (await get<AuditEntry[]>(KEYS.audit)) ?? [];
+  const extra_open_shifts = Number((await get<number>(KEYS.shift_conflict)) ?? 0) || 0;
 
   return {
     settings,
@@ -415,6 +418,7 @@ export async function loadPwaBootstrap() {
     purchases,
     promotions,
     audit_log,
+    extra_open_shifts,
     online: navigator.onLine,
     runtime: "pwa" as const,
   };
@@ -2146,27 +2150,14 @@ export async function applyCloudPull(input: {
   touched += remoteAudit.length;
 
   const localOpen = await get<Shift | null>(KEYS.shift);
-  if (!localOpen && input.open_shifts[0]) {
-    const s = input.open_shifts[0];
-    const shift: Shift = {
-      id: String(s.id),
-      branch_id: String(s.branch_id || "branch-1"),
-      cashier_id: String(s.cashier_id || ""),
-      opened_at: String(s.opened_at || new Date().toISOString()),
-      closed_at: (s.closed_at as string) || null,
-      opening_float: moneyField(s.opening_float),
-      cash_sales: moneyField(s.cash_sales),
-      card_sales: moneyField(s.card_sales),
-      debt_sales: moneyField(s.debt_sales),
-      cash_returns: moneyField(s.cash_returns),
-      expected_cash: moneyField(s.expected_cash),
-      closing_count:
-        s.closing_count != null ? moneyField(s.closing_count) : null,
-      variance: s.variance != null ? moneyField(s.variance) : null,
-      status: (s.status as Shift["status"]) || "open",
-    };
-    await set(KEYS.shift, shift);
+  const remoteOpens = input.open_shifts.map(mapRemoteShift);
+  const mergedShift = mergeOpenShift(localOpen, remoteOpens);
+  await set(KEYS.shift_conflict, mergedShift.extraRemote);
+  if (mergedShift.shift) {
+    await set(KEYS.shift, mergedShift.shift);
     touched += 1;
+  } else if (localOpen) {
+    await set(KEYS.shift, null);
   }
 
   if (input.held_carts) {

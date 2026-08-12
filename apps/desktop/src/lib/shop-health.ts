@@ -50,6 +50,7 @@ export interface ShopHealthInput {
   purchases?: Purchase[];
   suppliers?: Supplier[];
   heldCarts?: { id: string; items: { name: string }[] }[];
+  extraOpenShifts?: number;
   openShift?: Shift | null;
   pendingSync?: number;
   workMode?: WorkMode;
@@ -85,6 +86,16 @@ export function buildShopAlerts(input: ShopHealthInput): ShopAlert[] {
       severity: "warning",
       title: "لا توجد وردية مفتوحة",
       detail: "افتح وردية قبل البيع الفوري حتى تُسجَّل النقدية بشكل صحيح",
+      tab: "shifts",
+    });
+  }
+
+  if ((input.extraOpenShifts ?? 0) > 0) {
+    alerts.push({
+      id: "shift-conflict",
+      severity: "warning",
+      title: "وردية إضافية على جهاز آخر",
+      detail: `${input.extraOpenShifts} وردية مفتوحة في السحابة غير وردية هذا الصندوق — راجع شاشة الورديات`,
       tab: "shifts",
     });
   }

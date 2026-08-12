@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { idleLockDue, idleLockRemainingMs } from "./idle-lock";
+import { hiddenTabLockDelayMs, idleLockDue, idleLockRemainingMs } from "./idle-lock";
 
 describe("idleLockDue", () => {
   it("does not lock when minutes is 0", () => {
@@ -18,5 +18,13 @@ describe("idleLockRemainingMs", () => {
     const start = 1_000;
     expect(idleLockRemainingMs(start, 1, start + 40_000)).toBe(20_000);
     expect(idleLockRemainingMs(start, 1, start + 80_000)).toBe(0);
+  });
+});
+
+describe("hiddenTabLockDelayMs", () => {
+  it("caps a long idle window at two minutes", () => {
+    expect(hiddenTabLockDelayMs(0)).toBe(0);
+    expect(hiddenTabLockDelayMs(1)).toBe(60_000);
+    expect(hiddenTabLockDelayMs(15)).toBe(120_000);
   });
 });

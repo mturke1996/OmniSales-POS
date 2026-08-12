@@ -9,11 +9,15 @@ import {
   Truck,
   ArrowUUpLeft,
   Handshake,
+  Lock,
+  CloudArrowUp,
+  Clock,
 } from "@phosphor-icons/react";
 import { NAV_ITEMS } from "../../lib/nav-config";
 import {
   flattenCommandResults,
   searchCommandResults,
+  type CommandActionId,
   type CommandResult,
 } from "../../lib/command-search";
 import type { Customer, Order, Product, Purchase, ReturnRecord, Supplier } from "../../lib/types";
@@ -21,6 +25,7 @@ import type { SidebarTab } from "../Sidebar";
 import { cn } from "../../lib/cn";
 
 const GROUP_LABELS: Record<string, string> = {
+  actions: "إجراءات",
   navigation: "التنقل",
   invoices: "فواتير",
   deliveries: "توصيل",
@@ -49,6 +54,9 @@ export function CommandPalette({
   onOpenInventoryProduct,
   onOpenPurchase,
   onOpenSupplier,
+  onAction,
+  heldCount = 0,
+  pendingSync = 0,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -67,6 +75,9 @@ export function CommandPalette({
   onOpenInventoryProduct?: (searchText: string) => void;
   onOpenPurchase?: (purchaseId: string) => void;
   onOpenSupplier?: (supplierId: string) => void;
+  onAction?: (action: CommandActionId) => void;
+  heldCount?: number;
+  pendingSync?: number;
 }) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -104,9 +115,11 @@ export function CommandPalette({
         products,
         returns,
         purchases,
-        suppliers
+        suppliers,
+        heldCount,
+        pendingSync
       ),
-    [query, orders, customers, products, returns, purchases, suppliers]
+    [query, orders, customers, products, returns, purchases, suppliers, heldCount, pendingSync]
   );
 
   const flat = useMemo(() => flattenCommandResults(groups), [groups]);
@@ -114,6 +127,7 @@ export function CommandPalette({
   const sectionEntries = useMemo(() => {
     const entries: { key: string; label: string; items: CommandResult[] }[] = [];
     const keys = [
+      "actions",
       "navigation",
       "invoices",
       "deliveries",
@@ -162,6 +176,9 @@ export function CommandPalette({
         case "supplier":
           onOpenSupplier?.(item.supplierId);
           break;
+        case "action":
+          onAction?.(item.action);
+          break;
       }
       onOpenChange(false);
     },
@@ -174,6 +191,7 @@ export function CommandPalette({
       onOpenProduct,
       onOpenPurchase,
       onOpenSupplier,
+      onAction,
       onOpenChange,
     ]
   );
@@ -306,7 +324,13 @@ function ResultIcon({ item }: { item: CommandResult }) {
     return <span className="shrink-0 text-highlight">{item.icon}</span>;
   }
   const icon =
-    item.kind === "invoice" ? (
+    item.kind === "action" && item.action === "lock" ? (
+      <Lock size={18} weight="duotone" />
+    ) : item.kind === "action" && item.action === "sync" ? (
+      <CloudArrowUp size={18} weight="duotone" />
+    ) : item.kind === "action" && item.action === "held" ? (
+      <Clock size={18} weight="duotone" />
+    ) : item.kind === "invoice" ? (
       <FileText size={18} weight="duotone" />
     ) : item.kind === "delivery" ? (
       <Truck size={18} weight="duotone" />

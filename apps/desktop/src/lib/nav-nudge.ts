@@ -27,6 +27,13 @@ export function nextNavNudge(
       tab: "pos",
       title: "سلال معلّقة",
       hint: `${signals.heldCarts} سلة بانتظار الإكمال`,
+      alert: {
+        id: "held-carts",
+        severity: "info",
+        title: "سلال معلّقة",
+        detail: `${signals.heldCarts} سلة بانتظار الإكمال`,
+        tab: "pos",
+      },
     };
   }
   const alert = alerts.find((item) => item.tab !== current);

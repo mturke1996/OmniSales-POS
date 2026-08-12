@@ -25,6 +25,8 @@ import { cn } from "../../lib/cn";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
+import { PosSyncBar } from "../pos/PosSyncBar";
+import { usePageSync } from "../../hooks/use-page-sync";
 import type { ColumnDef } from "@tanstack/react-table";
 import type {
   BranchSettings,
@@ -46,6 +48,8 @@ interface CustomerProfileScreenProps {
   onRefreshData: () => void;
   onOpenInvoice?: (orderId: string) => void;
   onStartReturn?: (orderId: string) => void;
+  pendingSync?: number;
+  onSync?: () => void | Promise<void>;
 }
 
 export function CustomerProfileScreen({
@@ -58,7 +62,10 @@ export function CustomerProfileScreen({
   onRefreshData,
   onOpenInvoice,
   onStartReturn,
+  pendingSync = 0,
+  onSync,
 }: CustomerProfileScreenProps) {
+  const { online, syncing, handleSyncNow } = usePageSync(onSync);
   const [tab, setTab] = useState<ProfileTab>("overview");
   const [showPay, setShowPay] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -281,6 +288,14 @@ export function CustomerProfileScreen({
 
   return (
     <>
+      <PosSyncBar
+        online={online}
+        pendingSync={pendingSync}
+        cloudEnabled={settings.cloud_sync_enabled}
+        syncing={syncing}
+        onSync={onSync ? handleSyncNow : undefined}
+        compact
+      />
       <PageHeader
         title={customer.name}
         description={customer.phone}

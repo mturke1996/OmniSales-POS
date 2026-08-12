@@ -361,6 +361,7 @@ export interface Bootstrap {
   purchases: Purchase[];
   promotions: Promotion[];
   audit_log: AuditEntry[];
+  extra_open_shifts?: number;
   online: boolean;
   runtime: "tauri" | "capacitor" | "pwa";
 }

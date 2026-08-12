@@ -20,7 +20,7 @@ import { initialFocusFromUrl, parseAppUrl, writeAppUrl } from "./lib/app-url";
 import { useLiveSync } from "./hooks/use-live-sync";
 import { LiveToastHost } from "./components/sync/LiveToast";
 import { computeShopHealth, type ShopAlert } from "./lib/shop-health";
-import { idleLockDue } from "./lib/idle-lock";
+import { hiddenTabLockDelayMs, idleLockDue } from "./lib/idle-lock";
 
 const SetupWizard = lazy(() =>
   import("./components/setup/SetupWizard").then((m) => ({ default: m.SetupWizard }))
@@ -109,6 +109,7 @@ export default function App() {
   const [posSearchQuery, setPosSearchQuery] = useState<string | null>(
     urlFocus.posQuery
   );
+  const [posOpenHeld, setPosOpenHeld] = useState(false);
   const [inventorySearchQuery, setInventorySearchQuery] = useState<string | null>(
     urlFocus.inventoryQuery
   );
@@ -121,7 +122,10 @@ export default function App() {
     if (next !== "customers") setProfileCustomerId(null);
     if (next !== "invoices") setFocusInvoiceId(null);
     if (next !== "orders") setFocusOrderId(null);
-    if (next !== "pos") setPosSearchQuery(null);
+    if (next !== "pos") {
+      setPosSearchQuery(null);
+      setPosOpenHeld(false);
+    }
     if (next !== "inventory") setInventorySearchQuery(null);
     if (next !== "purchases") {
       setFocusPurchaseId(null);
@@ -210,19 +214,33 @@ export default function App() {
     const minutes = draft?.auto_lock_minutes ?? 5;
     if (!minutes) return;
     let last = Date.now();
+    let hiddenTimer: number | undefined;
     const bump = () => {
       last = Date.now();
+    };
+    const lockNow = () => {
+      void lockSession().then(() => setSession(null));
     };
     const events: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "touchstart"];
     for (const event of events) window.addEventListener(event, bump, { passive: true });
     const id = window.setInterval(() => {
-      if (idleLockDue(last, minutes)) {
-        void lockSession().then(() => setSession(null));
-      }
+      if (idleLockDue(last, minutes)) lockNow();
     }, 4000);
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenTimer = window.setTimeout(lockNow, hiddenTabLockDelayMs(minutes));
+        return;
+      }
+      if (hiddenTimer) window.clearTimeout(hiddenTimer);
+      hiddenTimer = undefined;
+      bump();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       for (const event of events) window.removeEventListener(event, bump);
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (hiddenTimer) window.clearTimeout(hiddenTimer);
     };
   }, [session, draft?.auto_lock_minutes]);
 
@@ -300,6 +318,7 @@ export default function App() {
     workMode: draft.work_mode,
     currencySymbol: draft.currency_symbol,
     heldCarts: data.held_carts,
+    extraOpenShifts: data.extra_open_shifts,
   });
 
   const openShopAlert = (alert: ShopAlert) => {
@@ -321,6 +340,11 @@ export default function App() {
     if (alert.search && alert.tab === "inventory") {
       setInventorySearchQuery(alert.search);
       navigate("inventory");
+      return;
+    }
+    if (alert.id === "held-carts") {
+      setPosOpenHeld(true);
+      navigate("pos");
       return;
     }
     navigate(alert.tab);
@@ -431,6 +455,8 @@ export default function App() {
               void lockSession().then(() => setSession(null));
             }}
             onOpenCommand={() => setCommandOpen(true)}
+            initialOpenHeld={posOpenHeld}
+            onHeldOpened={() => setPosOpenHeld(false)}
           />
         </div>
       ) : (
@@ -607,6 +633,8 @@ export default function App() {
                     setReturnOrderId(orderId);
                     navigate("returns");
                   }}
+                  pendingSync={pendingSync}
+                  onSync={() => void handleCloudSync()}
                 />
               ) : (
                 <CustomersScreen
@@ -796,6 +824,16 @@ export default function App() {
         onOpenSupplier={(supplierId) => {
           setFocusSupplierId(supplierId);
           navigate("purchases");
+        }}
+        heldCount={data.held_carts.length}
+        pendingSync={pendingSync}
+        onAction={(action) => {
+          if (action === "lock") void lockSession().then(() => setSession(null));
+          if (action === "sync") void handleCloudSync();
+          if (action === "held") {
+            setPosOpenHeld(true);
+            navigate("pos");
+          }
         }}
       />
     </AppShell>

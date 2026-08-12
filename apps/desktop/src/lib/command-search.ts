@@ -74,6 +74,16 @@ export type CommandSupplierResult = {
   subtitle: string;
 };
 
+export type CommandActionId = "lock" | "sync" | "held";
+
+export type CommandActionResult = {
+  kind: "action";
+  id: string;
+  action: CommandActionId;
+  title: string;
+  subtitle: string;
+};
+
 export type CommandResult =
   | CommandNavResult
   | CommandInvoiceResult
@@ -82,9 +92,11 @@ export type CommandResult =
   | CommandCustomerResult
   | CommandProductResult
   | CommandPurchaseResult
-  | CommandSupplierResult;
+  | CommandSupplierResult
+  | CommandActionResult;
 
 export type CommandSearchGroups = {
+  actions: CommandActionResult[];
   navigation: CommandNavResult[];
   invoices: CommandInvoiceResult[];
   deliveries: CommandDeliveryResult[];
@@ -280,6 +292,49 @@ function matchSuppliers(suppliers: Supplier[], q: string): CommandSupplierResult
   return hits;
 }
 
+function matchActions(
+  q: string,
+  heldCount: number,
+  pendingSync: number
+): CommandActionResult[] {
+  const all: Array<Omit<CommandActionResult, "kind" | "id"> & { keys: string }> = [
+    {
+      action: "lock",
+      title: "قفل الجلسة",
+      subtitle: "قفل الصندوق فوراً",
+      keys: "قفل lock pin جلسة",
+    },
+    {
+      action: "sync",
+      title: "مزامنة الآن",
+      subtitle: pendingSync > 0 ? `${pendingSync} عملية بانتظار الرفع` : "رفع وسحب من السحابة",
+      keys: "مزامنة sync سحابة رفع",
+    },
+    {
+      action: "held",
+      title: "السلال المعلّقة",
+      subtitle: heldCount > 0 ? `${heldCount} سلة معلّقة` : "لا توجد سلال معلّقة",
+      keys: "معلق hold سلة فواتير معلّقة",
+    },
+  ];
+  const needle = q.trim().toLowerCase();
+  const hits = needle
+    ? all.filter(
+        (a) =>
+          a.title.toLowerCase().includes(needle) ||
+          a.keys.toLowerCase().includes(needle) ||
+          a.subtitle.toLowerCase().includes(needle)
+      )
+    : all;
+  return hits.map((a) => ({
+    kind: "action" as const,
+    id: `act-${a.action}`,
+    action: a.action,
+    title: a.title,
+    subtitle: a.subtitle,
+  }));
+}
+
 export function searchCommandResults(
   query: string,
   navItems: NavItem[],
@@ -288,11 +343,14 @@ export function searchCommandResults(
   products: Product[],
   returns: ReturnRecord[] = [],
   purchases: Purchase[] = [],
-  suppliers: Supplier[] = []
+  suppliers: Supplier[] = [],
+  heldCount = 0,
+  pendingSync = 0
 ): CommandSearchGroups {
   const q = query.trim();
   const showData = q.length >= 1;
   return {
+    actions: matchActions(query, heldCount, pendingSync),
     navigation: matchNav(navItems, query),
     invoices: showData ? matchInvoices(orders, query) : [],
     deliveries: showData ? matchDeliveries(orders, query) : [],
@@ -306,6 +364,7 @@ export function searchCommandResults(
 
 export function flattenCommandResults(groups: CommandSearchGroups): CommandResult[] {
   return [
+    ...groups.actions,
     ...groups.navigation,
     ...groups.invoices,
     ...groups.deliveries,

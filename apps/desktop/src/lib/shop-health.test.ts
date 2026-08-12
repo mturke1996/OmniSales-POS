@@ -89,6 +89,19 @@ describe("buildShopAlerts", () => {
     expect(alerts.find((a) => a.id === "out-of-stock")?.tab).toBe("inventory");
     expect(alerts.find((a) => a.id === "credit-risk")?.customerId).toBe("c1");
   });
+
+  it("flags a foreign open shift from the cloud", () => {
+    const alerts = buildShopAlerts({
+      orders: [],
+      returns: [],
+      products: [],
+      customers: [],
+      expenses: [],
+      extraOpenShifts: 1,
+      workMode: "open_sales",
+    });
+    expect(alerts.some((a) => a.id === "shift-conflict")).toBe(true);
+  });
 });
 
 describe("buildActivityFeed", () => {

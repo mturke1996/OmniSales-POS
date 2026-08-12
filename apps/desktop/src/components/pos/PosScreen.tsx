@@ -59,7 +59,8 @@ import {
 } from "../../lib/pos-product-memory";
 import { topSellerProductIds } from "../../lib/pos-top-sellers";
 import { syncAutoPinnedTopSellers } from "../../lib/pos-auto-pin";
-import { printThermalReceiptBrowser } from "../../lib/invoice";
+import { printThermalReceipt, printThermalReceiptBrowser } from "../../lib/invoice";
+import { pullCloudOnly } from "../../lib/sync-outbox";
 
 export function PosScreen({
   settings,
@@ -82,6 +83,8 @@ export function PosScreen({
   onSync,
   onLock,
   onOpenCommand,
+  initialOpenHeld = false,
+  onHeldOpened,
 }: {
   settings: BranchSettings;
   products: Product[];
@@ -103,6 +106,8 @@ export function PosScreen({
   onSync?: () => void | Promise<void>;
   onLock?: () => void;
   onOpenCommand?: () => void;
+  initialOpenHeld?: boolean;
+  onHeldOpened?: () => void;
 }) {
   const {
     lines,
@@ -221,6 +226,12 @@ export function PosScreen({
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   const [lastChangeDue, setLastChangeDue] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (!initialOpenHeld) return;
+    setShowHoldModal(true);
+    onHeldOpened?.();
+  }, [initialOpenHeld, onHeldOpened]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const printer = usePrinter();
@@ -357,6 +368,15 @@ export function PosScreen({
       } else if (e.key === "F9") {
         e.preventDefault();
         if (lines.length > 0 && !needsShift && !busy) void handleCheckout();
+      } else if (e.key === "F10") {
+        e.preventDefault();
+        if (completedOrder) return;
+        const last = lastOrderRef.current;
+        if (!last) {
+          setMessage("لا توجد فاتورة أخيرة للطباعة");
+          return;
+        }
+        void printThermalReceipt(last, settings, lastChangeRef.current);
       } else if (e.key === "Escape" && onExit) {
         e.preventDefault();
         onExit();
@@ -369,7 +389,7 @@ export function PosScreen({
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lines, needsShift, busy, onExit]);
+  }, [lines, needsShift, busy, onExit, completedOrder, settings]);
 
   async function handleHoldCart() {
     if (!lines.length) return;
@@ -429,7 +449,16 @@ export function PosScreen({
     setBusy(true);
     setMessage(null);
     try {
-      if (stockIssues.length) {
+      let cloudFresh = false;
+      if (settings.cloud_sync_enabled) {
+        try {
+          const pulled = await pullCloudOnly(settings);
+          cloudFresh = !pulled.error;
+        } catch {
+          // offline — checkout still uses local stock gate
+        }
+      }
+      if (stockIssues.length && !cloudFresh) {
         throw new Error(
           `مخزون غير كافٍ — ${stockIssues
             .map((i) => `«${i.name}» (${i.available})`)
@@ -506,6 +535,7 @@ export function PosScreen({
       onRefreshData();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "فشل إتمام عملية البيع");
+      if (settings.cloud_sync_enabled) onRefreshData();
     } finally {
       setBusy(false);
     }
@@ -619,6 +649,17 @@ export function PosScreen({
           >
             فتح الوردية
           </button>
+        </div>
+      )}
+
+      {stockIssues.length > 0 && lines.length > 0 && (
+        <div className="mb-2 shrink-0 rounded-2xl border border-danger/25 bg-danger/10 px-3 py-2.5">
+          <p className="text-xs font-bold text-danger">تعارض مخزون — راجع السلة قبل الدفع</p>
+          <p className="mt-1 text-[11px] text-ink-mute">
+            {stockIssues
+              .map((i) => `«${i.name}»: المطلوب ${i.requested} · المتاح ${i.available}`)
+              .join(" · ")}
+          </p>
         </div>
       )}
 
