@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Package, Plus, Truck, Wallet } from "@phosphor-icons/react";
 import {
   addSupplier,
@@ -34,6 +34,8 @@ export function PurchasesScreen({
   products,
   settings,
   onRefreshData,
+  initialPurchaseId,
+  initialSupplierId,
 }: {
   suppliers: Supplier[];
   purchases: Purchase[];
@@ -41,13 +43,33 @@ export function PurchasesScreen({
   products: Product[];
   settings: BranchSettings;
   onRefreshData: () => void;
+  initialPurchaseId?: string | null;
+  initialSupplierId?: string | null;
 }) {
   const [tab, setTab] = useState<"purchases" | "suppliers" | "payables">(
-    "purchases"
+    initialSupplierId ? "suppliers" : "purchases"
   );
   const [showSupplier, setShowSupplier] = useState(false);
   const [showPurchase, setShowPurchase] = useState(false);
   const [payTarget, setPayTarget] = useState<Supplier | null>(null);
+
+  useEffect(() => {
+    if (initialSupplierId) setTab("suppliers");
+    else if (initialPurchaseId) setTab("purchases");
+  }, [initialPurchaseId, initialSupplierId]);
+
+  useEffect(() => {
+    const id = initialPurchaseId
+      ? `purchase-${initialPurchaseId}`
+      : initialSupplierId
+        ? `supplier-${initialSupplierId}`
+        : null;
+    if (!id) return;
+    const t = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [initialPurchaseId, initialSupplierId, tab]);
 
   const sorted = useMemo(
     () =>
@@ -279,7 +301,13 @@ export function PurchasesScreen({
             {suppliers.map((s) => (
               <div
                 key={s.id}
-                className="rounded-2xl border border-paper-line bg-paper-raised p-4"
+                id={`supplier-${s.id}`}
+                className={cn(
+                  "rounded-2xl border bg-paper-raised p-4",
+                  initialSupplierId === s.id
+                    ? "border-highlight ring-1 ring-highlight/30"
+                    : "border-paper-line"
+                )}
               >
                 <div className="flex items-center gap-2 font-bold text-ink">
                   <Truck size={18} className="text-highlight" />
@@ -314,6 +342,9 @@ export function PurchasesScreen({
               data={suppliers}
               columns={supplierColumns}
               emptyMessage="لا يوجد موردون بعد"
+              getRowClassName={(s) =>
+                initialSupplierId === s.id ? "bg-highlight/10" : undefined
+              }
             />
           </div>
         </>
@@ -406,7 +437,13 @@ export function PurchasesScreen({
             return (
               <div
                 key={p.id}
-                className="rounded-2xl border border-paper-line bg-paper-raised p-4"
+                id={`purchase-${p.id}`}
+                className={cn(
+                  "rounded-2xl border bg-paper-raised p-4",
+                  initialPurchaseId === p.id
+                    ? "border-highlight ring-1 ring-highlight/30"
+                    : "border-paper-line"
+                )}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -486,6 +523,9 @@ export function PurchasesScreen({
               data={sorted}
               columns={purchaseColumns}
               emptyMessage="لا توجد مشتريات — أنشئ أمر شراء واستلمه"
+              getRowClassName={(p) =>
+                initialPurchaseId === p.id ? "bg-highlight/10" : undefined
+              }
             />
           </div>
         </div>

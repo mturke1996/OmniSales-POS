@@ -14,6 +14,9 @@ import {
   ArrowUUpLeft,
   Truck,
   Handshake,
+  Receipt,
+  ClockAfternoon,
+  CloudArrowUp,
 } from "@phosphor-icons/react";
 import type {
   BranchSettings,
@@ -21,13 +24,19 @@ import type {
   Expense,
   Order,
   Product,
+  Purchase,
   ReturnRecord,
   Shift,
+  Supplier,
 } from "../../lib/types";
 import type { SidebarTab } from "../Sidebar";
 import { cn } from "../../lib/cn";
-import { computeAnalytics } from "../../lib/analytics";
 import { formatMoney } from "../../lib/format";
+import {
+  computeShopHealth,
+  type ActivityItem,
+  type ShopAlert,
+} from "../../lib/shop-health";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
 import { DataTable } from "../ui/DataTable";
@@ -44,9 +53,19 @@ interface DashboardScreenProps {
   products: Product[];
   customers: Customer[];
   expenses: Expense[];
+  purchases?: Purchase[];
+  suppliers?: Supplier[];
   settings: BranchSettings;
   openShift: Shift | null;
+  pendingSync?: number;
   onNavigate: (tab: SidebarTab) => void;
+  onOpenCustomer?: (customerId: string) => void;
+  onOpenInvoice?: (orderId: string) => void;
+  onOpenDelivery?: (orderId: string) => void;
+  onStartReturn?: (orderId: string) => void;
+  onOpenPurchase?: (purchaseId: string) => void;
+  onOpenSupplier?: (supplierId: string) => void;
+  onOpenInventory?: (search: string) => void;
 }
 
 export function DashboardScreen({
@@ -55,36 +74,51 @@ export function DashboardScreen({
   products,
   customers,
   expenses,
+  purchases = [],
+  suppliers = [],
   settings,
   openShift,
+  pendingSync = 0,
   onNavigate,
+  onOpenCustomer,
+  onOpenInvoice,
+  onOpenDelivery,
+  onStartReturn,
+  onOpenPurchase,
+  onOpenSupplier,
+  onOpenInventory,
 }: DashboardScreenProps) {
-  const today = useMemo(
+  const health = useMemo(
     () =>
-      computeAnalytics({
+      computeShopHealth({
         orders,
         returns,
         products,
         customers,
         expenses,
+        purchases,
+        suppliers,
         openShift,
-        period: "today",
+        pendingSync,
+        workMode: settings.work_mode,
+        currencySymbol: settings.currency_symbol,
       }),
-    [orders, returns, products, customers, expenses, openShift]
+    [
+      orders,
+      returns,
+      products,
+      customers,
+      expenses,
+      purchases,
+      suppliers,
+      openShift,
+      pendingSync,
+      settings.work_mode,
+      settings.currency_symbol,
+    ]
   );
-  const week = useMemo(
-    () =>
-      computeAnalytics({
-        orders,
-        returns,
-        products,
-        customers,
-        expenses,
-        openShift,
-        period: "7d",
-      }),
-    [orders, returns, products, customers, expenses, openShift]
-  );
+  const today = health.today;
+  const week = health.week;
 
   const totalDebts = today.debtsTotal;
   const lowStockCount = today.lowStock.length;
@@ -97,15 +131,49 @@ export function DashboardScreen({
   const mixedOrders = today.paymentMix.find((p) => p.method === "mixed")?.count ?? 0;
   const matchTotal = Math.max(today.orderCount, 1);
 
-  const activity = [...orders]
-    .sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
-    .slice(0, 5);
   const topCustomers = [...customers]
     .sort((a, b) => b.balance - a.balance)
     .slice(0, 5);
+
+  const openAlert = (alert: ShopAlert) => {
+    if (alert.customerId && onOpenCustomer) {
+      onOpenCustomer(alert.customerId);
+      return;
+    }
+    if (alert.purchaseId && onOpenPurchase) {
+      onOpenPurchase(alert.purchaseId);
+      return;
+    }
+    if (alert.supplierId && onOpenSupplier) {
+      onOpenSupplier(alert.supplierId);
+      return;
+    }
+    if (alert.search && alert.tab === "inventory" && onOpenInventory) {
+      onOpenInventory(alert.search);
+      return;
+    }
+    onNavigate(alert.tab);
+  };
+
+  const openActivity = (item: ActivityItem) => {
+    if (item.kind === "sale" && item.tab === "invoices" && item.focusId && onOpenInvoice) {
+      onOpenInvoice(item.focusId);
+      return;
+    }
+    if (item.kind === "sale" && item.tab === "orders" && item.focusId && onOpenDelivery) {
+      onOpenDelivery(item.focusId);
+      return;
+    }
+    if (item.kind === "return" && item.focusId && onStartReturn) {
+      onStartReturn(item.focusId);
+      return;
+    }
+    if (item.kind === "purchase" && item.focusId && onOpenPurchase) {
+      onOpenPurchase(item.focusId);
+      return;
+    }
+    onNavigate(item.tab);
+  };
 
   const customerColumns: ColumnDef<Customer, unknown>[] = [
     {
@@ -162,10 +230,12 @@ export function DashboardScreen({
     {
       id: "action",
       header: "إجراء",
-      cell: () => (
+      cell: ({ row }) => (
         <button
           type="button"
-          onClick={() => onNavigate("customers")}
+          onClick={() =>
+            onOpenCustomer ? onOpenCustomer(row.original.id) : onNavigate("customers")
+          }
           className="text-sm font-semibold text-highlight"
         >
           عرض
@@ -178,7 +248,7 @@ export function DashboardScreen({
     <div className="min-h-full bg-paper">
       <PageHeader
         title="لوحة التحكم"
-        description="نظرة شاملة على المبيعات والمخزون والعملاء — محلي أولاً."
+        description="المبيعات والمخزون والمشتريات والعملاء في نظرة واحدة."
         breadcrumbs={[{ label: "OmniSales" }, { label: "لوحة التحكم" }]}
         actions={
           <>
@@ -212,6 +282,46 @@ export function DashboardScreen({
       />
 
       <PageContent size="wide" className="space-y-5">
+        {health.alerts.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {health.alerts.map((alert) => (
+              <button
+                key={alert.id}
+                type="button"
+                onClick={() => openAlert(alert)}
+                className={cn(
+                  "flex min-w-[14rem] shrink-0 items-start gap-2 rounded-2xl border px-3 py-2.5 text-start transition hover:brightness-95",
+                  alert.severity === "critical"
+                    ? "border-danger/30 bg-danger/10"
+                    : alert.severity === "warning"
+                      ? "border-warning/30 bg-warning/10"
+                      : "border-info/25 bg-info/10"
+                )}
+              >
+                <span
+                  className={cn(
+                    "mt-0.5",
+                    alert.severity === "critical"
+                      ? "text-danger"
+                      : alert.severity === "warning"
+                        ? "text-warning"
+                        : "text-info"
+                  )}
+                >
+                  {alertIcon(alert)}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-bold text-ink">
+                    {alert.title}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[11px] text-ink-mute">
+                    {alert.detail}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {/* Hero command — one soft card */}
         <div className="panel flex flex-col gap-4 p-4 sm:gap-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
@@ -252,6 +362,7 @@ export function DashboardScreen({
             delta={`إجمالي ${formatMoney(today.grossSales, settings.currency_symbol)} · مرتجعات ${formatMoney(today.returnsTotal, settings.currency_symbol)}`}
             icon={<Money size={20} weight="duotone" />}
             tone="violet"
+            onClick={() => onNavigate("reports")}
           />
           <Metric
             title="هامش اليوم"
@@ -259,6 +370,7 @@ export function DashboardScreen({
             delta={`${today.orderCount} فاتورة · ${today.returnCount} مرتجع`}
             icon={<TrendUp size={20} weight="duotone" />}
             tone="green"
+            onClick={() => onNavigate("reports")}
           />
           <Metric
             title="الديون"
@@ -266,6 +378,7 @@ export function DashboardScreen({
             delta={`${customers.filter((c) => c.balance > 0).length} عميل`}
             icon={<Users size={20} weight="duotone" />}
             tone="blue"
+            onClick={() => onNavigate("customers")}
           />
           <Metric
             title="نواقص المخزون"
@@ -273,6 +386,11 @@ export function DashboardScreen({
             delta={lowStockCount ? "تحت الحد الأدنى" : "المخزون متزن"}
             icon={<WarningCircle size={20} weight="duotone" />}
             tone="orange"
+            onClick={() =>
+              onOpenInventory
+                ? onOpenInventory(today.lowStock[0]?.name ?? "")
+                : onNavigate("inventory")
+            }
           />
         </div>
 
@@ -318,7 +436,7 @@ export function DashboardScreen({
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-ink">نشاط العمليات</h3>
-                <p className="text-xs text-ink-mute">آخر الفواتير</p>
+                <p className="text-xs text-ink-mute">مبيعات · مرتجعات · مصروفات · مشتريات</p>
               </div>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-success/12 px-2.5 py-1 text-[11px] font-bold text-success">
                 <Pulse size={12} weight="fill" className="animate-pulse" />
@@ -326,37 +444,43 @@ export function DashboardScreen({
               </span>
             </div>
             <div className="space-y-1">
-              {!activity.length ? (
-                <p className="py-12 text-center text-sm text-ink-mute">لا توجد فواتير بعد</p>
+              {!health.activity.length ? (
+                <p className="py-12 text-center text-sm text-ink-mute">لا توجد عمليات بعد</p>
               ) : (
-                activity.map((o) => (
-                  <div
-                    key={o.id}
-                    className="flex items-center gap-3 rounded-2xl px-2 py-3 transition hover:bg-paper"
+                health.activity.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openActivity(item)}
+                    className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-start transition hover:bg-paper"
                   >
-                    <div className="stat-icon bg-highlight/12 text-highlight">
-                      <FileText size={16} weight="duotone" />
+                    <div className={cn("stat-icon", activityTone(item.kind))}>
+                      {activityIcon(item.kind)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-ink">
-                        {o.order_number}
+                        {item.title}
                       </p>
-                      <p className="truncate text-xs text-ink-mute">
-                        {o.customer_name || "عميل نقدي"}
-                      </p>
+                      <p className="truncate text-xs text-ink-mute">{item.subtitle}</p>
                     </div>
                     <div className="shrink-0 text-end">
-                      <p className="money-big text-sm font-bold text-ink">
-                        {o.total_amount.toFixed(2)}
+                      <p
+                        className={cn(
+                          "money-big text-sm font-bold",
+                          item.signedAmount < 0 ? "text-danger" : "text-ink"
+                        )}
+                      >
+                        {item.signedAmount < 0 ? "−" : ""}
+                        {item.amount.toFixed(2)}
                       </p>
                       <p className="text-[11px] text-ink-mute">
-                        {new Date(o.created_at).toLocaleTimeString("ar-LY", {
+                        {new Date(item.at).toLocaleTimeString("ar-LY", {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
                       </p>
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -396,7 +520,11 @@ export function DashboardScreen({
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => onNavigate("customers")}
+                    onClick={() =>
+                      onOpenCustomer
+                        ? onOpenCustomer(c.id)
+                        : onNavigate("customers")
+                    }
                     className="flex w-full items-center gap-3 rounded-xl border border-paper-line bg-paper/40 p-3 text-start active:scale-[0.99]"
                   >
                     <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-highlight/12 text-xs font-bold text-highlight">
@@ -446,6 +574,9 @@ export function DashboardScreen({
           <Quick icon={<Users size={18} />} label="العملاء" onClick={() => onNavigate("customers")} />
           <span className="ms-auto self-center text-xs text-ink-mute">
             مصروفات اليوم: {formatMoney(today.expensesTotal, settings.currency_symbol)}
+            {today.supplierPayables > 0
+              ? ` · ذمم موردين ${formatMoney(today.supplierPayables, settings.currency_symbol)}`
+              : ""}
           </span>
         </div>
       </PageContent>
@@ -459,12 +590,14 @@ function Metric({
   delta,
   icon,
   tone,
+  onClick,
 }: {
   title: string;
   value: string;
   delta: string;
   icon: React.ReactNode;
   tone: "violet" | "green" | "blue" | "orange";
+  onClick?: () => void;
 }) {
   const toneClass = {
     violet: "bg-highlight/12 text-highlight",
@@ -473,20 +606,32 @@ function Metric({
     orange: "bg-warning/12 text-warning",
   }[tone];
 
-  return (
-    <div className="panel p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-ink-mute">{title}</p>
-          <p className="money-big mt-2 truncate text-2xl font-extrabold tracking-tight text-ink">
-            {value}
-          </p>
-          <p className="mt-2 text-xs font-semibold text-success">{delta}</p>
-        </div>
-        <div className={cn("stat-icon shrink-0", toneClass)}>{icon}</div>
+  const inner = (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-ink-mute">{title}</p>
+        <p className="money-big mt-2 truncate text-2xl font-extrabold tracking-tight text-ink">
+          {value}
+        </p>
+        <p className="mt-2 text-xs font-semibold text-success">{delta}</p>
       </div>
+      <div className={cn("stat-icon shrink-0", toneClass)}>{icon}</div>
     </div>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="panel p-4 text-start sm:p-5 transition hover:border-highlight/30"
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return <div className="panel p-4 sm:p-5">{inner}</div>;
 }
 
 function Donut({
@@ -559,4 +704,29 @@ function Quick({
       {label}
     </button>
   );
+}
+
+function alertIcon(alert: ShopAlert) {
+  if (alert.id === "sync") return <CloudArrowUp size={16} weight="bold" />;
+  if (alert.id === "no-shift") return <ClockAfternoon size={16} weight="bold" />;
+  if (alert.id === "open-delivery") return <Truck size={16} weight="bold" />;
+  if (alert.id === "payables" || alert.id === "draft-purchases") {
+    return <Handshake size={16} weight="bold" />;
+  }
+  if (alert.id === "credit-risk") return <Users size={16} weight="bold" />;
+  return <WarningCircle size={16} weight="bold" />;
+}
+
+function activityIcon(kind: ActivityItem["kind"]) {
+  if (kind === "return") return <ArrowUUpLeft size={16} weight="duotone" />;
+  if (kind === "expense") return <Receipt size={16} weight="duotone" />;
+  if (kind === "purchase") return <Handshake size={16} weight="duotone" />;
+  return <FileText size={16} weight="duotone" />;
+}
+
+function activityTone(kind: ActivityItem["kind"]) {
+  if (kind === "return") return "bg-danger/12 text-danger";
+  if (kind === "expense") return "bg-warning/12 text-warning";
+  if (kind === "purchase") return "bg-info/12 text-info";
+  return "bg-highlight/12 text-highlight";
 }

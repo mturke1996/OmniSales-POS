@@ -3,8 +3,10 @@ import type {
   Expense,
   Order,
   Product,
+  Purchase,
   ReturnRecord,
   Shift,
+  Supplier,
 } from "./types";
 
 export type PeriodKey = "today" | "shift" | "7d" | "30d" | "custom";
@@ -22,6 +24,8 @@ export interface AnalyticsInput {
   products: Product[];
   customers: Customer[];
   expenses: Expense[];
+  purchases?: Purchase[];
+  suppliers?: Supplier[];
   openShift?: Shift | null;
   from?: Date;
   to?: Date;
@@ -75,6 +79,18 @@ export interface AnalyticsSnapshot {
   paymentMix: PaymentMixRow[];
   lowStock: Product[];
   cashReturns: number;
+  /** Completed invoices only (owner cash view) */
+  completedGross: number;
+  /** Open delivery / event orders (not period-filtered) */
+  openDeliveryCount: number;
+  /** Received purchases in period */
+  purchasesTotal: number;
+  purchasesCount: number;
+  /** Received purchases still unpaid or partial */
+  unpaidPurchaseCount: number;
+  draftPurchaseCount: number;
+  supplierPayables: number;
+  creditRiskCount: number;
 }
 
 const PAYMENT_AR: Record<string, string> = {
@@ -325,6 +341,42 @@ export function computeAnalytics(input: AnalyticsInput): AnalyticsSnapshot {
     .sort((a, b) => a.stock_quantity - b.stock_quantity)
     .slice(0, 12);
 
+  const completedGross = orders
+    .filter((o) => o.status === "completed")
+    .reduce((s, o) => s + o.total_amount, 0);
+
+  const openDeliveryCount = input.orders.filter(
+    (o) =>
+      (o.type === "delivery" || o.type === "special_event") &&
+      o.status !== "completed" &&
+      o.status !== "cancelled"
+  ).length;
+
+  const allPurchases = input.purchases ?? [];
+  const periodPurchases = allPurchases.filter(
+    (p) =>
+      p.status === "received" &&
+      inRange(p.received_at || p.created_at, range.from, range.to)
+  );
+  const purchasesTotal = periodPurchases.reduce((s, p) => s + p.total_cost, 0);
+  const purchasesCount = periodPurchases.length;
+  const unpaidPurchaseCount = allPurchases.filter((p) => {
+    if (p.status !== "received") return false;
+    if (p.payment_status === "paid") return false;
+    const paid = Number(p.paid_amount) || 0;
+    return paid < p.total_cost;
+  }).length;
+  const draftPurchaseCount = allPurchases.filter((p) => p.status === "draft").length;
+  const supplierPayables = (input.suppliers ?? []).reduce(
+    (s, x) => s + Math.max(0, Number(x.balance) || 0),
+    0
+  );
+  const creditRiskCount = input.customers.filter((c) => {
+    if (c.balance <= 0) return false;
+    if (c.credit_limit <= 0) return true;
+    return c.balance / c.credit_limit >= 0.8;
+  }).length;
+
   return {
     range,
     orders,
@@ -346,6 +398,14 @@ export function computeAnalytics(input: AnalyticsInput): AnalyticsSnapshot {
     paymentMix,
     lowStock,
     cashReturns,
+    completedGross,
+    openDeliveryCount,
+    purchasesTotal,
+    purchasesCount,
+    unpaidPurchaseCount,
+    draftPurchaseCount,
+    supplierPayables,
+    creditRiskCount,
   };
 }
 
@@ -410,6 +470,10 @@ export function exportAnalyticsCsv(snap: AnalyticsSnapshot, currency: string) {
     ["صافي الربح", snap.netProfit.toFixed(2)].join(","),
     ["الضريبة المحصّلة", snap.taxCollected.toFixed(2)].join(","),
     ["المصروفات", snap.expensesTotal.toFixed(2)].join(","),
+    ["مشتريات مستلمة", snap.purchasesTotal.toFixed(2)].join(","),
+    ["ذمم الموردين", snap.supplierPayables.toFixed(2)].join(","),
+    ["توصيل مفتوح", String(snap.openDeliveryCount)].join(","),
+    ["نواقص مخزون", String(snap.lowStock.length)].join(","),
     ["العملة", currency].join(","),
     "",
     ["التاريخ", "إجمالي", "مرتجعات", "صافي"].join(","),

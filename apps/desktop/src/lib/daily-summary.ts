@@ -1,11 +1,18 @@
-import type { BranchSettings, Customer, Expense, Order } from "./types";
+import type {
+  BranchSettings,
+  Customer,
+  Expense,
+  Order,
+  Product,
+  Purchase,
+  ReturnRecord,
+  Supplier,
+} from "./types";
 import { formatMoney } from "./format";
 import { buildDailyOwnerSummary } from "./whatsapp";
+import { computeAnalytics } from "./analytics";
 import { buildEscPosReceiptBytes } from "./print/escpos";
-import {
-  canUseWebSerial,
-  isSerialConnected,
-} from "./print/escpos";
+import { canUseWebSerial, isSerialConnected } from "./print/escpos";
 import { isBluetoothConnected } from "./print/bluetooth-printer";
 import { isNetworkConnected } from "./print/network-printer";
 import { isUsbOtgConnected } from "./print/usb-otg-printer";
@@ -16,9 +23,24 @@ export interface DailySummaryInput {
   orders: Order[];
   expenses: Expense[];
   customers: Customer[];
+  returns?: ReturnRecord[];
+  products?: Product[];
+  purchases?: Purchase[];
+  suppliers?: Supplier[];
 }
 
 export function computeDailySummary(input: DailySummaryInput) {
+  const snap = computeAnalytics({
+    orders: input.orders,
+    returns: input.returns ?? [],
+    products: input.products ?? [],
+    customers: input.customers,
+    expenses: input.expenses,
+    purchases: input.purchases,
+    suppliers: input.suppliers,
+    period: "today",
+  });
+
   const start = new Date();
   start.setHours(0, 0, 0, 0);
 
@@ -28,25 +50,19 @@ export function computeDailySummary(input: DailySummaryInput) {
     )
     .reduce((s, o) => s + o.total_amount, 0);
 
-  const expenseTotal = input.expenses
-    .filter((e) => new Date(e.created_at) >= start)
-    .reduce((s, e) => s + e.amount, 0);
-
-  const debts = input.customers.reduce((s, c) => s + c.balance, 0);
-
-  const deliveryOpen = input.orders.filter(
-    (o) =>
-      o.type === "delivery" &&
-      o.status !== "completed" &&
-      o.status !== "cancelled"
-  ).length;
+  const netSales = Math.max(0, sales - snap.returnsTotal);
 
   return {
     sales,
-    expenses: expenseTotal,
-    net: sales - expenseTotal,
-    debts,
-    deliveryOpen,
+    returns: snap.returnsTotal,
+    netSales,
+    expenses: snap.expensesTotal,
+    net: netSales - snap.expensesTotal,
+    debts: snap.debtsTotal,
+    deliveryOpen: snap.openDeliveryCount,
+    purchases: snap.purchasesTotal,
+    payables: snap.supplierPayables,
+    lowStock: snap.lowStock.length,
     dateLabel: start.toLocaleDateString("ar-LY", {
       weekday: "long",
       year: "numeric",
@@ -68,10 +84,15 @@ export function buildDailySummaryTextLines(input: DailySummaryInput): string[] {
     d.dateLabel,
     "------------------------------",
     `مبيعات مكتملة: ${money(d.sales)}`,
+    `مرتجعات: ${money(d.returns)}`,
+    `صافي المبيعات: ${money(d.netSales)}`,
     `مصروفات: ${money(d.expenses)}`,
+    `مشتريات مستلمة: ${money(d.purchases)}`,
     `##صافي اليوم: ${money(d.net)}`,
     `ديون العملاء: ${money(d.debts)}`,
+    `ذمم الموردين: ${money(d.payables)}`,
     `توصيل مفتوح: ${d.deliveryOpen}`,
+    `نواقص مخزون: ${d.lowStock}`,
     "------------------------------",
     "OmniSales POS",
   ];
@@ -89,15 +110,24 @@ export function buildDailySummaryHtml(input: DailySummaryInput): string {
     debts: d.debts,
     symbol: sym,
     deliveryOpen: d.deliveryOpen,
+    returns: d.returns,
+    purchases: d.purchases,
+    lowStock: d.lowStock,
+    payables: d.payables,
   }).replace(/\*/g, "");
 
   const rows: [string, string][] = [
     ["التاريخ", d.dateLabel],
     ["مبيعات مكتملة", money(d.sales)],
+    ["مرتجعات", money(d.returns)],
+    ["صافي المبيعات", money(d.netSales)],
     ["مصروفات", money(d.expenses)],
+    ["مشتريات مستلمة", money(d.purchases)],
     ["صافي اليوم", money(d.net)],
     ["ديون العملاء", money(d.debts)],
+    ["ذمم الموردين", money(d.payables)],
     ["توصيل مفتوح", String(d.deliveryOpen)],
+    ["نواقص مخزون", String(d.lowStock)],
   ];
 
   const table = rows

@@ -15,6 +15,10 @@ import type {
   Promotion,
   Expense,
   Customer,
+  Product,
+  Purchase,
+  ReturnRecord,
+  Supplier,
 } from "../../lib/types";
 import { PageHeader } from "../layout/PageHeader";
 import { PageContent } from "../layout/PageContent";
@@ -32,6 +36,10 @@ export function OpsScreen({
   orders,
   expenses,
   customers,
+  returns = [],
+  products = [],
+  purchases = [],
+  suppliers = [],
   onRefreshData,
   pendingSync = 0,
   onSync,
@@ -42,6 +50,10 @@ export function OpsScreen({
   orders: Order[];
   expenses: Expense[];
   customers: Customer[];
+  returns?: ReturnRecord[];
+  products?: Product[];
+  purchases?: Purchase[];
+  suppliers?: Supplier[];
   onRefreshData: () => void;
   pendingSync?: number;
   onSync?: () => void | Promise<void>;
@@ -102,8 +114,17 @@ export function OpsScreen({
   );
 
   const summaryInput = useMemo(
-    () => ({ settings, orders, expenses, customers }),
-    [settings, orders, expenses, customers]
+    () => ({
+      settings,
+      orders,
+      expenses,
+      customers,
+      returns,
+      products,
+      purchases,
+      suppliers,
+    }),
+    [settings, orders, expenses, customers, returns, products, purchases, suppliers]
   );
 
   const daily = useMemo(
@@ -118,6 +139,10 @@ export function OpsScreen({
     debts: daily.debts,
     symbol: settings.currency_symbol,
     deliveryOpen: daily.deliveryOpen,
+    returns: daily.returns,
+    purchases: daily.purchases,
+    lowStock: daily.lowStock,
+    payables: daily.payables,
   });
 
   return (
@@ -313,9 +338,15 @@ export function OpsScreen({
           <p className="text-[11px] text-ink-mute">{daily.dateLabel}</p>
           <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
             <div className="rounded-xl bg-paper p-3">
-              <p className="text-ink-mute">مبيعات</p>
+              <p className="text-ink-mute">مبيعات مكتملة</p>
               <p className="font-mono font-bold">
                 {formatMoney(daily.sales, settings.currency_symbol)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-paper p-3">
+              <p className="text-ink-mute">مرتجعات</p>
+              <p className="font-mono font-bold text-danger">
+                {formatMoney(daily.returns, settings.currency_symbol)}
               </p>
             </div>
             <div className="rounded-xl bg-paper p-3">
@@ -331,9 +362,27 @@ export function OpsScreen({
               </p>
             </div>
             <div className="rounded-xl bg-paper p-3">
-              <p className="text-ink-mute">ديون</p>
+              <p className="text-ink-mute">ديون العملاء</p>
               <p className="font-mono font-bold text-danger">
                 {formatMoney(daily.debts, settings.currency_symbol)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-paper p-3">
+              <p className="text-ink-mute">مشتريات مستلمة</p>
+              <p className="font-mono font-bold">
+                {formatMoney(daily.purchases, settings.currency_symbol)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-paper p-3">
+              <p className="text-ink-mute">ذمم الموردين</p>
+              <p className="font-mono font-bold text-warning">
+                {formatMoney(daily.payables, settings.currency_symbol)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-paper p-3">
+              <p className="text-ink-mute">نواقص / توصيل</p>
+              <p className="font-mono font-bold">
+                {daily.lowStock} · {daily.deliveryOpen}
               </p>
             </div>
           </div>

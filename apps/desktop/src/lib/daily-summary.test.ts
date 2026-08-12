@@ -60,6 +60,63 @@ describe("computeDailySummary", () => {
       customers: [],
     });
     expect(summary.sales).toBe(100);
+    expect(summary.returns).toBe(0);
+    expect(summary.net).toBe(100);
+  });
+
+  it("subtracts returns from net and tracks purchases", () => {
+    const today = new Date().toISOString();
+    const summary = computeDailySummary({
+      settings,
+      orders: [
+        {
+          id: "1",
+          order_number: "O1",
+          type: "pos_walk_in",
+          status: "completed",
+          items: [],
+          subtotal: 100,
+          tax_amount: 0,
+          discount_amount: 0,
+          total_amount: 100,
+          payment_method: "cash",
+          created_at: today,
+        },
+      ],
+      expenses: [{ id: "e1", category: "كهرباء", amount: 10, note: "", created_at: today }],
+      customers: [],
+      returns: [
+        {
+          id: "r1",
+          return_number: "RET-1",
+          order_id: "1",
+          order_number: "O1",
+          refund_method: "cash",
+          total_refund: 20,
+          created_at: today,
+          items: [],
+        },
+      ],
+      purchases: [
+        {
+          id: "pu1",
+          purchase_number: "PO-1",
+          supplier_id: "s1",
+          supplier_name: "مورد",
+          items: [],
+          total_cost: 30,
+          status: "received",
+          created_at: today,
+          received_at: today,
+        },
+      ],
+    });
+    expect(summary.sales).toBe(100);
+    expect(summary.returns).toBe(20);
+    expect(summary.netSales).toBe(80);
+    expect(summary.expenses).toBe(10);
+    expect(summary.net).toBe(70);
+    expect(summary.purchases).toBe(30);
   });
 });
 
@@ -73,5 +130,7 @@ describe("buildDailySummaryTextLines", () => {
     });
     expect(lines.some((l) => l.includes("محل"))).toBe(true);
     expect(lines.some((l) => l.includes("صافي"))).toBe(true);
+    expect(lines.some((l) => l.includes("مرتجعات"))).toBe(true);
+    expect(lines.some((l) => l.includes("نواقص"))).toBe(true);
   });
 });

@@ -93,18 +93,37 @@ export function buildDailyOwnerSummary(input: {
   debts: number;
   symbol: string;
   deliveryOpen: number;
+  returns?: number;
+  purchases?: number;
+  lowStock?: number;
+  payables?: number;
 }): string {
-  const net = input.sales - input.expenses;
+  const returns = input.returns ?? 0;
+  const netSales = Math.max(0, input.sales - returns);
+  const net = netSales - input.expenses;
   const date = new Date().toLocaleDateString("ar-LY", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+  const extra: string[] = [];
+  if (returns > 0) extra.push(`المرتجعات: *${returns.toFixed(2)} ${input.symbol}*`);
+  if ((input.purchases ?? 0) > 0) {
+    extra.push(`مشتريات مستلمة: *${(input.purchases ?? 0).toFixed(2)} ${input.symbol}*`);
+  }
+  if ((input.payables ?? 0) > 0) {
+    extra.push(`ذمم الموردين: *${(input.payables ?? 0).toFixed(2)} ${input.symbol}*`);
+  }
+  if ((input.lowStock ?? 0) > 0) {
+    extra.push(`نواقص مخزون: *${input.lowStock}*`);
+  }
+  const extraBlock = extra.length ? `${extra.join("\n")}\n` : "";
   return (
     `📊 *ملخص يومي — ${input.branchName}*\n` +
     `${date}\n\n` +
     `المبيعات المكتملة: *${input.sales.toFixed(2)} ${input.symbol}*\n` +
+    extraBlock +
     `المصروفات: *${input.expenses.toFixed(2)} ${input.symbol}*\n` +
     `صافي اليوم: *${net.toFixed(2)} ${input.symbol}*\n` +
     `ديون العملاء: *${input.debts.toFixed(2)} ${input.symbol}*\n` +

@@ -8,6 +8,8 @@ import {
   DownloadSimple,
   WarningCircle,
   ChartLine,
+  Handshake,
+  Truck,
 } from "@phosphor-icons/react";
 import type {
   BranchSettings,
@@ -15,8 +17,10 @@ import type {
   Expense,
   Order,
   Product,
+  Purchase,
   ReturnRecord,
   Shift,
+  Supplier,
 } from "../../lib/types";
 import {
   computeAnalytics,
@@ -32,6 +36,7 @@ import { DataTable } from "../ui/DataTable";
 import { MobileDataCard, MobileDataList } from "../ui/MobileDataList";
 import { ChartSkeleton } from "../ui/ChartSkeleton";
 import type { ColumnDef } from "@tanstack/react-table";
+import type { SidebarTab } from "../Sidebar";
 
 const SalesTrendChart = lazy(() =>
   import("../charts/SalesTrendChart").then((m) => ({ default: m.SalesTrendChart }))
@@ -56,16 +61,26 @@ export function ReportsScreen({
   products,
   customers,
   expenses,
+  purchases = [],
+  suppliers = [],
   settings,
   openShift,
+  onNavigate,
+  onOpenInventory,
+  onOpenReturn,
 }: {
   orders: Order[];
   returns: ReturnRecord[];
   products: Product[];
   customers: Customer[];
   expenses: Expense[];
+  purchases?: Purchase[];
+  suppliers?: Supplier[];
   settings: BranchSettings;
   openShift: Shift | null;
+  onNavigate?: (tab: SidebarTab) => void;
+  onOpenInventory?: (search: string) => void;
+  onOpenReturn?: (orderId: string) => void;
 }) {
   const [period, setPeriod] = useState<PeriodKey>("7d");
 
@@ -77,10 +92,12 @@ export function ReportsScreen({
         products,
         customers,
         expenses,
+        purchases,
+        suppliers,
         openShift,
         period,
       }),
-    [orders, returns, products, customers, expenses, openShift, period]
+    [orders, returns, products, customers, expenses, purchases, suppliers, openShift, period]
   );
 
   const exportCsv = () => {
@@ -159,7 +176,7 @@ export function ReportsScreen({
       />
       <PageContent size="wide" className="space-y-5">
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-5">
         <Kpi
           title="إجمالي المبيعات"
           value={formatMoney(snap.grossSales, settings.currency_symbol)}
@@ -171,6 +188,7 @@ export function ReportsScreen({
           value={formatMoney(snap.returnsTotal, settings.currency_symbol)}
           sub={`${snap.returnCount} عملية`}
           icon={<ArrowUUpLeft size={18} className="text-danger" />}
+          onClick={onNavigate ? () => onNavigate("returns") : undefined}
         />
         <Kpi
           title="صافي المبيعات"
@@ -203,12 +221,28 @@ export function ReportsScreen({
           value={formatMoney(snap.expensesTotal, settings.currency_symbol)}
           sub="في الفترة"
           icon={<Receipt size={18} className="text-warning" />}
+          onClick={onNavigate ? () => onNavigate("expenses") : undefined}
         />
         <Kpi
           title="ديون مستحقة"
           value={formatMoney(snap.debtsTotal, settings.currency_symbol)}
           sub="رصيد العملاء"
           icon={<Users size={18} className="text-warning" />}
+          onClick={onNavigate ? () => onNavigate("customers") : undefined}
+        />
+        <Kpi
+          title="مشتريات مستلمة"
+          value={formatMoney(snap.purchasesTotal, settings.currency_symbol)}
+          sub={`${snap.purchasesCount} أمر · ${snap.draftPurchaseCount} مسودة`}
+          icon={<Handshake size={18} className="text-info" />}
+          onClick={onNavigate ? () => onNavigate("purchases") : undefined}
+        />
+        <Kpi
+          title="ذمم الموردين"
+          value={formatMoney(snap.supplierPayables, settings.currency_symbol)}
+          sub={`${snap.unpaidPurchaseCount} فاتورة شراء مفتوحة`}
+          icon={<Truck size={18} className="text-warning" />}
+          onClick={onNavigate ? () => onNavigate("purchases") : undefined}
         />
       </div>
 
@@ -247,15 +281,21 @@ export function ReportsScreen({
           </div>
           <div className="max-h-64 space-y-2 overflow-y-auto">
             {snap.lowStock.map((p) => (
-              <div
+              <button
                 key={p.id}
-                className="flex items-center justify-between gap-2 rounded-xl border border-paper-line bg-paper/50 px-3 py-2 text-xs"
+                type="button"
+                onClick={() =>
+                  onOpenInventory
+                    ? onOpenInventory(p.barcode || p.sku || p.name)
+                    : onNavigate?.("inventory")
+                }
+                className="flex w-full items-center justify-between gap-2 rounded-xl border border-paper-line bg-paper/50 px-3 py-2 text-start text-xs transition hover:border-highlight/40"
               >
                 <span className="truncate font-semibold text-ink">{p.name}</span>
                 <span className="shrink-0 font-mono font-bold text-warning">
                   {p.stock_quantity}/{p.min_stock}
                 </span>
-              </div>
+              </button>
             ))}
             {!snap.lowStock.length && (
               <p className="py-8 text-center text-xs text-ink-mute">
@@ -276,6 +316,7 @@ export function ReportsScreen({
               key={r.id}
               title={r.return_number}
               subtitle={`${r.order_number} · ${new Date(r.created_at).toLocaleDateString("ar-LY")}`}
+              onClick={onOpenReturn ? () => onOpenReturn(r.order_id) : undefined}
               badge={
                 <span className="font-mono text-xs font-bold text-danger">
                   −{formatMoney(r.total_refund, settings.currency_symbol)}
@@ -290,6 +331,7 @@ export function ReportsScreen({
             columns={returnColumns}
             emptyMessage="لا مرتجعات في هذه الفترة"
             className="rounded-none border-0"
+            onRowClick={onOpenReturn ? (r) => onOpenReturn(r.order_id) : undefined}
           />
         </div>
       </section>
@@ -304,26 +346,36 @@ function Kpi({
   sub,
   icon,
   emphasis,
+  onClick,
 }: {
   title: string;
   value: string;
   sub: string;
   icon: ReactNode;
   emphasis?: boolean;
+  onClick?: () => void;
 }) {
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border border-paper-line bg-paper-raised p-3 shadow-soft",
-        emphasis && "ring-1 ring-highlight/30"
-      )}
-    >
+  const className = cn(
+    "rounded-2xl border border-paper-line bg-paper-raised p-3 shadow-soft text-start",
+    emphasis && "ring-1 ring-highlight/30",
+    onClick && "transition hover:border-highlight/40"
+  );
+  const body = (
+    <>
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold text-ink-mute">{title}</span>
         {icon}
       </div>
       <p className="truncate text-sm font-extrabold text-ink sm:text-base">{value}</p>
       <p className="mt-0.5 truncate text-[10px] text-ink-mute">{sub}</p>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {body}
+      </button>
+    );
+  }
+  return <div className={className}>{body}</div>;
 }

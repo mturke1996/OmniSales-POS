@@ -8,6 +8,7 @@ import {
   Package,
   Truck,
   ArrowUUpLeft,
+  Handshake,
 } from "@phosphor-icons/react";
 import { NAV_ITEMS } from "../../lib/nav-config";
 import {
@@ -15,7 +16,7 @@ import {
   searchCommandResults,
   type CommandResult,
 } from "../../lib/command-search";
-import type { Customer, Order, Product, ReturnRecord } from "../../lib/types";
+import type { Customer, Order, Product, Purchase, ReturnRecord, Supplier } from "../../lib/types";
 import type { SidebarTab } from "../Sidebar";
 import { cn } from "../../lib/cn";
 
@@ -26,6 +27,8 @@ const GROUP_LABELS: Record<string, string> = {
   returns: "مرتجعات",
   customers: "عملاء",
   products: "أصناف",
+  purchases: "مشتريات",
+  suppliers: "موردون",
 };
 
 export function CommandPalette({
@@ -36,11 +39,16 @@ export function CommandPalette({
   customers,
   products,
   returns,
+  purchases = [],
+  suppliers = [],
   onOpenInvoice,
   onOpenDelivery,
   onOpenReturn,
   onOpenCustomer,
   onOpenProduct,
+  onOpenInventoryProduct,
+  onOpenPurchase,
+  onOpenSupplier,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,11 +57,16 @@ export function CommandPalette({
   customers: Customer[];
   products: Product[];
   returns: ReturnRecord[];
+  purchases?: Purchase[];
+  suppliers?: Supplier[];
   onOpenInvoice: (orderId: string) => void;
   onOpenDelivery: (orderId: string) => void;
   onOpenReturn: (orderId: string) => void;
   onOpenCustomer: (customerId: string) => void;
   onOpenProduct: (searchText: string) => void;
+  onOpenInventoryProduct?: (searchText: string) => void;
+  onOpenPurchase?: (purchaseId: string) => void;
+  onOpenSupplier?: (supplierId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -82,55 +95,42 @@ export function CommandPalette({
   }, [open, onOpenChange]);
 
   const groups = useMemo(
-    () => searchCommandResults(query, NAV_ITEMS, orders, customers, products, returns),
-    [query, orders, customers, products, returns]
+    () =>
+      searchCommandResults(
+        query,
+        NAV_ITEMS,
+        orders,
+        customers,
+        products,
+        returns,
+        purchases,
+        suppliers
+      ),
+    [query, orders, customers, products, returns, purchases, suppliers]
   );
 
   const flat = useMemo(() => flattenCommandResults(groups), [groups]);
 
   const sectionEntries = useMemo(() => {
     const entries: { key: string; label: string; items: CommandResult[] }[] = [];
-    if (groups.navigation.length) {
-      entries.push({
-        key: "navigation",
-        label: GROUP_LABELS.navigation,
-        items: groups.navigation,
-      });
-    }
-    if (groups.invoices.length) {
-      entries.push({
-        key: "invoices",
-        label: GROUP_LABELS.invoices,
-        items: groups.invoices,
-      });
-    }
-    if (groups.deliveries.length) {
-      entries.push({
-        key: "deliveries",
-        label: GROUP_LABELS.deliveries,
-        items: groups.deliveries,
-      });
-    }
-    if (groups.returns.length) {
-      entries.push({
-        key: "returns",
-        label: GROUP_LABELS.returns,
-        items: groups.returns,
-      });
-    }
-    if (groups.customers.length) {
-      entries.push({
-        key: "customers",
-        label: GROUP_LABELS.customers,
-        items: groups.customers,
-      });
-    }
-    if (groups.products.length) {
-      entries.push({
-        key: "products",
-        label: GROUP_LABELS.products,
-        items: groups.products,
-      });
+    const keys = [
+      "navigation",
+      "invoices",
+      "deliveries",
+      "returns",
+      "customers",
+      "products",
+      "purchases",
+      "suppliers",
+    ] as const;
+    for (const key of keys) {
+      if (groups[key].length) {
+        entries.push({
+          key,
+          label: GROUP_LABELS[key],
+          items: groups[key],
+        });
+      }
     }
     return entries;
   }, [groups]);
@@ -156,10 +156,26 @@ export function CommandPalette({
         case "product":
           onOpenProduct(item.searchText);
           break;
+        case "purchase":
+          onOpenPurchase?.(item.purchaseId);
+          break;
+        case "supplier":
+          onOpenSupplier?.(item.supplierId);
+          break;
       }
       onOpenChange(false);
     },
-    [onNavigate, onOpenInvoice, onOpenDelivery, onOpenReturn, onOpenCustomer, onOpenProduct, onOpenChange]
+    [
+      onNavigate,
+      onOpenInvoice,
+      onOpenDelivery,
+      onOpenReturn,
+      onOpenCustomer,
+      onOpenProduct,
+      onOpenPurchase,
+      onOpenSupplier,
+      onOpenChange,
+    ]
   );
 
   useEffect(() => {
@@ -198,7 +214,7 @@ export function CommandPalette({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleInputKeyDown}
-              placeholder="ابحث عن قسم، فاتورة، توصيل، مرتجع، عميل، أو صنف… (⌘K)"
+              placeholder="ابحث عن قسم، فاتورة، توصيل، مرتجع، عميل، صنف، شراء أو مورد… (⌘K)"
               className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-mute"
             />
             <button
@@ -227,28 +243,45 @@ export function CommandPalette({
                       const idx = runningIndex++;
                       return (
                         <li key={item.id}>
-                          <button
-                            type="button"
-                            data-cmd-idx={idx}
-                            onClick={() => activate(item)}
-                            onMouseEnter={() => setActiveIndex(idx)}
+                          <div
                             className={cn(
-                              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm transition",
+                              "flex items-center gap-1 rounded-xl transition",
                               idx === activeIndex
                                 ? "bg-highlight/15 text-ink"
                                 : "text-ink hover:bg-highlight/10"
                             )}
                           >
-                            <ResultIcon item={item} />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium">{resultTitle(item)}</span>
-                              {resultSubtitle(item) ? (
-                                <span className="block truncate text-xs text-ink-mute">
-                                  {resultSubtitle(item)}
-                                </span>
-                              ) : null}
-                            </span>
-                          </button>
+                            <button
+                              type="button"
+                              data-cmd-idx={idx}
+                              onClick={() => activate(item)}
+                              onMouseEnter={() => setActiveIndex(idx)}
+                              className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-start text-sm"
+                            >
+                              <ResultIcon item={item} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium">{resultTitle(item)}</span>
+                                {resultSubtitle(item) ? (
+                                  <span className="block truncate text-xs text-ink-mute">
+                                    {resultSubtitle(item)}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </button>
+                            {item.kind === "product" && onOpenInventoryProduct ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenInventoryProduct(item.searchText);
+                                  onOpenChange(false);
+                                }}
+                                className="me-2 shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold text-highlight hover:bg-highlight/15"
+                              >
+                                مخزون
+                              </button>
+                            ) : null}
+                          </div>
                         </li>
                       );
                     })}
@@ -281,6 +314,10 @@ function ResultIcon({ item }: { item: CommandResult }) {
       <ArrowUUpLeft size={18} weight="duotone" />
     ) : item.kind === "customer" ? (
       <Users size={18} weight="duotone" />
+    ) : item.kind === "purchase" ? (
+      <Handshake size={18} weight="duotone" />
+    ) : item.kind === "supplier" ? (
+      <Truck size={18} weight="duotone" />
     ) : (
       <Package size={18} weight="duotone" />
     );

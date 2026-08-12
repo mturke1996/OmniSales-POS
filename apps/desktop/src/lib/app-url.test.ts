@@ -23,6 +23,17 @@ describe("parseAppUrl", () => {
     expect(returns.returnOrderId).toBe("o3");
   });
 
+  it("reads purchases, suppliers, and inventory query", () => {
+    const state = parseAppUrl("?tab=purchases&purchase=pu1&supplier=s1");
+    expect(state.tab).toBe("purchases");
+    expect(state.purchaseId).toBe("pu1");
+    expect(state.supplierId).toBe("s1");
+
+    const inv = parseAppUrl("?tab=inventory&q=زيت");
+    expect(inv.tab).toBe("inventory");
+    expect(inv.inventoryQuery).toBe("زيت");
+  });
+
   it("ignores invalid tab", () => {
     expect(parseAppUrl("?tab=invalid").tab).toBe("dashboard");
   });

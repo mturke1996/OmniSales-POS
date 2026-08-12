@@ -22,6 +22,9 @@ export type AppUrlState = {
   orderId: string | null;
   customerId: string | null;
   returnOrderId: string | null;
+  purchaseId: string | null;
+  supplierId: string | null;
+  inventoryQuery: string | null;
 };
 
 export function parseAppUrl(search = window.location.search): AppUrlState {
@@ -35,6 +38,9 @@ export function parseAppUrl(search = window.location.search): AppUrlState {
     orderId: q.get("order"),
     customerId: q.get("customer"),
     returnOrderId: q.get("return"),
+    purchaseId: q.get("purchase"),
+    supplierId: q.get("supplier"),
+    inventoryQuery: q.get("q"),
   };
 }
 
@@ -45,6 +51,9 @@ export function writeAppUrl(state: AppUrlState): void {
   if (state.tab === "orders" && state.orderId) q.set("order", state.orderId);
   if (state.tab === "customers" && state.customerId) q.set("customer", state.customerId);
   if (state.tab === "returns" && state.returnOrderId) q.set("return", state.returnOrderId);
+  if (state.tab === "purchases" && state.purchaseId) q.set("purchase", state.purchaseId);
+  if (state.tab === "purchases" && state.supplierId) q.set("supplier", state.supplierId);
+  if (state.tab === "inventory" && state.inventoryQuery) q.set("q", state.inventoryQuery);
 
   const next = q.toString();
   const path = `${window.location.pathname}${next ? `?${next}` : ""}`;
@@ -55,8 +64,30 @@ export function writeAppUrl(state: AppUrlState): void {
 
 export function initialFocusFromUrl(): Pick<
   AppUrlState,
-  "invoiceId" | "orderId" | "customerId" | "returnOrderId"
+  | "invoiceId"
+  | "orderId"
+  | "customerId"
+  | "returnOrderId"
+  | "purchaseId"
+  | "supplierId"
+  | "inventoryQuery"
 > {
-  const { invoiceId, orderId, customerId, returnOrderId } = parseAppUrl();
-  return { invoiceId, orderId, customerId, returnOrderId };
+  const {
+    invoiceId,
+    orderId,
+    customerId,
+    returnOrderId,
+    purchaseId,
+    supplierId,
+    inventoryQuery,
+  } = parseAppUrl();
+  return {
+    invoiceId,
+    orderId,
+    customerId,
+    returnOrderId,
+    purchaseId,
+    supplierId,
+    inventoryQuery,
+  };
 }

@@ -96,8 +96,16 @@ export default function App() {
     urlFocus.invoiceId
   );
   const [focusOrderId, setFocusOrderId] = useState<string | null>(urlFocus.orderId);
+  const [focusPurchaseId, setFocusPurchaseId] = useState<string | null>(
+    urlFocus.purchaseId
+  );
+  const [focusSupplierId, setFocusSupplierId] = useState<string | null>(
+    urlFocus.supplierId
+  );
   const [posSearchQuery, setPosSearchQuery] = useState<string | null>(null);
-  const [inventorySearchQuery, setInventorySearchQuery] = useState<string | null>(null);
+  const [inventorySearchQuery, setInventorySearchQuery] = useState<string | null>(
+    urlFocus.inventoryQuery
+  );
   const [commandOpen, setCommandOpen] = useState(false);
 
   const navigate = useCallback((next: SidebarTab) => {
@@ -109,6 +117,10 @@ export default function App() {
     if (next !== "orders") setFocusOrderId(null);
     if (next !== "pos") setPosSearchQuery(null);
     if (next !== "inventory") setInventorySearchQuery(null);
+    if (next !== "purchases") {
+      setFocusPurchaseId(null);
+      setFocusSupplierId(null);
+    }
   }, []);
 
   useEffect(() => {
@@ -119,8 +131,22 @@ export default function App() {
       orderId: focusOrderId,
       customerId: profileCustomerId,
       returnOrderId,
+      purchaseId: focusPurchaseId,
+      supplierId: focusSupplierId,
+      inventoryQuery: inventorySearchQuery,
     });
-  }, [tab, focusInvoiceId, focusOrderId, profileCustomerId, returnOrderId, session, data]);
+  }, [
+    tab,
+    focusInvoiceId,
+    focusOrderId,
+    profileCustomerId,
+    returnOrderId,
+    focusPurchaseId,
+    focusSupplierId,
+    inventorySearchQuery,
+    session,
+    data,
+  ]);
 
   const refreshPending = useCallback(() => {
     void getPendingSyncCount().then(setPendingSync);
@@ -308,9 +334,40 @@ export default function App() {
                 products={data.products}
                 customers={data.customers}
                 expenses={data.expenses}
+                purchases={data.purchases}
+                suppliers={data.suppliers}
                 settings={draft}
                 openShift={shift}
+                pendingSync={pendingSync}
                 onNavigate={navigate}
+                onOpenCustomer={(customerId) => {
+                  setProfileCustomerId(customerId);
+                  navigate("customers");
+                }}
+                onOpenInvoice={(orderId) => {
+                  setFocusInvoiceId(orderId);
+                  navigate("invoices");
+                }}
+                onOpenDelivery={(orderId) => {
+                  setFocusOrderId(orderId);
+                  navigate("orders");
+                }}
+                onStartReturn={(orderId) => {
+                  setReturnOrderId(orderId);
+                  navigate("returns");
+                }}
+                onOpenPurchase={(purchaseId) => {
+                  setFocusPurchaseId(purchaseId);
+                  navigate("purchases");
+                }}
+                onOpenSupplier={(supplierId) => {
+                  setFocusSupplierId(supplierId);
+                  navigate("purchases");
+                }}
+                onOpenInventory={(search) => {
+                  setInventorySearchQuery(search);
+                  navigate("inventory");
+                }}
               />
             )}
 
@@ -399,6 +456,8 @@ export default function App() {
                   products={data.products}
                   settings={draft}
                   onRefreshData={loadData}
+                  initialPurchaseId={focusPurchaseId}
+                  initialSupplierId={focusSupplierId}
                 />
               ) : (
                 <div className="mx-auto max-w-lg px-4 py-16 text-center">
@@ -464,6 +523,10 @@ export default function App() {
                   orders={data.orders}
                   expenses={data.expenses}
                   customers={data.customers}
+                  returns={data.returns}
+                  products={data.products}
+                  purchases={data.purchases}
+                  suppliers={data.suppliers}
                   onRefreshData={loadData}
                   pendingSync={pendingSync}
                   onSync={() => void handleCloudSync()}
@@ -485,8 +548,19 @@ export default function App() {
                 products={data.products}
                 customers={data.customers}
                 expenses={data.expenses}
+                purchases={data.purchases}
+                suppliers={data.suppliers}
                 settings={draft}
                 openShift={shift}
+                onNavigate={navigate}
+                onOpenInventory={(search) => {
+                  setInventorySearchQuery(search);
+                  navigate("inventory");
+                }}
+                onOpenReturn={(orderId) => {
+                  setReturnOrderId(orderId);
+                  navigate("returns");
+                }}
               />
             )}
 
@@ -568,6 +642,8 @@ export default function App() {
         customers={data.customers}
         products={data.products}
         returns={data.returns}
+        purchases={data.purchases}
+        suppliers={data.suppliers}
         onOpenInvoice={(orderId) => {
           setFocusInvoiceId(orderId);
           navigate("invoices");
@@ -587,6 +663,18 @@ export default function App() {
         onOpenProduct={(searchText) => {
           setPosSearchQuery(searchText);
           navigate("pos");
+        }}
+        onOpenInventoryProduct={(searchText) => {
+          setInventorySearchQuery(searchText);
+          navigate("inventory");
+        }}
+        onOpenPurchase={(purchaseId) => {
+          setFocusPurchaseId(purchaseId);
+          navigate("purchases");
+        }}
+        onOpenSupplier={(supplierId) => {
+          setFocusSupplierId(supplierId);
+          navigate("purchases");
         }}
       />
     </AppShell>

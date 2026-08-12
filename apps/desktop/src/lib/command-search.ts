@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { filterCatalog } from "./catalog";
 import { formatMoney } from "./format";
-import type { Customer, Order, Product, ReturnRecord } from "./types";
+import type { Customer, Order, Product, Purchase, ReturnRecord, Supplier } from "./types";
 import type { NavItem } from "./nav-config";
 import type { SidebarTab } from "../components/Sidebar";
 import { STATUS_AR } from "./pdf/pdfBrand";
@@ -58,13 +58,31 @@ export type CommandProductResult = {
   searchText: string;
 };
 
+export type CommandPurchaseResult = {
+  kind: "purchase";
+  id: string;
+  purchaseId: string;
+  title: string;
+  subtitle: string;
+};
+
+export type CommandSupplierResult = {
+  kind: "supplier";
+  id: string;
+  supplierId: string;
+  title: string;
+  subtitle: string;
+};
+
 export type CommandResult =
   | CommandNavResult
   | CommandInvoiceResult
   | CommandDeliveryResult
   | CommandReturnResult
   | CommandCustomerResult
-  | CommandProductResult;
+  | CommandProductResult
+  | CommandPurchaseResult
+  | CommandSupplierResult;
 
 export type CommandSearchGroups = {
   navigation: CommandNavResult[];
@@ -73,6 +91,8 @@ export type CommandSearchGroups = {
   returns: CommandReturnResult[];
   customers: CommandCustomerResult[];
   products: CommandProductResult[];
+  purchases: CommandPurchaseResult[];
+  suppliers: CommandSupplierResult[];
 };
 
 function matchNav(items: NavItem[], q: string): CommandNavResult[] {
@@ -204,9 +224,60 @@ function matchProducts(products: Product[], q: string): CommandProductResult[] {
       id: `prod-${p.id}`,
       productId: p.id,
       title: p.name,
-      subtitle: [p.sku, p.barcode, formatMoney(p.retail_price)].filter(Boolean).join(" · "),
+      subtitle: [
+        p.sku,
+        p.barcode,
+        formatMoney(p.retail_price),
+        p.track_stock ? `مخزون ${p.stock_quantity}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
       searchText: p.barcode || p.sku || p.name,
     }));
+}
+
+function matchPurchases(purchases: Purchase[], q: string): CommandPurchaseResult[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return [];
+  const hits: CommandPurchaseResult[] = [];
+  for (const p of purchases) {
+    const hay = `${p.purchase_number} ${p.supplier_name}`.toLowerCase();
+    if (!hay.includes(needle)) continue;
+    const status = p.status === "received" ? "مستلم" : "مسودة";
+    hits.push({
+      kind: "purchase",
+      id: `pur-${p.id}`,
+      purchaseId: p.id,
+      title: p.purchase_number,
+      subtitle: [p.supplier_name, status, formatMoney(p.total_cost)]
+        .filter(Boolean)
+        .join(" · "),
+    });
+    if (hits.length >= MAX_DATA) break;
+  }
+  return hits;
+}
+
+function matchSuppliers(suppliers: Supplier[], q: string): CommandSupplierResult[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return [];
+  const hits: CommandSupplierResult[] = [];
+  for (const s of suppliers) {
+    const hay = `${s.name} ${s.phone} ${s.address ?? ""}`.toLowerCase();
+    if (!hay.includes(needle)) continue;
+    hits.push({
+      kind: "supplier",
+      id: `sup-${s.id}`,
+      supplierId: s.id,
+      title: s.name,
+      subtitle:
+        s.balance > 0
+          ? `مستحق ${formatMoney(s.balance)}`
+          : s.phone || "بدون هاتف",
+    });
+    if (hits.length >= MAX_DATA) break;
+  }
+  return hits;
 }
 
 export function searchCommandResults(
@@ -215,7 +286,9 @@ export function searchCommandResults(
   orders: Order[],
   customers: Customer[],
   products: Product[],
-  returns: ReturnRecord[] = []
+  returns: ReturnRecord[] = [],
+  purchases: Purchase[] = [],
+  suppliers: Supplier[] = []
 ): CommandSearchGroups {
   const q = query.trim();
   const showData = q.length >= 1;
@@ -226,6 +299,8 @@ export function searchCommandResults(
     returns: showData ? matchReturns(returns, query) : [],
     customers: showData ? matchCustomers(customers, query) : [],
     products: showData ? matchProducts(products, query) : [],
+    purchases: showData ? matchPurchases(purchases, query) : [],
+    suppliers: showData ? matchSuppliers(suppliers, query) : [],
   };
 }
 
@@ -237,5 +312,7 @@ export function flattenCommandResults(groups: CommandSearchGroups): CommandResul
     ...groups.returns,
     ...groups.customers,
     ...groups.products,
+    ...groups.purchases,
+    ...groups.suppliers,
   ];
 }

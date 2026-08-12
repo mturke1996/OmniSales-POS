@@ -110,6 +110,35 @@ describe("searchCommandResults", () => {
     const groups = searchCommandResults("6291", NAV_ITEMS, orders, customers, products, returns);
     expect(groups.products).toHaveLength(1);
     expect(groups.products[0]?.productId).toBe("p1");
+    expect(groups.products[0]?.subtitle).toContain("مخزون");
+  });
+
+  it("finds purchases and suppliers", () => {
+    const groups = searchCommandResults(
+      "النور",
+      NAV_ITEMS,
+      orders,
+      customers,
+      products,
+      returns,
+      [
+        {
+          id: "pu1",
+          purchase_number: "PO-88",
+          supplier_id: "s1",
+          supplier_name: "مورد النور",
+          items: [],
+          total_cost: 40,
+          status: "draft",
+          created_at: "2026-01-01T10:00:00Z",
+        },
+      ],
+      [{ id: "s1", name: "مورد النور", phone: "092222", balance: 12, created_at: "" }]
+    );
+    expect(groups.purchases).toHaveLength(1);
+    expect(groups.purchases[0]?.purchaseId).toBe("pu1");
+    expect(groups.suppliers).toHaveLength(1);
+    expect(groups.suppliers[0]?.supplierId).toBe("s1");
   });
 
   it("flattens groups in stable order", () => {
